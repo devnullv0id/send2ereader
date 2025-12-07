@@ -4,6 +4,9 @@ FROM node:lts-alpine
 # Create app directory
 WORKDIR /usr/src/app
 
+# Install dependencies
+RUN apk add --no-cache gcc g++ make pkgconfig python3-dev
+
 # Download and install kepubify
 RUN wget https://github.com/pgaskin/kepubify/releases/download/v4.0.4/kepubify-linux-64bit && \
     mv kepubify-linux-64bit /usr/local/bin/kepubify && \
