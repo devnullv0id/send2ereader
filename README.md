@@ -13,6 +13,18 @@ A self hostable service for sending ebooks to a Kobo or Kindle ereader through t
 5. Install [pdfCropMargins](https://github.com/abarker/pdfCropMargins), and have the pdfcropmargins executable in your PATH.
 6. Start this service by running: `$ npm start` and access it on HTTP port 3001
 
+### Docker Compose
+```
+services:
+  send2ereader:
+    image: ghcr.io/devnullv0id/send2ereader:latest
+    container_name: send2ereader
+    restart: unless-stopped
+    ports:
+      - 3001:3001
+
+```
+
 ### Containerized
 1. You need [Docker](https://www.docker.com/) and [docker-compose](https://docs.docker.com/compose/) installed
 2. Clone this repo (you need Dockerfile, docker-compose.yaml and package.json in the same directory)
