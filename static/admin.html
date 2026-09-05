@@ -22,8 +22,8 @@
 		<div class="wrap">
 			<div class="settings">
 				<h1 class="page-title">Admin</h1>
-				<p class="list-page__sub" id="intro">Everything here applies to the whole server. Anything you set overrides the same key in the environment file, which is never rewritten. Below the line in the list are the keys that decide how the process starts and what protects it: those are shown as they are, and changed in the environment file.</p>
-				<p class="settings__line">The address, mail, single sign-on, passwords and which converters to fetch are the five the first-run assistant asks for, one at a time. <a class="btn-link" href="/setup/start">Open the setup assistant</a></p>
+				<p class="list-page__sub" id="intro">Server-wide, and set here rather than in the environment file. Below the line in the list are the ones only that file can change.</p>
+				<p class="settings__line">The first five are what the setup assistant asks for, one at a time. <a class="btn-link" href="/setup/start">Open the setup assistant</a></p>
 
 				<div class="settings__body">
 					<nav class="settings__rail" aria-label="Admin sections">
@@ -47,7 +47,7 @@
 
 						<section id="panel-kfx" data-panel="kfx" hidden>
 							<div class="settings__section">Converters</div>
-							<p class="settings__intro">This server sends EPUB, and makes KEPUB for a Kobo, on its own. Everything else is fetched onto this machine when you ask for it, and can be removed again — nothing stops working while it installs.</p>
+							<p class="settings__intro">EPUB and KEPUB work on their own. The rest is fetched when you ask, and can be removed again.</p>
 
 							<dl class="danger__list" id="kfxList"></dl>
 
@@ -59,7 +59,7 @@
 
 						<section id="panel-backup" data-panel="backup" hidden>
 							<div class="settings__section">Download a backup</div>
-							<p class="settings__intro">One <span class="mono">.tar.gz</span> holding the database and every kept book. It is taken while the server runs, with SQLite's own copy, so nothing is caught half-written.</p>
+							<p class="settings__intro">One <span class="mono">.tar.gz</span> of the database and every kept book, taken safely while the server runs.</p>
 
 							<dl class="danger__list">
 								<dt>&plus;</dt><dd id="backupAccounts">Accounts, devices, sessions and everything set on this page</dd>
@@ -75,19 +75,19 @@
 
 							<div class="settings__rule"></div>
 							<div class="settings__section">Putting one back</div>
-							<p class="settings__intro">There is no button for this, on purpose: restoring over a running server would race whatever it is doing. Stop it first, then unpack.</p>
+							<p class="settings__intro">No button on purpose: restoring over a running server would race it. Stop it first, then unpack.</p>
 							<div class="endpoint">
 								<div class="manual__line">
 									<div class="manual__line-text mono" id="restoreLine">docker compose down &amp;&amp; tar -xzf send2ereader-backup.tar.gz -C /your/data &amp;&amp; docker compose up -d</div>
 									<button type="button" class="manual__line-copy" id="restoreCopy">Copy</button>
 								</div>
 							</div>
-							<p class="field-note field-note--wide">The archive holds <span class="mono">db/</span> and <span class="mono">library/</span>, which is the shape of the data directory. Unpacking it over that directory puts both back where they were. If the session key was lost with the server, sessions end and stored Kobo tokens and two-factor secrets cannot be read — everything else returns.</p>
+							<p class="field-note field-note--wide">It holds <span class="mono">db/</span> and <span class="mono">library/</span>, so unpack it over the data directory. Without the session key, sessions end and stored secrets stay unreadable.</p>
 						</section>
 
 						<section id="panel-restart" data-panel="restart" hidden>
 							<div class="settings__section">Restart the server</div>
-							<p class="settings__intro">Some settings only take hold on a restart — the ones marked on their field. Everything else is already live and needs none of this.</p>
+							<p class="settings__intro">Only the fields marked as needing one. Everything else is already live.</p>
 
 							<div class="danger">
 								<div class="danger__title">What a restart costs</div>
@@ -102,7 +102,7 @@
 								<div class="danger__row">
 									<button type="button" class="danger__go" id="restartGo" disabled>Restart the server</button>
 								</div>
-								<p class="danger__note" id="restartUnsupported" hidden>This server is not running in a container, so exiting would leave nothing to start it again. A restart is offered where Docker, or another supervisor, is watching the process.</p>
+								<p class="danger__note" id="restartUnsupported" hidden>Not in a container, so exiting would leave nothing to start it again.</p>
 							</div>
 
 							<div class="status-box" id="restartWaiting" hidden>
@@ -155,8 +155,8 @@
 	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="passkeyWarnTitle">
 		<div class="modal__title" id="passkeyWarnTitle">This removes every passkey on this server</div>
 		<p class="modal__text" id="passkeyWarnCount"></p>
-		<p class="modal__text">A passkey is tied to the address it was created under. Once the address changes, the old ones can never be offered again — leaving them in place would mean a sign-in button that silently does nothing.</p>
-		<p class="modal__text">They are deleted now. Everyone who had one is told why the next time they sign in, and asked to make another. Passwords, codes and recovery codes are untouched.</p>
+		<p class="modal__text">A passkey is tied to the address it was made under, so changing the address makes every existing one unusable.</p>
+		<p class="modal__text">Deleted. Everyone who had one is told why at their next sign-in. Passwords and codes are untouched.</p>
 		<div class="modal__actions">
 			<button type="button" class="btn btn--sm btn--danger" id="passkeyWarnGo" data-modal-default>Change it anyway</button>
 			<button type="button" class="btn btn--err" id="passkeyWarnCancel">Keep the address</button>

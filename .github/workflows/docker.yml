@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - master
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - '.gitattributes'
+      - 'LICENSE'
     tags:
       - 'v*'
   workflow_dispatch:
@@ -45,7 +50,7 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Use Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -159,21 +164,21 @@ jobs:
           ref: ${{ inputs.ref }}
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to the registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.FORGE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Derive tags and labels
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           flavor: |
@@ -189,13 +194,15 @@ jobs:
             org.opencontainers.image.version=${{ needs.version.outputs.version }}
 
       - name: Build and push amd64
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
           push: true
           build-args: |
             KFX_INPUT_PLUGIN_URL=${{ vars.KFX_INPUT_PLUGIN_URL }}
+            EPUB_LAYOUT_FIX_FORGE=${{ vars.EPUB_LAYOUT_FIX_FORGE }}
+            EPUB_LAYOUT_FIX_HOST=${{ vars.EPUB_LAYOUT_FIX_HOST }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}-amd64
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: ${{ vars.BUILD_CACHE != 'off' && 'type=gha,scope=amd64' || '' }}
@@ -204,13 +211,15 @@ jobs:
           sbom: false
 
       - name: Build and push arm64
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/arm64
           push: true
           build-args: |
             KFX_INPUT_PLUGIN_URL=${{ vars.KFX_INPUT_PLUGIN_URL }}
+            EPUB_LAYOUT_FIX_FORGE=${{ vars.EPUB_LAYOUT_FIX_FORGE }}
+            EPUB_LAYOUT_FIX_HOST=${{ vars.EPUB_LAYOUT_FIX_HOST }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}-arm64
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: ${{ vars.BUILD_CACHE != 'off' && 'type=gha,scope=arm64' || '' }}
@@ -243,16 +252,28 @@ jobs:
         run: |
           IMAGE="$(printf '%s' '${{ steps.meta.outputs.tags }}' | head -1)"
           echo "Smoke testing ${IMAGE}"
-          docker run -d --name smoke -p 3001:3001 \
-            -e ACCOUNTS=false -e CONVERT_RATE_MAX=100 "${IMAGE}"
+
+          NETWORK="$(docker inspect "$(hostname)" \
+            --format '{{range $name, $_ := .NetworkSettings.Networks}}{{$name}}{{end}}' 2>/dev/null || true)"
+
+          if [ -n "$NETWORK" ]; then
+            echo "this job is a container; joining ${NETWORK}"
+            docker run -d --name smoke --network "$NETWORK" \
+              -e ACCOUNTS=false -e CONVERT_RATE_MAX=100 "${IMAGE}"
+            BASE="http://smoke:3001"
+          else
+            docker run -d --name smoke -p 3001:3001 \
+              -e ACCOUNTS=false -e CONVERT_RATE_MAX=100 "${IMAGE}"
+            BASE="http://127.0.0.1:3001"
+          fi
 
           for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:3001/healthz >/dev/null 2>&1; then break; fi
+            if curl -fsS "${BASE}/healthz" >/dev/null 2>&1; then break; fi
             sleep 2
           done
-          curl -fsS http://127.0.0.1:3001/healthz
+          curl -fsS "${BASE}/healthz"
 
-          node scripts/smoke-convert.mjs http://127.0.0.1:3001
+          node scripts/smoke-convert.mjs "${BASE}"
 
       - name: What the container said, if it did not
         if: failure()
@@ -305,13 +326,13 @@ jobs:
           fetch-depth: 0
 
       - name: Use Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
 
       - name: Publish the release
         env:
-          RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.FORGE_TOKEN || secrets.GITHUB_TOKEN }}
           IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           TAG: ${{ needs.version.outputs.tag }}
           VERSION: ${{ needs.version.outputs.version }}

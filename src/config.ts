@@ -42,6 +42,17 @@ function bool(name: string, fallback: boolean): boolean {
   return ['1', 'true', 'yes', 'on'].includes(value.toLowerCase())
 }
 
+const TRUTHY = ['1', 'true', 'yes', 'on']
+const FALSY = ['0', 'false', 'no', 'off', 'none']
+
+export function proxyTrust(value: string | undefined, fallback: boolean): boolean | string {
+  if (value === undefined || value === '') return fallback
+  const lowered = value.trim().toLowerCase()
+  if (TRUTHY.includes(lowered)) return true
+  if (FALSY.includes(lowered)) return false
+  return value.trim()
+}
+
 function dir(name: string, fallback: string): string {
   const value = str(name, fallback)
   return isAbsolute(value) ? value : join(rootDir, value)
@@ -62,7 +73,7 @@ export const config = {
   httpPort: int('HTTP_PORT', 3001),
   protocol: str('PROTOCOL', 'http'),
   domain: str('DOMAIN', ''),
-  trustProxy: bool('TRUST_PROXY', false),
+  trustProxy: proxyTrust(raw('TRUST_PROXY'), false),
 
   dataDir: dir('DATA_DIR', 'data'),
   uploadDir: dir('UPLOAD_DIR', 'uploads'),

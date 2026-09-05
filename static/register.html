@@ -40,7 +40,7 @@
 					<div class="auth__label">Password</div>
 					<div class="auth__field-wrap">
 						<input class="auth__field" type="password" id="password" name="password" placeholder="At least eight characters" autocomplete="new-password" required data-password-note/>
-						<button type="button" class="auth__reveal" data-reveal aria-pressed="false" aria-label="Show the passwords"><i class="ph ph-eye" aria-hidden="true"></i></button>
+						<button type="button" class="auth__reveal" data-reveal tabindex="-1" aria-pressed="false" aria-label="Show the passwords"><i class="ph ph-eye" aria-hidden="true"></i></button>
 					</div>
 					<div class="pw-rules" data-pw-rules="password" aria-hidden="true"></div>
 					<div class="auth__field-wrap">
@@ -63,7 +63,7 @@
 <div class="modal-scrim modal-scrim--codes" id="codesModal" hidden>
 	<div class="modal modal--codes" role="dialog" aria-modal="true" aria-labelledby="codesModalTitle">
 		<div class="modal__title" id="codesModalTitle">Write this down before you go on</div>
-		<p class="modal__text">This server has no mail configured, so it cannot send you a reset link. This line of six words is your way back in if you forget the password. It works in place of it, on the sign-in page.</p>
+		<p class="modal__text">No mail is configured, so there is no reset link. These six words are your way back in, used in place of the password on the sign-in page.</p>
 		<p class="modal__text">Shown once. Keep it somewhere that is not this computer.</p>
 		<div class="codes">
 			<div class="codes__phrase" id="codesPhrase"></div>

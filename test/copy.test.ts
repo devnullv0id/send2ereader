@@ -91,6 +91,11 @@ const OVERRIDES: { was: string; now: string; why: string }[] = [
     why: 'the same change: the line said what was happening and not what to do about it, and this state is the one where somebody is most likely to be stuck',
   },
   {
+    was: 'No book files are deleted, because none were ever kept. Books already on your ereader stay there. Anonymous sending keeps working.',
+    now: 'Any books this server is still keeping for you go with it. Books already on your eReader stay there. Anonymous sending keeps working.',
+    why: 'bug, not taste: it was true when nothing was ever kept server-side, and the library made it false. Deleting your own account runs library.forgetUser (src/routes/devices.ts:356), which removes every kept book file for good — so the sentence promised the opposite of what the button does, on an action that cannot be undone',
+  },
+  {
     was: 'Regenerate token',
     now: 'New token',
     why: 'asked for, to a supplied mockup: two quiet text links became two buttons, with the consequence of each written underneath rather than left to the words on them',
@@ -266,6 +271,116 @@ const OVERRIDES: { was: string; now: string; why: string }[] = [
     was: 'a submit that is always live',
     now: 'a submit gated until the fields are filled and the passwords match',
     why: 'asked for: a live button on an incomplete form promises a round trip that only comes back with a complaint',
+  },
+  {
+    was: 'MOBI is the one whose cover the Kindle displays. AZW3 is newer, but a downloaded AZW3 arrives without its cover.',
+    now: 'MOBI keeps its cover on a Kindle. A downloaded AZW3 does not.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: "The same settings the calibre plugin offers. Anything left as it is here is left to the engine's own default, and nothing is sent with the book.",
+    now: "Anything left alone uses the engine's own default.",
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: "History lists what you have sent and converted. Without a library that list is this browser's own and goes no further; with one, it is kept on the server and the books can be fetched again until each reaches its deadline.",
+    now: "Without a library, History is this browser's own. With one, the books are kept here until their deadline.",
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: 'Off by default. With it off this server keeps nothing: a book is deleted the moment it has been delivered, and History shows only what this browser sent. With it on, what you send and convert stays here so you can fetch it again.',
+    now: 'Off, a book is deleted the moment it is delivered. On, it stays here so you can fetch it again.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: "A Kobo asks a server for its library every time it syncs, and which server that is lives in one line of a config file on the device. Point it here and a book you send arrives the way a bought one does — proper title, author and cover, filed in the device's own library instead of dropped in as a loose sideloaded file. The queue keeps nothing of its own: it holds each book only until the device collects it.",
+    now: "Point your Kobo here and a sent book arrives the way a bought one does: title, author and cover, in the device's own library. The queue holds it only until the device collects it.",
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: "A new token invalidates the old URL — you'd edit the config file again. Turning sync off deletes the endpoint and anything waiting at it.",
+    now: 'A new token breaks the old URL. Turning sync off deletes the endpoint and anything waiting at it.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: 'The host and protocol come from whatever public address your server is configured with, so this line is already correct for your instance.',
+    now: "Built from this server's public address, so it is already right.",
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: 'Save, eject properly, unplug. On the device tap Sync — the first one takes a minute while it rebuilds the library.',
+    now: 'Save, eject, unplug. Tap Sync on the device — the first one takes a minute.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: "The file is deleted the moment the device confirms delivery — that isn't optional, and this app never keeps a library. The endpoint only answers requests carrying this token. Anyone holding the URL can push a book to your device or collect one waiting there, so treat it like a password and regenerate if it leaks.",
+    now: 'The endpoint answers only requests carrying this token, and anyone holding the URL can push a book to your device or collect one waiting. Treat it like a password.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: "Shown to whoever administers this server, so they can tell one account from another without reading everybody's address.",
+    now: 'Shown to whoever administers this server, so they can tell accounts apart without reading addresses.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: 'Kobo sync needs a confirmed address: it hands the device a token that can collect your books, so the address has to be one you can actually open. Everything else already works, including sending by key.',
+    now: 'Kobo sync needs a confirmed address, because the device is handed a token that can collect your books. Everything else already works.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: 'The address only changes once you open the link we send to the new one. The old address gets a notice either way.',
+    now: 'It changes only once you open the link sent to the new address. The old one gets a notice either way.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: 'A passkey signs you in with the fingerprint reader or PIN that already unlocks your device. Nothing to remember, and nothing a leaked database could reveal.',
+    now: 'Signs you in with the fingerprint reader or PIN that already unlocks your device.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: 'Ask for a six-digit code from an authenticator app after the password. Sending a book never asks for it, only signing in does.',
+    now: 'A six-digit code from an authenticator app, after the password. Only signing in asks for it.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: "This can't be undone and no confirmation email is sent. You'll be signed out immediately and this browser goes back to anonymous sending.",
+    now: "This can't be undone. You'll be signed out and this browser goes back to anonymous sending.",
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: 'This is the only account on this server. Deleting it puts the server back to its first-run state, where the next person to open it in a browser is asked to create the administrator account.',
+    now: 'The only account on this server. Deleting it puts the server back to its first-run state.',
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: "This is the only time they're shown. Each code works once, and they're the way back in if you lose the authenticator.",
+    now: "Shown once. Each works once, and they're the way back in if you lose the authenticator.",
+    why: 'asked for: the page read like an essay when the job is configuring a server. One sentence saying what happens, and the reasoning left to the commit that set it',
+  },
+  {
+    was: 'The device collects it the next time it syncs — asleep, off wifi or in a bag is fine. After a day, or the moment it downloads, the server drops the file.',
+    now: 'Collected on the next sync; asleep or off wifi is fine. Dropped after a day, or once it downloads.',
+    why: 'asked for: the same pass that cut the configuration screens. What happens, in a sentence, with the reasoning left to the commit',
+  },
+  {
+    was: 'The upload and the conversion finish either way — they are already under way. What waits is the last step: the book is not handed to your eReader until you answer.',
+    now: 'The upload and conversion finish either way. Only the hand-off to your eReader waits for your answer.',
+    why: 'asked for: the same pass that cut the configuration screens. What happens, in a sentence, with the reasoning left to the commit',
+  },
+  {
+    was: 'Names, sizes and destinations live in this browser\'s storage — clearing site data clears them, and another browser shows nothing. "Send again" takes you back to step 2 to pick the file once more; no copy was kept anywhere.',
+    now: 'Kept in this browser\'s storage, so clearing site data clears them. "Send again" returns to step 2 to pick the file again.',
+    why: 'asked for: the same pass that cut the configuration screens. What happens, in a sentence, with the reasoning left to the commit',
+  },
+  {
+    was: 'Each book keeps the deadline it was given when it arrived, so changing how long books are kept in Settings applies to the next one and not to these. Downloading takes a copy and leaves the book here; Delete removes the file from the server straight away.',
+    now: 'Each book keeps the deadline it arrived with, so a change in Settings applies to the next one. Download leaves the book here; Delete removes it now.',
+    why: 'asked for: the same pass that cut the configuration screens. What happens, in a sentence, with the reasoning left to the commit',
+  },
+  {
+    was: "Cancelling deletes the file from the server straight away. If the device already collected it, the copy on the device stays — there's no way to reach back into it.",
+    now: 'Cancelling deletes the file from the server. If the device already collected it, that copy stays.',
+    why: 'asked for: the same pass that cut the configuration screens. What happens, in a sentence, with the reasoning left to the commit',
   },
 ]
 

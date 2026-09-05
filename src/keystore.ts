@@ -1,5 +1,5 @@
 import { randomInt } from 'node:crypto'
-import { config, keyChars } from './config.js'
+import { keyChars } from './config.js'
 import { safeUnlink } from './files.js'
 import { settings } from './settings.js'
 import type { DeviceKind, KeyInfo, StoredFile } from './types.js'

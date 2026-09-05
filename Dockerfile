@@ -15,6 +15,8 @@ ARG TARGETARCH
 ARG KEPUBIFY_VERSION=4.0.4
 ARG EPUB_LAYOUT_FIX_REPO=devnullv0id/calibre-epub-layout-fix
 ARG EPUB_LAYOUT_FIX_REF=v0.2.0
+ARG EPUB_LAYOUT_FIX_FORGE=github
+ARG EPUB_LAYOUT_FIX_HOST=code.private-home-network.de
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl unzip && \
@@ -38,10 +40,17 @@ COPY docker/fetch-calibre-plugin.sh /fetch-calibre-plugin.sh
 RUN sh /fetch-calibre-plugin.sh 'KFX Input.zip' "${KFX_INPUT_THREAD}" "${KFX_INPUT_PLUGIN_URL}" /out-kfx-input.zip && \
     sh /fetch-calibre-plugin.sh 'KFX Output.zip' "${KFX_OUTPUT_THREAD}" "${KFX_OUTPUT_PLUGIN_URL}" /out-kfx-output.zip
 
-RUN if [ "${EPUB_LAYOUT_FIX_REF}" = "latest" ]; then \
-        API="https://api.github.com/repos/${EPUB_LAYOUT_FIX_REPO}/releases/latest" ; \
+RUN FORGE="${EPUB_LAYOUT_FIX_FORGE:-github}" && \
+    HOST="${EPUB_LAYOUT_FIX_HOST:-code.private-home-network.de}" && \
+    case "$FORGE" in \
+        github)  BASE="https://api.github.com/repos/${EPUB_LAYOUT_FIX_REPO}" ;; \
+        forgejo) BASE="https://${HOST}/api/v1/repos/${EPUB_LAYOUT_FIX_REPO}" ;; \
+        *) echo "EPUB_LAYOUT_FIX_FORGE must be github or forgejo, not ${FORGE}" >&2 ; exit 1 ;; \
+    esac && \
+    if [ "${EPUB_LAYOUT_FIX_REF}" = "latest" ]; then \
+        API="${BASE}/releases/latest" ; \
     else \
-        API="https://api.github.com/repos/${EPUB_LAYOUT_FIX_REPO}/releases/tags/${EPUB_LAYOUT_FIX_REF}" ; \
+        API="${BASE}/releases/tags/${EPUB_LAYOUT_FIX_REF}" ; \
     fi && \
     META="$(curl -fsSL "$API")" && \
     TAG="$(printf '%s' "$META" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)" && \

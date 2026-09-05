@@ -1,441 +1,224 @@
 # send2ereader
 
-A self-hostable service for sending ebooks to a Kobo, Kindle or Tolino ereader through the
-device's built-in browser.
+Send ebooks to a Kobo, Kindle or Tolino through the device's own browser, converted to whatever
+that device reads.
 
-Open the site on your ereader and it shows a short pairing key. Enter that key on your phone or
-PC, upload an ebook, and a download link appears on the ereader — converted to the right format
-for that device.
-
-## Format support
-
-| Device | Input | Sent as | Converter | In the image |
-| --- | --- | --- | --- | --- |
-| Kobo | EPUB | `.kepub.epub` | kepubify | yes |
-| Kobo | KEPUB, PDF, CBZ, CBR, MOBI, TXT, HTML | unchanged | — | yes |
-| Kindle | EPUB, CBZ, CBR, TXT, HTML | `.azw3` (default) | calibre `ebook-convert` | the `calibre` extension |
-| Kindle | EPUB | `.mobi` (opt-in, pre-2015 devices) | calibre `ebook-convert` | the `calibre` extension |
-| Kindle | MOBI, AZW3, KFX, PDF | unchanged | — | yes |
-| Any | PDF | cropped PDF (opt-in) | pdfCropMargins | the `pdfcrop` extension |
-| Tolino / other | anything supported | unchanged | — | yes |
-
-A freshly pulled image sends EPUB, makes a KEPUB for a Kobo, and repairs the layout on the way.
-Everything else is fetched onto your machine when you ask for it — see [Extensions](#extensions) —
-because it is the difference between a 110MB pull and a 500MB one, and most servers never use all
-of it. Nothing is hidden while it is missing: the Convert page greys the format and says which
-install would bring it back.
-
-Files sent to a Kindle have their names stripped of special characters — a limitation of the
-Kindle browser. Uploads are validated by magic bytes, not just by extension.
-
-Converters are probed at startup; if one is missing, its option is disabled in the UI and the
-file is sent unconverted rather than failing.
-
-### EPUB layout fix
-
-Adobe's RMSDK renderer — the engine in Kobo, Tolino and PocketBook readers — clips full-page
-images at the edges, pushes tall ones off the bottom, and stretches covers that calibre wrote
-with `preserveAspectRatio="none"`. Every EPUB this service delivers is repaired for those defects
-by default, using the engine from
-[calibre-epub-layout-fix](https://github.com/devnullv0id/calibre-epub-layout-fix).
-
-That project ships as a calibre GUI plugin, but its engine (`fixer.py`) is deliberately free of
-calibre and Qt imports, so the Docker build extracts that one module and runs it under plain
-`python3` — no plugin registration, no GUI, no calibre startup cost. The build tracks the
-**latest release**; pass `--build-arg EPUB_LAYOUT_FIX_REF=v0.1.0` to pin a tag instead.
-
-It applies to **every input format** whose result is an EPUB, and runs *before* kepubify so the
-Kobo package wraps the repaired book:
-
-```text
-.kfx → calibre → .epub → layout fix → kepubify → .kepub.epub
-```
-
-It is skipped for Kindle output, because AZW3/MOBI are not EPUB and KF8 does not share the
-defect. The option is a checkbox in the form (default on, `LAYOUT_FIX_DEFAULT=false` to flip the
-server default), and the step is **optional**: if the engine fails, the failure is logged and the
-unrepaired book is still delivered rather than failing the upload.
-
-### Choosing a target
-
-The upload form has a single **Convert for** switch — `Auto`, `Kobo`, `Kindle`, `Don't convert` —
-and exactly one is ever active. Kobo and Kindle are mutually exclusive by construction: a
-`.kepub.epub` carries Kobo-specific markup that a Kindle cannot read, and an AZW3 is meaningless
-to a Kobo, so there is never a reason to produce both.
-
-`Auto` is the default and uses whichever device generated the key. Type a key and the form asks
-the server (`GET /key/:key`) what it is paired with, then says so — "Auto: paired with a Kobo".
-The other three are manual overrides for when user-agent detection gets it wrong, or when you
-want the file left alone.
-
-Tolino is *not* folded into Kobo. Both read EPUB directly, but only Kobo understands KEPUB, so
-a Tolino resolves to no conversion.
-
-### KFX
-
-`.kfx` and `.kfx-zip` uploads are always accepted, and a `.kfx` is sent to a Kindle as-is —
-that is already the device's native format, so no conversion is involved.
-
-Reading KFX (converting it into something a Kobo or Tolino can open, or unwrapping the
-`.kfx-zip` container that no device can open directly) needs calibre's third-party **KFX Input**
-plugin, and that is in the image. The build reads its
-[MobileRead thread](https://www.mobileread.com/forums/showthread.php?t=291290) and takes whatever
-attachment is current, because the forum gives every reupload a new id and a pinned one would
-quietly go stale. Override either plugin with a URL of your own if you would rather:
-
-```sh
-docker build --build-arg KFX_INPUT_PLUGIN_URL=https://…/KFX_Input.zip -t send2ereader .
-```
-
-If the thread cannot be read at build time the image is built without that plugin rather than
-failing, and the feature is refused at runtime the way it always was.
-
-With the plugin present, `.kfx`/`.kfx-zip` convert to AZW3/MOBI for a Kindle and to EPUB for
-everything else. Without it, both are passed through untouched. The server detects this at
-startup (`calibre-customize --list-plugins`) and `/healthz` reports it as `tools.kfxInput`.
-
-**Writing KFX needs two things, and the image can only ship one of them.** calibre's KFX Output
-plugin is in the image — the build resolves the current attachment from its
-[MobileRead thread](https://www.mobileread.com/forums/showthread.php?t=272407), so it tracks the
-author's releases rather than pinning a version that goes stale. What the image cannot carry is
-Amazon's Kindle Previewer: it is a Windows program and not ours to redistribute.
-
-So the Convert page refuses KFX until a Previewer is present, and says so. It is not enough for
-the plugin to be installed — a plugin with nothing behind it would offer KFX and then fail at the
-conversion, which is worse than refusing it. AZW3 is the best format this image can produce on its
-own, and every Kindle since 2011 reads it.
-
-An operator who wants KFX turns it on from the **admin page**, under Converters: it installs Wine
-and fetches the Previewer from Amazon **on your machine, at your instruction**, showing each stage
-as it goes, and the server stays up throughout. `EXTENSIONS: kfx` in the compose file does the
-same before the server starts.
-
-It is not free: 356MB downloaded once, a 2.6GB Wine prefix kept on the data volume, 1.7GB of Wine
-packages in the container, and about 920MB of memory while a KFX conversion runs — which takes a
-minute or two per book, because a Windows program renders it. The page says all of that before the
-button, and can remove the lot again. The
-server then offers KFX for real, because it checks that both the plugin and a Previewer are there
-(`tools.kfxOutput` on `/healthz`) rather than being told. See [Extensions](#extensions).
+Open the site on the ereader and it shows a four-character key. Type that key on your phone or
+computer, pick a book, send. A download link appears on the ereader.
 
 ## How to run
 
-### Docker Compose (recommended)
+One command, to try it:
 
-```yaml
-services:
-  send2ereader:
-    image: ghcr.io/devnullv0id/send2ereader:latest
-    container_name: send2ereader
-    restart: unless-stopped
-    ports:
-      - 3001:3001
-    volumes:
-      - uploads:/data/uploads
-
-volumes:
-  uploads:
+```sh
+docker run -d --name send2ereader -p 3001:3001 -v s2e:/data \
+  ghcr.io/devnullv0id/send2ereader:latest
+# or: code.private-home-network.de/devnullv0id/send2ereader:latest
 ```
+
+Or compose, to keep it. `docker-compose.yaml` in this repo is ready to run;
+[`compose.yaml.example`](compose.yaml.example) is the same thing with every setting there is,
+commented, if you want to change something:
 
 ```sh
 docker compose up -d
 ```
 
-Images are published for `linux/amd64` and `linux/arm64`, and the service listens on port 3001.
+Then open <http://localhost:3001>. Everything lives under `/data` — database, library, queued
+books — so that one volume is the whole of your state.
+
+Images are built for `linux/amd64` and `linux/arm64`. About 105 MB to pull, 470 MB unpacked. The
+same digests are published to both `ghcr.io` and `code.private-home-network.de`; take whichever
+you can reach.
 
 | Tag | What it is |
 | --- | --- |
-| `latest` | The current build from `master`. |
-| `legacy` | The last build of the original Express app, kept pinned. Pull this if you want the app as it was before the rewrite; it will not receive updates. |
+| `latest` | Current release |
+| `2.0.2`, `2.0` | Pin to a version or a minor series |
+| `legacy`, `1.1.0` | The original app, before the rewrite. Not updated. |
 
-The image is around 110MB to pull and about 470MB unpacked — down from 500MB and 1.9GB. calibre
-is not in it — it is an extension, installed on the data
-volume when you ask for it, and it brings the Qt and Mesa libraries it needs with it. That was
-measured rather than assumed: with those libraries moved aside every format still converted
-except PDF, which is the one path that reaches Qt WebEngine.
+### Without Docker
 
-Installing all three extensions costs roughly 700MB on the volume, plus about 2.6GB more if you
-want KFX.
-
-### Build the image yourself
+Needs Node 22+ and, for anything past EPUB, [kepubify](https://github.com/pgaskin/kepubify) and
+[calibre](https://calibre-ebook.com/) on `PATH`.
 
 ```sh
-git clone https://github.com/devnullv0id/send2ereader.git
-cd send2ereader
-docker compose build     # uncomment the `build:` block in docker-compose.yaml first
-docker compose up -d
+npm ci && npm run build && npm start
 ```
 
-### On your host OS
+## What it does
 
-1. Install Node.js 22 or newer.
-2. Install the converters and make sure they are on `PATH`:
-   - [kepubify](https://github.com/pgaskin/kepubify) — Kobo EPUB conversion
-   - [calibre](https://calibre-ebook.com/) — provides `ebook-convert` for Kindle formats
-   - [pdfCropMargins](https://github.com/abarker/pdfCropMargins) — optional PDF margin cropping
-3. Install dependencies, build and start:
+**Sends a book to a device with no app and no account.** The file is held only as long as the key
+is, so a device that drops the connection mid-download can ask again.
 
-```sh
-npm ci
-npm run build
-npm start
+**Converts on the way.** Uploads are identified by magic bytes, not by extension.
+
+| From | To | Via |
+| --- | --- | --- |
+| EPUB | `.kepub.epub` for Kobo | kepubify |
+| EPUB, CBZ, CBR, TXT, HTMLZ, KFX | AZW3 or MOBI for Kindle | calibre |
+| anything | EPUB, PDF, TXT, HTMLZ | calibre |
+| KFX, KFX-ZIP | readable formats | calibre + KFX Input |
+| anything | KFX | calibre + Kindle Previewer |
+
+A Kobo and a Kindle are never both targets: KEPUB carries Kobo markup a Kindle cannot read, and
+AZW3 means nothing to a Kobo. Tolino reads EPUB but not KEPUB, so it gets the file unconverted.
+
+Three optional fixes ride along: **repair EPUB layout** (on by default), **crop PDF margins**,
+and **transliterate the filename** for the Kindle browser, which chokes on non-ASCII names.
+
+The layout fix repairs what Adobe's RMSDK renderer — in Kobo, Tolino and PocketBook — does to
+full-page images and stretched covers. It runs before kepubify, is skipped for Kindle output, and
+if it fails the unrepaired book is still delivered. Engine from
+[calibre-epub-layout-fix](https://github.com/devnullv0id/calibre-epub-layout-fix).
+
+**Converts without sending**, at `/convert`, if you only want the file.
+
+**Delivers to a Kobo over its own sync.** Generate a sync endpoint in Settings, put the URL in
+`.kobo/Kobo/Kobo eReader.conf` over USB, and books you queue appear in the device's library on its
+next sync. Everything the device asks for beyond your books is proxied to the real Kobo store.
+Queued books are deleted once collected, or after six hours.
+
+**Keeps a library** for signed-in accounts, with per-user and total storage caps and optional
+retention. Anything else is transient.
+
+## Extensions
+
+A fresh image does EPUB and KEPUB. The rest is fetched when you ask for it, which is the
+difference between a 105 MB pull and a 500 MB one.
+
+| id | Adds | Needs | Cost |
+| --- | --- | --- | --- |
+| `calibre` | MOBI, AZW3, PDF, TXT, HTMLZ, reading KFX | — | ~600 MB |
+| `pdfcrop` | Cropping PDF margins | — | ~90 MB |
+| `kfx` | Writing KFX | `calibre` | ~2.6 GB, Wine and Amazon's Kindle Previewer |
+
+Install them at **Admin → Converters** while the server runs, or before it starts:
+
+```yaml
+environment:
+  EXTENSIONS: calibre|pdfcrop|kfx
 ```
 
-Then open <http://localhost:3001>.
+Either way they land on the data volume and survive a container being recreated. A missing
+converter is never hidden — the format is greyed with the reason.
 
-## Accounts (optional)
+KFX is the one that cannot be shipped: Amazon's Previewer is a Windows program and not ours to
+redistribute, so the extension fetches it on your machine, at your instruction.
 
-**Sending a book never needs an account.** The key flow above works for anyone who can reach the
-server, and that does not change. Accounts exist only to manage registered ereaders.
+## Accounts
 
-They are on with no configuration at all. The secret that signs a session is generated on first
-boot and written next to the database as `session.key`, mode `0600`; keep that file, because losing
-it signs everyone out and makes stored Kobo tokens and two-factor secrets unreadable. Set it
-yourself if you would rather — which is the right answer when several instances share a database:
+Optional. Sending a book never needs one. Set `ACCOUNTS=false` for the bare key flow with no
+sign-in, library or admin page.
 
-```sh
-cp .env.example .env
-openssl rand -base64 32          # put the result in SESSION_SECRET
-```
+The **first account to register claims the server**. After that local registration is closed
+unless `ALLOW_SIGNUP=true`. Sign in with a password, a passkey, or single sign-on; two-factor and
+a printable recovery phrase are available.
 
-To run the bare key-transfer app instead, with no sign-in, no library and no admin page, set
-`ACCOUNTS=false`. It is set in the environment and nowhere else, because turning accounts off also
-removes the page you would turn them back on from.
-
-The **first account to register claims the server** and becomes its owner. After that
-local registration is closed unless you set `ALLOW_SIGNUP=true`; SSO, once configured, is the
-intended route for anyone else.
-
-Use a real address — it is the only way back in if you forget the password. Unless `SMTP_ENABLED`
-is on, the confirmation and reset links are **written to the server log** instead of being
-e-mailed, so a self-hoster without a mail server can still complete the flow:
+Without `SMTP_ENABLED`, confirmation and reset links are written to the log instead of e-mailed:
 
 ```sh
 docker logs send2ereader | grep /auth/verify
 ```
 
-You can sign in without confirming, but registering an ereader requires a confirmed address.
-
-Passwords are hashed with scrypt (`node:crypto`, N=2¹⁶, ~130 ms per hash) and the login, register
-and reset endpoints are rate limited, because that cost is per attempt.
+The session secret is generated on first boot next to the database as `session.key`, mode `0600`.
+Keep it: losing it signs everyone out and makes stored Kobo tokens and 2FA secrets unreadable.
 
 ## Configuration
 
-Settings come from environment variables. For anything other than a throwaway run, put them in a
-`.env` file next to `docker-compose.yaml`:
+Either put them in the compose file — [`compose.yaml.example`](compose.yaml.example) lists all 85
+with their defaults — or keep them in a file next to it:
 
 ```sh
 cp .env.example .env
 ```
 
-[.env.example](.env.example) documents every variable with its default — a test fails if a new one
-is added to the code without appearing there. The file is read by the app itself (via Node's
-built-in `process.loadEnvFile`, no dependency) and by Docker Compose, and it is gitignored and
-excluded from the image so secrets are not committed or baked in.
+Both list the same settings, and a test fails if the code gains one that is missing. Real
+environment variables win over the file.
 
-**Real environment variables always win over `.env`**, so compose `environment:` entries and
-`docker run -e` override the file rather than being silently ignored. Point `ENV_FILE` somewhere
-else to load a different file.
+Most are better changed at **Admin → Settings**, which writes to the database and beats the file.
+Some stay environment-only and show read-only there: the ones read before the server exists
+(`ACCOUNTS`, `HTTP_PORT`, `HTTP_ADDR`, `DATA_DIR`, `DB_PATH`, `SESSION_SECRET`, `EXTENSIONS`), the
+paths and logging, and the converter binaries — a browser form is the wrong place to choose what
+a server executes. `LOCKED_SETTINGS` pins anything else you want left alone.
 
-Everything is optional; defaults are shown.
+The ones worth knowing:
 
-| Variable | Default | Description |
+| Variable | Default | Why |
 | --- | --- | --- |
-| `HOST` | `0.0.0.0` | Listen address |
-| `HTTP_PORT` | `3001` | Port the server listens on |
-| `HTTP_ADDR` | `0.0.0.0` | Address the server listens on |
-| `LOG_LEVEL` | `info` | pino log level |
-| `TRUST_PROXY` | `false` | Honour `X-Forwarded-*` behind a reverse proxy |
-| `UPLOAD_DIR` | `./uploads` | Where uploads are stored while a key is alive |
-| `CLEAN_UPLOAD_DIR_ON_BOOT` | `true` | Wipe leftovers at startup |
-| `EXPIRE_SECONDS` | `30` | Idle TTL — a key dies this long after the ereader stops polling |
-| `MAX_EXPIRE_SECONDS` | `600` | Hard TTL — never extended, however active the key is |
-| `MAX_FILE_SIZE` | `838860800` | Upload limit in bytes (800 MB) |
-| `KEY_LENGTH` | `4` | Pairing key length |
-| `CONVERSION_TIMEOUT_MS` | `600000` | Wall-clock cap for one conversion |
-| `CALIBRE_OUTPUT_PROFILE` | `kindle_pw3` | calibre `--output-profile` for Kindle targets; set empty to omit |
-| `LAYOUT_FIX_DEFAULT` | `true` | Default state of the "Fix EPUB layout" checkbox |
-| `ACCOUNTS` | `true` | Accounts, sign-in and the admin page. Off is the bare key flow |
-| `SESSION_SECRET` | *(generated)* | Signs sessions and encrypts stored tokens. Unset generates one beside the database |
-| `PROTOCOL` | `http` | Scheme people reach the server on — `https` behind a proxy |
-| `DOMAIN` | *(unset)* | Host people reach the server on. Builds every link the server hands out; falls back to `HTTP_ADDR:HTTP_PORT` |
-| `ALLOW_SIGNUP` | `false` | Allow local registration beyond the owner |
-| `DB_PATH` | `/data/db/send2ereader.db` | Accounts database; created on first boot |
-| `SMTP_ENABLED` | `false` | Send mail. While off, links go to the server log |
-| `SMTP_HOST` / `SMTP_PORT` | *(unset)* / `587` | 465 uses implicit TLS, 587 and 25 use STARTTLS |
-| `SMTP_USERNAME` / `SMTP_PASSWORD` | *(unset)* | Omit both for an unauthenticated relay |
-| `SMTP_FROM_EMAIL` / `SMTP_FROM_NAME` | *(unset)* / `send2ereader` | Sender. Defaults to `SMTP_USERNAME` when that is an address; set it only when the two differ |
-| `SMTP_TLS` | `true` | Turn off only for a relay on localhost |
-| `SMTP_TIMEOUT_SECONDS` | `30` | Connection, greeting and socket timeout |
-| `OIDC_ENABLED` | `false` | Offer single sign-on alongside local accounts |
-| `OIDC_CONFIG_URL` | *(unset)* | Discovery document or issuer URL |
-| `OIDC_CLIENT_ID` / `OIDC_CLIENT_SECRET` | *(unset)* | Omit the secret for a public client |
-| `OIDC_ADMIN_GROUP` | *(unset)* | Group that grants administrator rights |
-| `KEPUBIFY_BIN` / `EBOOK_CONVERT_BIN` / `PDFCROPMARGINS_BIN` / `CALIBRE_CUSTOMIZE_BIN` / `EPUB_LAYOUT_FIX_BIN` | binary name | Override converter paths |
-| `EXTENSIONS` / `EXTENSION_PACKAGES` | *(unset)* | Installed at container start; pipe separated. See below |
-
-### Extensions
-
-Three converters are left out of the image and installed on demand. Two of them
-are simply large; the third, Amazon's Kindle Previewer, is not ours to
-redistribute at all.
-
-| id | What it adds | Needs | Roughly |
-| --- | --- | --- | --- |
-| `calibre` | MOBI, AZW3, PDF, TXT, HTMLZ, and reading a KFX | — | 600MB, a few minutes |
-| `pdfcrop` | Trimming the white margins off a PDF | — | 90MB, a minute |
-| `kfx` | Writing KFX, the format a modern Kindle prefers | `calibre` | 2.6GB, up to twenty minutes |
-
-There are two ways in, and they install the same scripts from the same image.
-
-**From the browser**, at Admin → Converters, while the server keeps running.
-Each stage is shown as it happens, the installer's own output is streamed under
-it, and the same page removes any of them again. The first-run assistant asks
-the same question as its fifth step and queues whatever was ticked.
-
-**Before the server starts**, by naming them in the compose file:
-
-```yaml
-environment:
-  EXTENSIONS: calibre|pdfcrop|kfx
-  EXTENSION_PACKAGES: fonts-noto-cjk|poppler-utils
-```
-
-Both are pipe-separated. What was asked for either way is remembered in
-`/data/extensions/enabled`, so a container recreated against the same volume
-puts it back — and since everything lands under `/data`, that is a relink rather
-than another download. A name with a slash in it is still treated as an OCI
-image to unpack, which is how a third-party extension is added.
-
-At start the entrypoint installs `EXTENSION_PACKAGES`, stages each extension it
-was asked for, runs them in dependency order, and only then drops to the `node`
-user and starts the server. One that fails is logged and skipped rather than
-stopping the container. [docker/extensions](docker/extensions) has the details.
-
-## HTTP API
-
-A summary. [API.md](API.md) has the full reference — request and response shapes, status
-codes, and the rules each endpoint enforces.
-
-| Route | Purpose |
-| --- | --- |
-| `GET /` | Upload form, or the receive page when the user-agent is an ereader |
-| `GET /send`, `GET /receive` | Force either page |
-| `POST /generate` | Issue a pairing key (plain text). Rate limited. |
-| `GET /key/:key` | Which device a key is paired with, so the form can preselect a target |
-| `GET /convert` | Convert a book without sending it anywhere |
-| `POST /convert` | multipart: `file`, `format`, and the fixes. Returns a one-shot download link. |
-| `GET /convert/:id/:filename` | Collect the result. Serving it deletes it. |
-| `GET /api/convert/targets?from=` | Which formats are reachable from a source, and why the rest are not |
-| `GET /login`, `/register`, `/settings` | Account pages. Only exist when accounts are enabled |
-| `POST /auth/register`, `/auth/login`, `/auth/logout` | Local accounts |
-| `POST /auth/password` | Change a password from Settings, with the current one |
-| `GET /auth/verify?token=`, `POST /auth/reset` | E-mail confirmation and password reset |
-| `POST /api/devices/:id/token` | Rotate a device's sync token. The device and its queue survive. |
-| `DELETE /api/waiting/:id` | Cancel a queued book, deleting the file now |
-| `GET /api/waiting/:id/download` | Collect a queued book in the browser. It stays queued. |
-| `GET /auth/status` | Whether accounts are on, claimed, and who is signed in |
-| `GET /status/:key` | Poll for the attached file and urls. Requires the issuing user-agent. |
-| `POST /upload` | multipart: `key`, `file`, `url`, and the conversion checkboxes. Returns JSON. |
-| `GET /download/:filename?key=` | Download. Requires the issuing user-agent. Supports ranges. |
-| `DELETE /file/:key` | Detach and delete the stored file |
-| `GET /healthz` | Liveness, key count, converter availability |
+| `DOMAIN` / `PROTOCOL` | unset / `http` | The address the server hands out in links. Passkeys need a real https domain |
+| `TRUST_PROXY` | `false` | Behind a reverse proxy, name it — an address, a CIDR or `loopback`. Left off, everyone shares one rate limit; set to `true`, anyone who reaches the port can forge their address |
+| `MAX_FILE_SIZE` | 800 MB | Upload ceiling |
+| `EXPIRE_SECONDS` | `300` | How long a key outlives the ereader that stopped polling |
+| `SESSION_SECRET` | generated | Set it when several instances share a database |
 
 ## Backups
 
-The admin page has a **Backup** panel. It hands you one `.tar.gz` holding the
-database — taken with SQLite's own `VACUUM INTO`, so a running server cannot be
-caught half-written — and every book kept in the library. The archive is shaped
-like the data directory:
+**Admin → Backup** hands you one `.tar.gz`: the database, taken with SQLite's `VACUUM INTO` so a
+running server cannot be caught half-written, plus every book in the library.
 
-```text
-db/send2ereader.db
-library/<account>/<book>
-```
-
-Putting one back is deliberately not a button: unpacking over a running server
-would race whatever it is doing. Stop it, unpack, start it.
+Restoring is deliberately manual — unpacking over a running server would race it:
 
 ```sh
 docker compose down
-tar -xzf send2ereader-2026-08-12-09-30-00.tar.gz -C /your/data
+tar -xzf send2ereader-2026-08-12.tar.gz -C /your/data
 docker compose up -d
 ```
 
-Two things are **not** in it, because neither belongs to the server: your `.env`,
-and the generated `session.key` beside the database. Losing that key signs
-everyone out and makes stored Kobo tokens and two-factor secrets unreadable —
-everything else comes back regardless.
+Your `.env` and `session.key` are not in the archive; neither belongs to the server.
 
 ## Privacy
 
-Uploads live only as long as the pairing key: they are deleted when the key expires (about 30
-seconds after the ereader stops polling), when a new file replaces them, when the file is
-deleted from the ereader page, and on server shutdown. Nothing is persisted between restarts.
-
-Keys are generated with a CSPRNG, and both `/status` and `/download` require the same
-user-agent that created the key.
+Uploads live as long as their key: deleted when it expires, when a new file replaces them, when
+deleted from the ereader page, and on shutdown. Keys come from a CSPRNG, and both polling and
+download require the same user-agent that asked for the key.
 
 ## Development
 
-Two loops, and the difference matters because Docker is what actually ships.
-
-**Fast loop — iterate on code.** Reloads on save, but uses whatever converters are installed on
-*your* machine, so behaviour can differ from production:
-
 ```sh
-npm ci
-npm run dev          # tsx watch on http://localhost:3001
-npm test             # vitest
-npm run lint         # biome
-npm run typecheck    # tsc --noEmit
-npm run scan:secrets # refuse credentials in the history
+npm ci          # also points git at .githooks
+npm run dev     # tsx watch on :3001
+npm test        # vitest
+npm run lint    # biome
+npm run typecheck
 ```
 
-`npm ci` also points git at `.githooks`, which refuses to commit anything shaped like a credential
-and refuses to push a range containing one — because a file deleted in a later commit is still in
-the history you push, and `.gitignore` never applies to a path that is already tracked. CI runs the
-same scan over the whole history, where `--no-verify` cannot reach it.
+`npm ci` installs hooks that refuse to commit or push anything shaped like a credential; CI runs
+the same scan over the whole history.
 
-**Real loop — verify the artifact.** Same Dockerfile, same converters, same non-root user as the
-published image. Run this before trusting a change:
+The fast loop uses whatever converters your machine has, which is not what ships. Before trusting
+a change, run the real thing:
 
 ```sh
-docker compose -f docker-compose.dev.yaml up --build
+docker build -t send2ereader:dev . && docker run --rm -p 3001:3001 -v s2e-dev:/data send2ereader:dev
 ```
 
-`static/` is bind-mounted read-only in the dev compose file, so page edits show up on reload
-without a rebuild; server changes need `--build`. `/healthz` reports which converters the
-container actually found — worth checking, since a converter missing on your host but present in
-the image (or the reverse) is the usual reason the two loops disagree.
+[`compose.yaml.example`](compose.yaml.example) carries the same thing as a commented `build:`
+block, with the build arguments below, if you would rather keep it in compose.
 
-The server is Fastify 5 on TypeScript in `src/`. The pages in `static/` split into two worlds with
-deliberately different constraints, and code must not cross between them:
+The layout-fix engine is baked in at build time from a release of
+[calibre-epub-layout-fix](https://github.com/devnullv0id/calibre-epub-layout-fix). Unset means
+GitHub; build with `EPUB_LAYOUT_FIX_FORGE=forgejo` to take it from the Forgejo mirror instead,
+and `EPUB_LAYOUT_FIX_HOST` to say from which host.
 
-- `download.html` + `style.css` + `common.js` run **on the ereader**, in WebKit builds from the
-  early 2010s. No CSS custom properties, flexbox, grid or `rem`; no `const`/arrow
-  functions/`fetch`/Promise. Pure black-on-white with 3px borders, because e-ink dithers greys and
-  shadows into noise, and it stays readable down to 380px wide. `test/static.test.ts` enforces all
-  of that, including that the design system never reaches this page.
-- Everything else runs on a **phone or desktop** and is a hand port of the design in `UI/`, which
-  is a git-ignored handoff rather than source. Two rules hold there: **no `style=` attribute in any
-  page**, and **no HTML built from strings** — repeated rows clone a `<template>`. The only value a
-  script may write into a style is a bare number on a custom property, `--prog`. `test/page.test.ts`
-  enforces each of those, and also that every class in the markup resolves to a rule.
+Fastify 5 and TypeScript in `src/`. The pages in `static/` are two separate worlds and code must
+not cross between them:
 
-Where the prototype's markup and its companion `styles.css` disagree, the markup wins; each
-correction carries a comment saying so. Controls the design draws that this server has no endpoint
-for stay on the page, disabled, marked `data-unbacked` with the reason — and a test names every one,
-so "temporarily inert" cannot quietly become permanent.
+- `download.html`, `style.css`, `common.js` and `receive.js` run **on the ereader**, in WebKit
+  builds from the early 2010s: no custom properties, flexbox, grid, `const`, arrow functions or
+  `fetch`. Black on white, because e-ink turns greys into noise.
+- Everything else is a phone or desktop browser. No `style=` attributes, no HTML built from
+  strings — repeated rows clone a `<template>`.
 
-Mail is the one exception to the no-inline-style rule, because mail clients give no choice:
-`src/mail/template.ts` is table layout with every rule on the element and the palette resolved to
-literal hex.
+Tests enforce both, including that no page carries anything the content security policy would
+refuse to run.
+
+[API.md](API.md) documents every endpoint.
 
 ## Credits
 
-Maintained by [devnullv0id](https://github.com/devnullv0id). Inspired by
-[send2ereader by djazz](https://github.com/daniel-j/send2ereader), which this started as before
-being rewritten.
+Maintained by [devnullv0id](https://github.com/devnullv0id). Started as
+[send2ereader by djazz](https://github.com/daniel-j/send2ereader) before being rewritten.
 
 ## License
 

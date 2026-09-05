@@ -158,6 +158,13 @@ onPage('setup-wizard', async (page) => {
     $('addressHint').textContent = hintForAddress()
   })
 
+  $('wizUseCurrent').addEventListener('click', () => {
+    $('wizProtocol').value = location.protocol === 'https:' ? 'https' : 'http'
+    $('wizDomain').value = location.host
+    state.schemeTouched = true
+    $('addressHint').textContent = hintForAddress()
+  })
+
   function hintForAddress() {
     const domain = ($('wizDomain').value || '').trim()
     if (!domain) {

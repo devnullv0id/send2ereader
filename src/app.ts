@@ -70,6 +70,8 @@ function defaultLogger(): FastifyBaseLogger {
 
 const HEALTH_PATHS = new Set(['/healthz', '/health', '/readyz'])
 
+const HSTS_MAX_AGE = 15_552_000
+
 function levelFor(status: number): 'error' | 'warn' | 'info' {
   if (status >= 500) return 'error'
   if (status >= 400) return 'warn'
@@ -128,8 +130,6 @@ export async function buildApp(options: BuildOptions = {}): Promise<FastifyInsta
   app.decorate('conversions', new ConversionResults(app.log))
   app.decorate('pending', new PendingDeliveries())
 
-  const overHttps = publicUrl().startsWith('https://')
-
   await app.register(fastifyHelmet, {
     contentSecurityPolicy: {
       useDefaults: false,
@@ -144,12 +144,13 @@ export async function buildApp(options: BuildOptions = {}): Promise<FastifyInsta
         baseUri: ["'self'"],
         frameAncestors: ["'none'"],
         objectSrc: ["'none'"],
-        ...(overHttps ? { upgradeInsecureRequests: [] } : {}),
       },
     },
     referrerPolicy: { policy: 'same-origin' },
     crossOriginEmbedderPolicy: false,
-    hsts: overHttps ? { maxAge: 15_552_000, includeSubDomains: true } : false,
+    crossOriginOpenerPolicy: false,
+    originAgentCluster: false,
+    hsts: false,
   })
 
   await app.register(fastifyRateLimit, {
@@ -196,6 +197,15 @@ export async function buildApp(options: BuildOptions = {}): Promise<FastifyInsta
       'Permissions-Policy',
       'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()'
     )
+    if (!publicUrl().startsWith('https://')) return
+
+    reply.header('Strict-Transport-Security', `max-age=${HSTS_MAX_AGE}; includeSubDomains`)
+    reply.header('Cross-Origin-Opener-Policy', 'same-origin')
+    reply.header('Origin-Agent-Cluster', '?1')
+    const csp = reply.getHeader('content-security-policy')
+    if (typeof csp === 'string' && !csp.includes('upgrade-insecure-requests')) {
+      reply.header('Content-Security-Policy', `${csp};upgrade-insecure-requests`)
+    }
   })
 
   app.addContentTypeParser('*', { bodyLimit: 1024 }, (_req, payload, done) => {

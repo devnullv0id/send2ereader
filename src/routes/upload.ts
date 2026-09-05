@@ -3,7 +3,6 @@ import { copyFile, rename, stat } from 'node:fs/promises'
 import { extname } from 'node:path'
 import { finished, pipeline } from 'node:stream/promises'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
-import { config } from '../config.js'
 import {
   isOutputFormat,
   type OutputFormat,

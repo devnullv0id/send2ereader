@@ -34,17 +34,17 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to the registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.FORGE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Build and push ${{ matrix.name }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           push: true
@@ -60,17 +60,17 @@ jobs:
       - name: Prove the entrypoint can read it the way it will at runtime
         env:
           REGISTRY_USER: ${{ github.actor }}
-          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_PASSWORD: ${{ secrets.FORGE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -eu
           REPO="${{ github.repository_owner }}/s2e-mod-${{ matrix.name }}"
           HOST="${{ env.REGISTRY }}"
 
-          CHALLENGE="$(curl -sSI "https://${HOST}/v2/" | tr -d '\r' \
+          CHALLENGE="$(curl -sS -o /dev/null -D - "https://${HOST}/v2/" | tr -d '\r' \
             | sed -n 's/^[Ww][Ww][Ww]-[Aa]uthenticate: *//p')"
           REALM="$(printf '%s' "$CHALLENGE" | sed -n 's/.*realm="\([^"]*\)".*/\1/p')"
           SERVICE="$(printf '%s' "$CHALLENGE" | sed -n 's/.*service="\([^"]*\)".*/\1/p')"
-          REALM="${REALM:-https://${HOST}/token}"
+          REALM="${REALM:-https://${HOST}/v2/token}"
           SERVICE="${SERVICE:-${HOST}}"
 
           ask() {

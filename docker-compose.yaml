@@ -1,6 +1,9 @@
+# What most people need. compose.yaml.example has every setting there is,
+# with its default, if you want to change something.
 services:
   send2ereader:
     image: ghcr.io/devnullv0id/send2ereader:latest
+    # or: code.private-home-network.de/devnullv0id/send2ereader:latest
     container_name: send2ereader
     restart: unless-stopped
     ports:
@@ -11,7 +14,6 @@ services:
       - path: .env
         required: false
     environment:
-
       TZ: UTC
     healthcheck:
       test:

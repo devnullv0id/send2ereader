@@ -1,0 +1,190 @@
+# Every setting this server has, in one file. Copy it to compose.yaml and
+# uncomment what you want; nothing here is required. With no settings at all it
+# comes up working, and the first account created becomes the administrator.
+#
+#   cp compose.yaml.example compose.yaml && docker compose up -d
+#
+# Values are quoted because this is YAML: unquoted true and 3001 become a
+# boolean and an integer, which compose refuses to pass as environment. This is
+# the opposite of the rule in .env.example, where quotes are taken literally.
+#
+# Most of these can also be set from Admin once you have an account, and what is
+# set there wins over this file. The sections marked "environment only" cannot —
+# they decide how the process starts, so they are shown read-only on that page
+# and take a restart to change.
+
+services:
+  send2ereader:
+    image: ghcr.io/devnullv0id/send2ereader:latest
+    # or: code.private-home-network.de/devnullv0id/send2ereader:latest
+    container_name: send2ereader
+    restart: unless-stopped
+    ports:
+      - 3001:3001
+    volumes:
+      - data:/data
+
+    # To build from this checkout instead of pulling the image:
+    # build:
+    #   context: .
+    #   dockerfile: ./Dockerfile
+    #   args:
+    #     KFX_INPUT_PLUGIN_URL: "${KFX_INPUT_PLUGIN_URL:-}"
+    #     EPUB_LAYOUT_FIX_FORGE: "${EPUB_LAYOUT_FIX_FORGE:-}"
+    #     EPUB_LAYOUT_FIX_HOST: "${EPUB_LAYOUT_FIX_HOST:-}"
+    # volumes:
+    #   - ./static:/usr/src/app/static:ro
+    #   - data:/data
+
+    # Keep settings in a file instead of below. Both work; real environment
+    # entries win over the file.
+    # env_file:
+    #   - path: .env
+    #     required: false
+
+    environment:
+      TZ: "UTC"
+
+      # ── The address people reach this server on ──────────────────────────
+      # Every link, every paired Kobo and every passkey is bound to it.
+      # PROTOCOL: "http"
+      # DOMAIN: "books.example.com"       # a name, not an IP: passkeys need one
+      # TRUST_PROXY: "false"              # behind a proxy, name it: 192.168.20.2
+
+      # ── Accounts ────────────────────────────────────────────────────────
+      # ALLOW_SIGNUP: "false"             # off, only the first account can be made
+      # ALLOW_STAY_SIGNED_IN: "true"
+      # SESSION_TTL: "2592000"            # 30 days, idle timeout
+      # SIGNIN_LINK_TTL: "900"
+      # EMAIL_TOKEN_TTL: "86400"
+      # VERIFY_REMINDER_LIMIT: "5"        # 0 asks once
+
+      # ── Passwords ───────────────────────────────────────────────────────
+      # MIN_PASSWORD_LENGTH: "10"
+      # MAX_PASSWORD_LENGTH: "1024"
+      # PASSWORD_REQUIRE_UPPER: "false"
+      # PASSWORD_REQUIRE_LOWER: "false"
+      # PASSWORD_REQUIRE_DIGIT: "false"
+      # PASSWORD_REQUIRE_SYMBOL: "false"
+
+      # ── Failed sign-ins ─────────────────────────────────────────────────
+      # FAILED_SIGNINS_BEFORE_ALERT: "5"  # above 9 is never reached
+      # FAILED_SIGNIN_WINDOW: "900"
+      # FAILED_SIGNIN_ALERT_EVERY: "3600"
+
+      # ── Mail ────────────────────────────────────────────────────────────
+      # Off, confirmation and reset links go to the log instead.
+      # SMTP_ENABLED: "false"
+      # SMTP_HOST: "smtp.example.com"
+      # SMTP_PORT: "587"
+      # SMTP_SECURITY: "starttls"         # starttls (587) | ssl (465) | none
+      # SMTP_USERNAME: ""
+      # SMTP_PASSWORD: ""
+      # SMTP_FROM_EMAIL: ""               # defaults to SMTP_USERNAME
+      # SMTP_FROM_NAME: "send2ereader"
+      # SMTP_TIMEOUT_SECONDS: "30"
+      # MAIL_LOG_SECRETS: "false"         # a link in a log is a live credential
+      # SMTP_TLS: "true"                  # environment only, replaced by SMTP_SECURITY
+
+      # ── Single sign-on ──────────────────────────────────────────────────
+      # Redirects back to <PROTOCOL>://<DOMAIN>/auth/sso/callback.
+      # OIDC_ENABLED: "false"
+      # OIDC_PROVIDER_NAME: "SSO"
+      # OIDC_CONFIG_URL: ""
+      # OIDC_CLIENT_ID: ""
+      # OIDC_CLIENT_SECRET: ""
+      # OIDC_ADMIN_GROUP: ""              # empty, SSO never grants admin
+
+      # ── Sending ─────────────────────────────────────────────────────────
+      # KEY_LENGTH: "4"
+      # MAX_FILE_SIZE: "838860800"        # 800 MB
+      # EXPIRE_SECONDS: "300"             # grace once the ereader stops polling
+      # MAX_EXPIRE_SECONDS: "600"         # hard ceiling, never extended
+      # EREADER_POLL_SECONDS: "2"
+
+      # ── Converting ──────────────────────────────────────────────────────
+      # LAYOUT_FIX_DEFAULT: "true"
+      # KINDLE_SHARE_NOT_SYNC: "true"     # off, a Kindle hides the cover
+      # CALIBRE_OUTPUT_PROFILE: "kindle_pw3"
+      # CONVERSION_TIMEOUT_MS: "600000"
+      # CONVERSION_CONCURRENCY: "2"
+      # CONVERSION_OUTPUT_LIMIT: "65536"
+      # CONVERT_TTL: "1800"
+
+      # ── Library ─────────────────────────────────────────────────────────
+      # RETAIN_DAYS: "0"                  # 0 keeps nothing unless an account asks
+      # STORAGE_PER_USER: "1073741824"    # 1 GiB
+      # STORAGE_TOTAL: "10737418240"      # 10 GiB
+
+      # ── Kobo sync ───────────────────────────────────────────────────────
+      # KOBO_QUEUE_TTL: "21600"           # 6 hours
+      # KOBO_STORE_URL: "https://storeapi.kobo.com"
+      # KOBO_IMAGE_BASE_URL: "https://cdn.kobo.com/book-images"
+      # KOBO_PROXY_TIMEOUT_MS: "10000"
+      # KOBO_PROXY_BODY_LIMIT: "1048576"
+
+      # ── Server, environment only ────────────────────────────────────────
+      # Where the process listens, which never appears in a link.
+      # HTTP_ADDR: "0.0.0.0"
+      # HTTP_PORT: "3001"                 # the port mapping decides the outside one
+
+      # ── Storage, environment only ───────────────────────────────────────
+      # Already absolute in the image. Moving one means moving the mount.
+      # DATA_DIR: "/data"
+      # DB_PATH: "/data/db/send2ereader.db"
+      # UPLOAD_DIR: "/data/uploads"
+      # LIBRARY_DIR: "/data/library"
+      # KOBO_QUEUE_DIR: "/data/queue"
+      # STATIC_DIR: "static"
+      # CLEAN_UPLOAD_DIR_ON_BOOT: "true"
+      # ENV_FILE: ""                      # read before anything else, so env only
+
+      # ── Logging, environment only ───────────────────────────────────────
+      # LOG_LEVEL: "info"                 # trace|debug|info|warn|error|fatal|silent
+      # LOG_FORMAT: "text"                # text to read, json for a collector
+      # LOG_TIME: "iso"                   # iso|short|rel|none
+      # LOG_SCOPE: ""                     # comma separated, -name excludes
+      # LOG_PRETTY: "false"               # legacy, LOG_FORMAT replaces it
+      # NO_COLOR: ""                      # set to anything and colour is off
+
+      # ── Converters, environment only ────────────────────────────────────
+      # Binary names, only if they are not on PATH under these.
+      # KEPUBIFY_BIN: "kepubify"
+      # EBOOK_CONVERT_BIN: "ebook-convert"
+      # PDFCROPMARGINS_BIN: "pdfcropmargins"
+      # CALIBRE_CUSTOMIZE_BIN: "calibre-customize"
+      # EPUB_LAYOUT_FIX_BIN: "epub-layout-fix"
+      # EPUB_LAYOUT_FIX_LIB: "/opt/epub-layout-fix"   # read by the wrapper, not the server
+      # CONVERT_RATE_MAX: "5"             # conversions per address per window
+      # CONVERT_RATE_WINDOW: "1 minute"
+
+      # ── Extensions, environment only ────────────────────────────────────
+      # Fetched at container start, because they are too big or not ours to ship.
+      # EXTENSIONS: "calibre|pdfcrop|kfx"
+      # EXTENSION_PACKAGES: "fonts-noto-cjk|poppler-utils"
+      # KFX_PREVIEWER_PATH: ""            # only if the Previewer came from elsewhere
+
+      # ── Security, environment only ──────────────────────────────────────
+      # ACCOUNTS: "true"                  # off removes sign-in, the library and Admin
+      # SESSION_SECRET: ""                # unset, one is generated beside the database
+      # SCRYPT_N: "65536"
+      # LOCKED_SETTINGS: ""               # keys Admin must show read-only
+
+      # ── The container itself ────────────────────────────────────────────
+      # PUID: "1000"                      # the user files are written as
+      # PGID: "1000"
+      # NODE_ENV: "production"            # already set in the image
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  data:

@@ -11,111 +11,245 @@
     "changed, or the change is a deliberate override -- and a deliberate override",
     "belongs in OVERRIDES in copy.test.ts with the reason, not here."
   ],
-
   "static/login.html": [
-    { "line": 813, "text": "Sign in" },
+    {
+      "line": 813,
+      "text": "Sign in"
+    },
     {
       "line": 841,
       "text": "Good for 15 minutes, one use. Nothing to remember and nothing to leak."
     },
-    { "line": 816, "text": "If that address has an account, a link is on its way" },
+    {
+      "line": 816,
+      "text": "If that address has an account, a link is on its way"
+    },
     {
       "line": 816,
       "text": "We don't say which addresses exist. Valid for 15 minutes, one use."
     }
   ],
-
   "static/forgot.html": [
-    { "line": 813, "text": "Sign in" },
-    { "line": 891, "text": "We don't say which addresses exist. Valid for 30 minutes, one use." }
+    {
+      "line": 813,
+      "text": "Sign in"
+    },
+    {
+      "line": 891,
+      "text": "We don't say which addresses exist. Valid for 30 minutes, one use."
+    }
   ],
-
   "static/reset.html": [
-    { "line": 813, "text": "Sign in" },
-    { "line": 901, "text": "Setting a new password for" }
+    {
+      "line": 813,
+      "text": "Sign in"
+    },
+    {
+      "line": 901,
+      "text": "Setting a new password for"
+    }
   ],
-
   "static/send.html": [
-    { "line": 1425, "text": "Delivery method" },
-    { "line": 85, "text": "Key from the device" },
-    { "line": 86, "text": "Any ereader with a browser. It has to be awake." },
-    { "line": 89, "text": "Deliver to Kobo directly" },
-    { "line": 147, "text": "Type the four characters it shows." },
-    { "line": 150, "text": "LOOKING FOR THAT EREADER…" },
+    {
+      "line": 1425,
+      "text": "Delivery method"
+    },
+    {
+      "line": 85,
+      "text": "Key from the device"
+    },
+    {
+      "line": 86,
+      "text": "Any ereader with a browser. It has to be awake."
+    },
+    {
+      "line": 89,
+      "text": "Deliver to Kobo directly"
+    },
+    {
+      "line": 147,
+      "text": "Type the four characters it shows."
+    },
+    {
+      "line": 150,
+      "text": "LOOKING FOR THAT EREADER…"
+    },
     {
       "line": 155,
       "text": ". Keys change every time the page loads — reload it and read the new one."
     },
-    { "line": 205, "text": "The book" },
-    { "line": 208, "text": "Choose a file" },
+    {
+      "line": 205,
+      "text": "The book"
+    },
+    {
+      "line": 208,
+      "text": "Choose a file"
+    },
     {
       "line": 223,
       "text": "Convert it to EPUB first, or paste a link and we'll build one for you."
     },
-    { "line": 224, "text": "Pick something else" },
-    { "line": 246, "text": "Convert for" },
-    { "line": 252, "text": "Don't convert" },
-    { "line": 1569, "text": "Enter a key to begin" },
-    { "line": 123, "text": "No device has synced yet" },
+    {
+      "line": 224,
+      "text": "Pick something else"
+    },
+    {
+      "line": 246,
+      "text": "Convert for"
+    },
+    {
+      "line": 252,
+      "text": "Don't convert"
+    },
+    {
+      "line": 1569,
+      "text": "Enter a key to begin"
+    },
+    {
+      "line": 123,
+      "text": "No device has synced yet"
+    },
     {
       "line": 123,
       "text": "The endpoint exists, but nothing has connected to it. Sync once from the device and it shows up here."
-    },
-    {
-      "line": 126,
-      "text": "The device collects it the next time it syncs — asleep, off wifi or in a bag is fine. After a day, or the moment it downloads, the server drops the file."
     },
     {
       "line": 336,
       "text": "Held only while your ereader shows the key, or until a paired Kobo collects it."
     }
   ],
-
   "static/send-page.js": [
-    { "line": 190, "text": "That key ran out" },
+    {
+      "line": 190,
+      "text": "That key ran out"
+    },
     {
       "line": 190,
       "text": "Keys live five minutes, and only while the page is on screen. Reload it on your ereader for a fresh one."
     },
-    { "line": 191, "text": "New key" },
+    {
+      "line": 191,
+      "text": "New key"
+    },
     {
       "line": 180,
       "text": "The characters change every time the page loads. Reload it on your ereader and read the new ones."
     },
-    { "line": 181, "text": "Try again" },
-    { "line": 1363, "text": "LAST SYNC FAILED — IT MAY NOT ARRIVE" },
-    { "line": 1365, "text": "NEVER SYNCED — CONNECT THE DEVICE FIRST" },
-    { "line": 1367, "text": "SYNCING NOW — IT WILL PICK THIS UP" },
-    { "line": 1569, "text": "No device has synced yet" },
-    { "line": 1569, "text": "Add a file to send" },
-    { "line": 1580, "text": "Still connected" },
-    { "line": 1580, "text": "Connection lost" },
-    { "line": 1582, "text": "THE DEVICE STOPPED ANSWERING — WIFI OR SLEEP" },
-    { "line": 1557, "text": "Transfer interrupted" },
-    { "line": 1557, "text": "Conversion failed" },
-    { "line": 1501, "text": "Or drag and drop like it's hot" },
-    { "line": 1501, "text": "Let go to load it" }
+    {
+      "line": 181,
+      "text": "Try again"
+    },
+    {
+      "line": 1363,
+      "text": "LAST SYNC FAILED — IT MAY NOT ARRIVE"
+    },
+    {
+      "line": 1365,
+      "text": "NEVER SYNCED — CONNECT THE DEVICE FIRST"
+    },
+    {
+      "line": 1367,
+      "text": "SYNCING NOW — IT WILL PICK THIS UP"
+    },
+    {
+      "line": 1569,
+      "text": "No device has synced yet"
+    },
+    {
+      "line": 1569,
+      "text": "Add a file to send"
+    },
+    {
+      "line": 1580,
+      "text": "Still connected"
+    },
+    {
+      "line": 1580,
+      "text": "Connection lost"
+    },
+    {
+      "line": 1582,
+      "text": "THE DEVICE STOPPED ANSWERING — WIFI OR SLEEP"
+    },
+    {
+      "line": 1557,
+      "text": "Transfer interrupted"
+    },
+    {
+      "line": 1557,
+      "text": "Conversion failed"
+    },
+    {
+      "line": 1501,
+      "text": "Or drag and drop like it's hot"
+    },
+    {
+      "line": 1501,
+      "text": "Let go to load it"
+    }
   ],
-
   "static/send.js": [
-    { "line": 1219, "text": "Fix layout" },
+    {
+      "line": 1219,
+      "text": "Fix layout"
+    },
     {
       "line": 1220,
       "text": "Repairs full-page images that get clipped and covers that get stretched, on Kobo, Tolino and PocketBook."
     },
-    { "line": 1222, "text": "APPLIES TO THE EPUB WE MAKE FROM IT" },
-    { "line": 1223, "text": "Kindles don't have this bug." },
-    { "line": 1223, "text": "Only for EPUB sent to Kobo, Tolino or PocketBook." },
-    { "line": 1224, "text": "Crop PDF margins" },
-    { "line": 1225, "text": "Trims whitespace so the page fills a small screen." },
-    { "line": 1226, "text": "APPLIES TO PDF" },
-    { "line": 1226, "text": "Only for PDFs." },
-    { "line": 1227, "text": "Transliterate filename" },
-    { "line": 1228, "text": "Rewrite accented and non-Latin characters as ASCII." },
-    { "line": 1230, "text": "THIS FILENAME HAS NON-ASCII CHARACTERS" },
-    { "line": 1230, "text": "THE KINDLE BROWSER STRIPS SPECIAL CHARACTERS" },
-    { "line": 1231, "text": "This filename is already plain ASCII." },
-    { "line": 1385, "text": "Auto uses whichever device generated the key" },
+    {
+      "line": 1222,
+      "text": "APPLIES TO THE EPUB WE MAKE FROM IT"
+    },
+    {
+      "line": 1223,
+      "text": "Kindles don't have this bug."
+    },
+    {
+      "line": 1223,
+      "text": "Only for EPUB sent to Kobo, Tolino or PocketBook."
+    },
+    {
+      "line": 1224,
+      "text": "Crop PDF margins"
+    },
+    {
+      "line": 1225,
+      "text": "Trims whitespace so the page fills a small screen."
+    },
+    {
+      "line": 1226,
+      "text": "APPLIES TO PDF"
+    },
+    {
+      "line": 1226,
+      "text": "Only for PDFs."
+    },
+    {
+      "line": 1227,
+      "text": "Transliterate filename"
+    },
+    {
+      "line": 1228,
+      "text": "Rewrite accented and non-Latin characters as ASCII."
+    },
+    {
+      "line": 1230,
+      "text": "THIS FILENAME HAS NON-ASCII CHARACTERS"
+    },
+    {
+      "line": 1230,
+      "text": "THE KINDLE BROWSER STRIPS SPECIAL CHARACTERS"
+    },
+    {
+      "line": 1231,
+      "text": "This filename is already plain ASCII."
+    },
+    {
+      "line": 1385,
+      "text": "Auto uses whichever device generated the key"
+    },
     {
       "line": 1386,
       "text": "Forces the Kobo path: EPUB becomes a Kobo EPUB, everything else is sent unchanged."
@@ -124,181 +258,368 @@
       "line": 1387,
       "text": "Forces the Kindle path: EPUB, CBZ, CBR, TXT and HTML become AZW3. Filenames lose special characters."
     },
-    { "line": 1388, "text": "Sends the bytes exactly as they are. Your device may not open them." },
+    {
+      "line": 1388,
+      "text": "Sends the bytes exactly as they are. Your device may not open them."
+    },
     {
       "line": 1105,
       "text": "Trims whitespace before anything else runs, so the text fills a small screen."
     }
   ],
-
   "static/convert.html": [
-    { "line": 358, "text": "Convert a book" },
-    { "line": 359, "text": "Same converters, no ereader involved." },
-    { "line": 367, "text": "The file" },
+    {
+      "line": 358,
+      "text": "Convert a book"
+    },
+    {
+      "line": 359,
+      "text": "Same converters, no ereader involved."
+    },
     {
       "line": 376,
       "text": "These converters can't read it. Turn it into an EPUB first and we'll take it from there."
     },
-    { "line": 459, "text": "Converted" },
-    { "line": 462, "text": "Download" },
-    { "line": 463, "text": "Send it to an ereader" },
-    { "line": 476, "text": "Give it another go" },
-    { "line": 477, "text": "Try a different file" },
-    { "line": 489, "text": "Converted files are deleted as soon as you download them." }
+    {
+      "line": 459,
+      "text": "Converted"
+    },
+    {
+      "line": 463,
+      "text": "Send it to an ereader"
+    },
+    {
+      "line": 476,
+      "text": "Give it another go"
+    },
+    {
+      "line": 477,
+      "text": "Try a different file"
+    },
+    {
+      "line": 489,
+      "text": "Converted files are deleted as soon as you download them."
+    }
   ],
-
   "static/convert.js": [
-    { "line": 473, "text": "Nothing was written. The file looks cut short." },
-    { "line": 1931, "text": "Pick a file to convert" },
-    { "line": 1931, "text": "Pick a format" },
-    { "line": 464, "text": "Convert another" }
+    {
+      "line": 473,
+      "text": "Nothing was written. The file looks cut short."
+    },
+    {
+      "line": 1931,
+      "text": "Pick a file to convert"
+    },
+    {
+      "line": 1931,
+      "text": "Pick a format"
+    },
+    {
+      "line": 464,
+      "text": "Convert another"
+    }
   ],
-
   "src/convert/formats.ts": [
-    { "line": 1059, "text": "also Tolino and PocketBook" },
-    { "line": 1060, "text": "Kobo's own" },
-    { "line": 1061, "text": "read by everything" },
-    { "line": 1064, "text": "newest Kindles" },
-    { "line": 1065, "text": "the safe choice" },
-    { "line": 1066, "text": "older Kindles" },
-    { "line": 1068, "text": "phones, tablets, print" },
-    { "line": 1069, "text": "fixed pages" },
-    { "line": 1070, "text": "plain text" },
-    { "line": 1071, "text": "one zipped page" },
-    { "line": 1077, "text": "unsupported source" },
-    { "line": 1083, "text": "comics go to EPUB, AZW3, MOBI, KFX or PDF" }
+    {
+      "line": 1059,
+      "text": "also Tolino and PocketBook"
+    },
+    {
+      "line": 1060,
+      "text": "Kobo's own"
+    },
+    {
+      "line": 1061,
+      "text": "read by everything"
+    },
+    {
+      "line": 1064,
+      "text": "newest Kindles"
+    },
+    {
+      "line": 1065,
+      "text": "the safe choice"
+    },
+    {
+      "line": 1066,
+      "text": "older Kindles"
+    },
+    {
+      "line": 1068,
+      "text": "phones, tablets, print"
+    },
+    {
+      "line": 1069,
+      "text": "fixed pages"
+    },
+    {
+      "line": 1070,
+      "text": "plain text"
+    },
+    {
+      "line": 1071,
+      "text": "one zipped page"
+    },
+    {
+      "line": 1077,
+      "text": "unsupported source"
+    },
+    {
+      "line": 1083,
+      "text": "comics go to EPUB, AZW3, MOBI, KFX or PDF"
+    }
   ],
-
   "static/history.html": [
-    { "line": 496, "text": "History" },
     {
       "line": 496,
       "text": "Stored in this browser only. The server keeps no record of what you sent."
     },
-    { "line": 496, "text": "Clear all" },
-    { "line": 498, "text": "Nothing sent yet" },
-    { "line": 498, "text": "Sends you make in this session show up here." },
-    { "line": 498, "text": "Send a book" },
-    { "line": 506, "text": "Send again" }
+    {
+      "line": 496,
+      "text": "Clear all"
+    },
+    {
+      "line": 498,
+      "text": "Nothing sent yet"
+    },
+    {
+      "line": 498,
+      "text": "Sends you make in this session show up here."
+    },
+    {
+      "line": 498,
+      "text": "Send a book"
+    }
   ],
-
   "static/waiting.html": [
-    { "line": 518, "text": "Waiting to be collected" },
+    {
+      "line": 518,
+      "text": "Waiting to be collected"
+    },
     {
       "line": 518,
       "text": "Books queued at your sync endpoint. Each is deleted the moment your Kobo takes it, or after 24 hours."
     },
-    { "line": 519, "text": "Cancel all" },
-    { "line": 522, "text": "Nothing waiting" },
+    {
+      "line": 519,
+      "text": "Cancel all"
+    },
+    {
+      "line": 522,
+      "text": "Nothing waiting"
+    },
     {
       "line": 522,
       "text": "Anything you deliver over Kobo sync shows up here until the device collects it."
     },
-    { "line": 535, "text": "Download now" },
     {
-      "line": 540,
-      "text": "Cancelling deletes the file from the server straight away. If the device already collected it, the copy on the device stays — there's no way to reach back into it."
+      "line": 535,
+      "text": "Download now"
     }
   ],
-
   "static/settings.html": [
-    { "line": 1404, "text": "Your account, send defaults and Kobo sync." },
-    { "line": 554, "text": "Account" },
-    { "line": 556, "text": "Send defaults" },
-    { "line": 558, "text": "Security" },
-    { "line": 559, "text": "Kobo sync" },
-    { "line": 561, "text": "Delete account" },
-    { "line": 656, "text": "Email address" },
-    { "line": 658, "text": "Sign-in links and notices go to" },
-    { "line": 661, "text": "Send confirmation" },
-    { "line": 664, "text": "Another account on this server already uses that address." },
     {
-      "line": 666,
-      "text": "The address only changes once you open the link we send to the new one. The old address gets a notice either way."
+      "line": 1404,
+      "text": "Your account, send defaults and Kobo sync."
     },
-    { "line": 671, "text": "Waiting on" },
-    { "line": 679, "text": "Password" },
-    { "line": 686, "text": "No current password — nothing to confirm this time" },
-    { "line": 688, "text": "New password" },
-    { "line": 689, "text": "New password again" },
+    {
+      "line": 554,
+      "text": "Account"
+    },
+    {
+      "line": 556,
+      "text": "Send defaults"
+    },
+    {
+      "line": 558,
+      "text": "Security"
+    },
+    {
+      "line": 561,
+      "text": "Delete account"
+    },
+    {
+      "line": 656,
+      "text": "Email address"
+    },
+    {
+      "line": 658,
+      "text": "Sign-in links and notices go to"
+    },
+    {
+      "line": 661,
+      "text": "Send confirmation"
+    },
+    {
+      "line": 664,
+      "text": "Another account on this server already uses that address."
+    },
+    {
+      "line": 671,
+      "text": "Waiting on"
+    },
+    {
+      "line": 679,
+      "text": "Password"
+    },
+    {
+      "line": 686,
+      "text": "No current password — nothing to confirm this time"
+    },
+    {
+      "line": 688,
+      "text": "New password"
+    },
+    {
+      "line": 689,
+      "text": "New password again"
+    },
     {
       "line": 695,
       "text": "Saving one signs out every other session and mails the old address a notice."
     },
-    { "line": 699, "text": "Passkeys" },
     {
-      "line": 700,
-      "text": "A passkey signs you in with the fingerprint reader or PIN that already unlocks your device. Nothing to remember, and nothing a leaked database could reveal."
+      "line": 699,
+      "text": "Passkeys"
     },
-    { "line": 713, "text": "No passkeys yet. Your password keeps working either way." },
-    { "line": 720, "text": "Two-factor" },
     {
-      "line": 724,
-      "text": "Ask for a six-digit code from an authenticator app after the password. Sending a book never asks for it, only signing in does."
+      "line": 713,
+      "text": "No passkeys yet. Your password keeps working either way."
     },
-    { "line": 725, "text": "Set up two-factor" },
-    { "line": 729, "text": "Scan this in your authenticator app" },
-    { "line": 733, "text": "Or type the key" },
-    { "line": 735, "text": "Then enter the code it shows" },
-    { "line": 738, "text": "Turn it on" },
+    {
+      "line": 720,
+      "text": "Two-factor"
+    },
+    {
+      "line": 725,
+      "text": "Set up two-factor"
+    },
+    {
+      "line": 729,
+      "text": "Scan this in your authenticator app"
+    },
+    {
+      "line": 733,
+      "text": "Or type the key"
+    },
+    {
+      "line": 735,
+      "text": "Then enter the code it shows"
+    },
+    {
+      "line": 738,
+      "text": "Turn it on"
+    },
     {
       "line": 742,
       "text": "That code didn't match. Codes change every 30 seconds, so use the one showing now."
     },
-    { "line": 751, "text": "Two-factor is on" },
-    { "line": 751, "text": "AUTHENTICATOR APP" },
-    { "line": 752, "text": "Turn off" },
-    { "line": 756, "text": "Generate new codes" },
-    { "line": 762, "text": "Where you're signed in" },
-    { "line": 773, "text": "Sign out everywhere else" },
-    { "line": 780, "text": "This removes the account and everything attached to it" },
-    { "line": 782, "text": "Your email address and sign-in tokens" },
+    {
+      "line": 751,
+      "text": "Two-factor is on"
+    },
+    {
+      "line": 751,
+      "text": "AUTHENTICATOR APP"
+    },
+    {
+      "line": 752,
+      "text": "Turn off"
+    },
+    {
+      "line": 756,
+      "text": "Generate new codes"
+    },
+    {
+      "line": 762,
+      "text": "Where you're signed in"
+    },
+    {
+      "line": 773,
+      "text": "Sign out everywhere else"
+    },
+    {
+      "line": 780,
+      "text": "This removes the account and everything attached to it"
+    },
+    {
+      "line": 782,
+      "text": "Your email address and sign-in tokens"
+    },
     {
       "line": 783,
       "text": "Nothing from your history — it lives in this browser, not on the server, so clear it there"
     },
-    { "line": 784, "text": "Your send defaults and Kobo sync settings" },
-    { "line": 785, "text": "Any Kobo sync endpoint" },
     {
-      "line": 787,
-      "text": "No book files are deleted, because none were ever kept. Books already on your ereader stay there. Anonymous sending keeps working."
+      "line": 784,
+      "text": "Your send defaults and Kobo sync settings"
     },
-    { "line": 788, "text": "Type DELETE to confirm" },
-    { "line": 791, "text": "Delete my account" },
     {
-      "line": 796,
-      "text": "This can't be undone and no confirmation email is sent. You'll be signed out immediately and this browser goes back to anonymous sending."
+      "line": 785,
+      "text": "Any Kobo sync endpoint"
     },
-    { "line": 798, "text": "Yes, delete it" },
-    { "line": 799, "text": "Keep my account" },
-    { "line": 2029, "text": "Forward to Rakuten Kobo Store" },
+    {
+      "line": 788,
+      "text": "Type DELETE to confirm"
+    },
+    {
+      "line": 791,
+      "text": "Delete my account"
+    },
+    {
+      "line": 798,
+      "text": "Yes, delete it"
+    },
+    {
+      "line": 799,
+      "text": "Keep my account"
+    },
+    {
+      "line": 2029,
+      "text": "Forward to Rakuten Kobo Store"
+    },
     {
       "line": 2029,
       "text": "Combines your requests with requests from the Rakuten Kobo Store, so users can still access purchased books and get recommendations."
     },
     {
-      "line": 630,
-      "text": "The file is deleted the moment the device confirms delivery — that isn't optional, and this app never keeps a library. The endpoint only answers requests carrying this token. Anyone holding the URL can push a book to your device or collect one waiting there, so treat it like a password and regenerate if it leaks."
+      "line": 919,
+      "text": "Save your recovery codes"
     },
-    { "line": 919, "text": "Save your recovery codes" },
     {
-      "line": 920,
-      "text": "This is the only time they're shown. Each code works once, and they're the way back in if you lose the authenticator."
+      "line": 928,
+      "text": "Download .txt"
     },
-    { "line": 928, "text": "Download .txt" },
-    { "line": 933, "text": "I've saved them somewhere safe" },
-    { "line": 943, "text": "Name this passkey" },
+    {
+      "line": 933,
+      "text": "I've saved them somewhere safe"
+    },
+    {
+      "line": 943,
+      "text": "Name this passkey"
+    },
     {
       "line": 944,
       "text": "A name helps you tell them apart later. Your browser asks for the fingerprint or PIN next."
     },
-    { "line": 947, "text": "Create passkey" }
+    {
+      "line": 947,
+      "text": "Create passkey"
+    }
   ],
-
   "static/settings.js": [
-    { "line": 1983, "text": "NOT CONNECTED" },
-    { "line": 1983, "text": "CONNECTED" },
-    { "line": 1983, "text": "AWAITING FIRST SYNC" },
+    {
+      "line": 1983,
+      "text": "NOT CONNECTED"
+    },
+    {
+      "line": 1983,
+      "text": "CONNECTED"
+    },
+    {
+      "line": 1983,
+      "text": "AWAITING FIRST SYNC"
+    },
     {
       "line": 1967,
       "text": "This account has a password as well as emailed sign-in links. Change it here."
@@ -307,30 +628,67 @@
       "line": 1968,
       "text": "This account signs in with emailed links, so there's no password yet. Set one if you'd rather type than wait for mail."
     },
-    { "line": 1978, "text": "Change password" },
-    { "line": 1978, "text": "Set a password" },
-    { "line": 1281, "text": "Enter your current password" },
-    { "line": 1282, "text": "That current password is incorrect" },
-    { "line": 1285, "text": "Those don't match" },
-    { "line": 1935, "text": "books sent" },
-    { "line": 1941, "text": "emailed link" },
-    { "line": 1762, "text": "Add another passkey" },
+    {
+      "line": 1978,
+      "text": "Change password"
+    },
+    {
+      "line": 1978,
+      "text": "Set a password"
+    },
+    {
+      "line": 1281,
+      "text": "Enter your current password"
+    },
+    {
+      "line": 1282,
+      "text": "That current password is incorrect"
+    },
+    {
+      "line": 1285,
+      "text": "Those don't match"
+    },
+    {
+      "line": 1935,
+      "text": "books sent"
+    },
+    {
+      "line": 1941,
+      "text": "emailed link"
+    },
+    {
+      "line": 1762,
+      "text": "Add another passkey"
+    },
     {
       "line": 2039,
       "text": "The Kobo sync endpoint — devices pointed at it stop syncing"
     },
-    { "line": 1805, "text": "Copy all" }
+    {
+      "line": 1805,
+      "text": "Copy all"
+    }
   ],
-
   "static/shell.js": [
-    { "line": 39, "text": "Send to ereader" },
-    { "line": 41, "text": "Send" },
-    { "line": 42, "text": "Convert" },
-    { "line": 957, "text": "Sign out?" },
+    {
+      "line": 39,
+      "text": "Send to ereader"
+    },
+    {
+      "line": 42,
+      "text": "Convert"
+    },
+    {
+      "line": 957,
+      "text": "Sign out?"
+    },
     {
       "line": 958,
       "text": "Your defaults and Kobo sync stay on the account. This browser's send history is cleared, and anything waiting for your Kobo stays queued on the server."
     },
-    { "line": 961, "text": "Stay signed in" }
+    {
+      "line": 961,
+      "text": "Stay signed in"
+    }
   ]
 }

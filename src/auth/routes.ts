@@ -187,6 +187,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         lastName: req.body.lastName,
       })
       const recoveryPhrase = auth.recoveryPhraseNeeded ? auth.issueRecoveryPhrase(user.id) : null
+      app.repos.users.touchLogin(user.id)
       startSession(req, user, req.body.remember !== false)
       return reply.send({
         ok: true,

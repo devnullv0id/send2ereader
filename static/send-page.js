@@ -1106,7 +1106,7 @@ onPage('send', (page) => {
   function done(data) {
     show($('donepanel'), true)
     const sync = state.method === 'sync'
-    $('doneTitle').textContent = sync ? 'Waiting for your Kobo' : `On your ${state.paired.label}`
+    $('doneTitle').textContent = sync ? 'Waiting for your Kobo' : `On ${state.paired.label}`
 
     $('doneText').replaceChildren()
     const name = document.createElement('span')

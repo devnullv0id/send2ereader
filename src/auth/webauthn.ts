@@ -9,7 +9,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from '@simplewebauthn/server'
-import { config, publicUrl, publicUrlFor } from '../config.js'
+import { publicUrl, publicUrlFor } from '../config.js'
 import type { Passkey, User } from '../db/repositories.js'
 
 export const RP_NAME = 'Send to eReader'

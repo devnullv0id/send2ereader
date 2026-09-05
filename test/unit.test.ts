@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { config, safeNext } from '../src/config.js'
+import { config, proxyTrust, safeNext } from '../src/config.js'
 import { type ConversionPlan, planConversion, type ToolAvailability } from '../src/convert/index.js'
 import { detectDevice, isEreader } from '../src/device.js'
 import {
@@ -395,5 +395,32 @@ describe('the copy of safeNext that ships to the browser', () => {
 
   it('still lets a real destination through', () => {
     expect(run('/settings#profile')).toBe('/settings#profile')
+  })
+})
+
+describe('what TRUST_PROXY is allowed to mean', () => {
+  it('still reads the words it always did', () => {
+    for (const yes of ['true', 'yes', 'on', '1', 'TRUE', ' true ']) {
+      expect(proxyTrust(yes, false), yes).toBe(true)
+    }
+    for (const no of ['false', 'no', 'off', '0', 'none', 'FALSE']) {
+      expect(proxyTrust(no, true), no).toBe(false)
+    }
+  })
+
+  it('falls back when it is unset or empty', () => {
+    expect(proxyTrust(undefined, false)).toBe(false)
+    expect(proxyTrust('', true)).toBe(true)
+  })
+
+  it('hands anything else to fastify verbatim, which is the point', () => {
+    expect(proxyTrust('192.168.20.2', false)).toBe('192.168.20.2')
+    expect(proxyTrust('10.0.0.0/8', false)).toBe('10.0.0.0/8')
+    expect(proxyTrust('loopback', false)).toBe('loopback')
+    expect(proxyTrust(' 192.168.20.2, 10.0.0.1 ', false)).toBe('192.168.20.2, 10.0.0.1')
+  })
+
+  it('never turns an address into a bare true, which would trust everybody', () => {
+    expect(proxyTrust('192.168.20.2', false)).not.toBe(true)
   })
 })

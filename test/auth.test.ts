@@ -503,6 +503,16 @@ describe('e-mail verification', () => {
   })
 })
 
+describe('when the account was last used', () => {
+  it('counts creating an account, because that signs you in', async () => {
+    await register()
+    const repos = createRepositories(db)
+    const user = repos.users.byEmail('owner@example.com')!
+
+    expect(user.lastLoginAt, 'admin would otherwise say "signed in never"').not.toBeNull()
+  })
+})
+
 describe('signing in from a mailed link', () => {
   it('signs in and confirms the address, which the mail arriving proved', async () => {
     await register()

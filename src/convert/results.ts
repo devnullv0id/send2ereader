@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { config } from '../config.js'
 import { safeUnlink } from '../files.js'
 import { settings } from '../settings.js'
 import type { EbookFormat } from '../types.js'

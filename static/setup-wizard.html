@@ -22,7 +22,7 @@
 		<div class="wrap">
 			<div class="page-head">
 				<h1 class="page-title">Set up this server</h1>
-				<p class="sub">Five things to decide, then it restarts once and is yours. The rest of the server waits here until they are answered.</p>
+				<p class="sub">Five things to decide. The rest of the server waits until they are answered.</p>
 			</div>
 
 			<div class="step-card setup-card">
@@ -41,7 +41,7 @@
 					<div class="step__badge is-current" id="badge1">1</div>
 					<div class="step__body">
 						<div class="step__title">The address people reach this server on</div>
-						<p class="field-note field-note--wide">Every link this server sends is built from it, every paired Kobo stores it, and a passkey is bound to it. It is not how the server listens — that is set in the environment file and shown on the admin page.</p>
+						<p class="field-note field-note--wide">Every link, every paired Kobo and every passkey is bound to it. Not how the server listens — that lives in the environment file.</p>
 
 						<div class="field-row">
 							<select class="field field--inline field--choice" id="wizProtocol" data-key="PROTOCOL">
@@ -49,8 +49,9 @@
 								<option value="http">http</option>
 							</select>
 							<input class="field field--inline" id="wizDomain" data-key="DOMAIN" placeholder="books.example.com" spellcheck="false"/>
+							<button type="button" class="outline-action" id="wizUseCurrent"><span>Use this address</span></button>
 						</div>
-						<p class="field-note field-note--wide" id="addressHint">A name, not an address and not a URL. Leave it empty on a laptop and the server calls itself by its listen address.</p>
+						<p class="field-note field-note--wide" id="addressHint">A name, not an address. Empty on a laptop uses the listen address.</p>
 
 						<div class="save-row">
 							<button type="button" class="btn btn--primary" data-next="1">Continue</button>
@@ -74,7 +75,7 @@
 					<div class="step__badge" id="badge2">2</div>
 					<div class="step__body">
 						<div class="step__title">Mail</div>
-						<p class="field-note field-note--wide">Without it there is no confirmation link, no password reset and no emailed sign-in. The server still works — the messages go to its log instead, which is enough for one person and wrong for anybody else.</p>
+						<p class="field-note field-note--wide">Without it there is no confirmation, reset or sign-in link — the messages go to the log instead. Fine for one person, wrong for anybody else.</p>
 
 						<div class="pref-list">
 							<button type="button" class="pref" data-key="SMTP_ENABLED" data-toggle>
@@ -99,7 +100,7 @@
 									<option value="none">None</option>
 								</select>
 							</div>
-							<p class="field-note field-note--wide">STARTTLS opens in the clear on 587 and upgrades. SSL is encrypted from the first byte, which is what 465 expects. None sends your password in the clear.</p>
+							<p class="field-note field-note--wide">STARTTLS on 587, SSL on 465. None sends your password in the clear.</p>
 
 							<p class="settings__line">Sign in to it</p>
 							<div class="field-pair">
@@ -141,7 +142,7 @@
 					<div class="step__badge" id="badge3">3</div>
 					<div class="step__body">
 						<div class="step__title">Single sign-on</div>
-						<p class="field-note field-note--wide">Optional, and off unless you already run a directory. It lets an OpenID Connect provider do the signing in; passwords here keep working alongside it.</p>
+						<p class="field-note field-note--wide">Lets an OpenID Connect provider do the signing in. Passwords keep working alongside it.</p>
 
 						<div class="pref-list">
 							<button type="button" class="pref" data-key="OIDC_ENABLED" data-toggle>
@@ -198,7 +199,7 @@
 					<div class="step__badge" id="badge4">4</div>
 					<div class="step__body">
 						<div class="step__title">Accounts and passwords</div>
-						<p class="field-note field-note--wide">Sending a book never needs an account. These decide who else may make one here, and what their password has to look like.</p>
+						<p class="field-note field-note--wide">Sending never needs an account. This is who else may make one.</p>
 
 						<div class="pref-list">
 							<button type="button" class="pref" data-key="ALLOW_SIGNUP" data-toggle>
@@ -215,7 +216,7 @@
 							<input class="field field--inline field--amount" id="wizMinLength" data-key="MIN_PASSWORD_LENGTH" type="number" min="8" max="128"/>
 							<span class="save-row__msg">characters</span>
 						</div>
-						<p class="field-note field-note--wide">Length does more for a password than any composition rule, which is why the rest start off.</p>
+						<p class="field-note field-note--wide">Length does more than any composition rule, which is why the rest start off.</p>
 
 						<div class="pref-list">
 							<button type="button" class="pref" data-key="PASSWORD_REQUIRE_UPPER" data-toggle>
@@ -258,7 +259,7 @@
 					<div class="step__badge" id="badge5">5</div>
 					<div class="step__body">
 						<div class="step__title">Converters</div>
-						<p class="field-note field-note--wide">As it stands this server takes an EPUB and sends it to a Kobo as a KEPUB, repairing the layout on the way. That covers Kobo, Tolino and PocketBook and needs nothing further. Everything else — Kindle formats, PDF, and reading a KFX — is fetched onto this machine when you ask for it, because it is most of a gigabyte and most servers never use all of it.</p>
+						<p class="field-note field-note--wide">EPUB to KEPUB works already, which covers Kobo, Tolino and PocketBook. Kindle formats, PDF and KFX are most of a gigabyte, so they are fetched only if you ask.</p>
 
 						<div class="pref-list pref-list--ext">
 							<button type="button" class="pref" data-ext="calibre" data-toggle>
@@ -294,7 +295,7 @@
 							</button>
 						</div>
 
-						<p class="field-note field-note--wide">Whatever you tick is fetched in the background, in that order, while you carry on. Nothing here waits for it, and the progress is on the Converters page.</p>
+						<p class="field-note field-note--wide">Fetched in the background while you carry on. Progress is on the Converters page.</p>
 
 						<div class="save-row">
 							<button type="button" class="btn btn--primary" data-next="5" id="extNext" disabled>Continue</button>
@@ -328,7 +329,7 @@
 							</div>
 						</div>
 
-						<p class="field-note field-note--wide" id="finishManual" hidden>This server is not running in a container, so nothing would start it again if it exited. Everything is saved. Restart the process yourself and the address above takes effect; the rest is already live.</p>
+						<p class="field-note field-note--wide" id="finishManual" hidden>Not in a container, so nothing would restart it. Everything is saved; restart it yourself for the address to take effect.</p>
 
 						<div class="save-row">
 							<button type="button" class="btn btn--primary" id="finishGo">Restart and finish</button>

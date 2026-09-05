@@ -53,7 +53,7 @@
 									<option value="azw3">AZW3</option>
 								</select>
 							</div>
-							<p class="field-note field-note--wide">MOBI is the one whose cover the Kindle displays. AZW3 is newer, but a downloaded AZW3 arrives without its cover.</p>
+							<p class="field-note field-note--wide">MOBI keeps its cover on a Kindle. A downloaded AZW3 does not.</p>
 
 							<div class="settings__rule"></div>
 							<div class="settings__section">Kobo format</div>
@@ -86,7 +86,7 @@
 
 							<div class="settings__rule"></div>
 							<div class="settings__section">What the layout fix does</div>
-							<p class="settings__intro">The same settings the calibre plugin offers. Anything left as it is here is left to the engine's own default, and nothing is sent with the book.</p>
+							<p class="settings__intro">Anything left alone uses the engine's own default.</p>
 
 							<div class="pref-list">
 								<button type="button" class="pref" data-pref="lfFixImages">
@@ -146,12 +146,12 @@
 
 						<section id="panel-history" data-panel="history" hidden>
 							<div class="settings__section">History</div>
-							<p class="settings__intro">History lists what you have sent and converted. Without a library that list is this browser's own and goes no further; with one, it is kept on the server and the books can be fetched again until each reaches its deadline.</p>
+							<p class="settings__intro">Without a library, History is this browser's own. With one, the books are kept here until their deadline.</p>
 
 							<div id="libraryPanel" hidden>
 								<div class="settings__rule"></div>
 								<div class="settings__section">Keeping books</div>
-								<p class="settings__intro" id="libraryIntro">Off by default. With it off this server keeps nothing: a book is deleted the moment it has been delivered, and History shows only what this browser sent. With it on, what you send and convert stays here so you can fetch it again.</p>
+								<p class="settings__intro" id="libraryIntro">Off, a book is deleted the moment it is delivered. On, it stays here so you can fetch it again.</p>
 
 								<div class="pref-list">
 									<button type="button" class="pref" id="libraryToggle" role="checkbox" aria-checked="false">
@@ -187,7 +187,7 @@
 							</div>
 
 							<div id="koboOff">
-								<p class="settings__intro">A Kobo asks a server for its library every time it syncs, and which server that is lives in one line of a config file on the device. Point it here and a book you send arrives the way a bought one does — proper title, author and cover, filed in the device's own library instead of dropped in as a loose sideloaded file. The queue keeps nothing of its own: it holds each book only until the device collects it. Whether a copy outlives that is decided under History.</p>
+								<p class="settings__intro">Point your Kobo here and a sent book arrives the way a bought one does: title, author and cover, in the device's own library. The queue holds it only until the device collects it. Whether a copy outlives that is decided under History.</p>
 								<div class="field-row">
 									<button type="button" class="btn btn--save" id="koboGenerate">Generate sync endpoint</button>
 									<span class="save-row__msg">Nothing changes on the device until you paste it there.</span>
@@ -217,7 +217,7 @@
 									<button type="button" class="outline-action outline-action--danger" id="koboRevoke">Turn off Kobo sync</button>
 								</div>
 
-								<p class="kobo-actions__note">A new token invalidates the old URL — you'd edit the config file again. Turning sync off deletes the endpoint and anything waiting at it.</p>
+								<p class="kobo-actions__note">A new token breaks the old URL. Turning sync off deletes the endpoint and anything waiting at it.</p>
 
 								<button type="button" class="outline-action" id="manualOpen">Show how to set up the Kobo</button>
 
@@ -244,13 +244,13 @@
 													<div class="manual__line-text" id="manualLine"></div>
 													<button type="button" class="manual__line-copy" id="manualCopy">Copy</button>
 												</div>
-												<p class="manual__aside">The host and protocol come from whatever public address your server is configured with, so this line is already correct for your instance.</p>
+												<p class="manual__aside">Built from this server's public address, so it is already right.</p>
 												<p class="manual__caution">Copy the original line into a comment first — you'll want it back if you ever return to the Kobo store.</p>
 											</div>
 										</div>
 										<div class="manual__step">
 											<div class="manual__num">4</div>
-											<p class="manual__text">Save, eject properly, unplug. On the device tap Sync — the first one takes a minute while it rebuilds the library.</p>
+											<p class="manual__text">Save, eject, unplug. Tap Sync on the device — the first one takes a minute.</p>
 										</div>
 									</div>
 									<div class="manual__undo">Put the original line back to undo it — nothing on the device is modified beyond that one line.</div>
@@ -282,7 +282,7 @@
 									</button>
 								</div>
 
-								<p class="settings__note">The file is deleted the moment the device confirms delivery — that isn't optional, and this app never keeps a library. The endpoint only answers requests carrying this token. Anyone holding the URL can push a book to your device or collect one waiting there, so treat it like a password and regenerate if it leaks.</p>
+								<p class="settings__note">The endpoint answers only requests carrying this token, and anyone holding the URL can push a book to your device or collect one waiting. Treat it like a password.</p>
 							</div>
 						</section>
 
@@ -311,7 +311,7 @@
 							<div class="settings__rule"></div>
 
 							<div class="settings__section">Name</div>
-							<p class="settings__intro" id="nameIntro">Shown to whoever administers this server, so they can tell one account from another without reading everybody's address.</p>
+							<p class="settings__intro" id="nameIntro">Shown to whoever administers this server, so they can tell accounts apart without reading addresses.</p>
 							<form class="field-stack" id="nameform">
 								<div class="auth__pair">
 									<input class="field" type="text" id="nameFirst" placeholder="First name" autocomplete="given-name" maxlength="100"/>
@@ -331,7 +331,7 @@
 								<span class="bang bang--md bang--warn">!</span>
 								<div class="pending-box__body">
 									<div class="pending-box__title">Confirm this address to finish setting up</div>
-									<p class="pending-box__text">Kobo sync needs a confirmed address: it hands the device a token that can collect your books, so the address has to be one you can actually open. Everything else already works, including sending by key.</p>
+									<p class="pending-box__text">Kobo sync needs a confirmed address, because the device is handed a token that can collect your books. Everything else already works.</p>
 									<div class="pending-box__actions">
 										<button type="button" class="btn btn--sm btn--accent" id="resendVerify">Send the link again</button>
 										<span class="save-row__msg" id="resendMsg"></span>
@@ -354,7 +354,7 @@
 									<button type="button" class="outline-action outline-action--go" id="emailGo" disabled>Send confirmation</button>
 								</div>
 								<p class="field-error" id="emailTaken" hidden>Another account on this server already uses that address.</p>
-								<p class="field-note field-note--wide">The address only changes once you open the link we send to the new one. The old address gets a notice either way.</p>
+								<p class="field-note field-note--wide">It changes only once you open the link sent to the new address. The old one gets a notice either way.</p>
 							</div>
 
 							<div class="pending-box" id="emailPending" hidden>
@@ -373,6 +373,7 @@
 							<div class="settings__section">Password</div>
 							<p class="settings__intro" id="pwIntro">This account has a password as well as emailed sign-in links. Change it here.</p>
 							<form class="field-stack" id="pwform">
+								<input type="text" id="pwaccount" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" readonly hidden/>
 								<input class="field" type="password" id="pwcurrent" placeholder="Current password" autocomplete="current-password"/>
 								<div class="field-absent" id="pwnone" hidden>No current password — nothing to confirm this time</div>
 								<input class="field" type="password" id="pwnew" placeholder="New password" autocomplete="new-password"/>
@@ -388,7 +389,7 @@
 
 						<section id="panel-security" data-panel="security" hidden>
 							<div class="settings__section">Passkeys</div>
-							<p class="settings__intro">A passkey signs you in with the fingerprint reader or PIN that already unlocks your device. Nothing to remember, and nothing a leaked database could reveal.</p>
+							<p class="settings__intro">Signs you in with the fingerprint reader or PIN that already unlocks your device.</p>
 							<div class="key-list" id="passkeyList" hidden></div>
 							<div class="key-empty" id="passkeyEmpty">No passkeys yet. Your password keeps working either way.</div>
 							<button type="button" class="outline-action" id="addPasskey">Add a passkey</button>
@@ -402,7 +403,7 @@
 							</div>
 
 							<div id="tfaOff">
-								<p class="settings__intro">Ask for a six-digit code from an authenticator app after the password. Sending a book never asks for it, only signing in does.</p>
+								<p class="settings__intro">A six-digit code from an authenticator app, after the password. Only signing in asks for it.</p>
 								<button type="button" class="outline-action" id="tfaBegin">Set up two-factor</button>
 								<p class="field-note field-note--wide" id="tfaNeedsEmail" hidden>Confirm your email address first — the box on the Account page will send the link again.</p>
 							</div>
@@ -439,7 +440,7 @@
 									<dt>&minus;</dt><dd>Your send defaults and Kobo sync settings</dd>
 									<dt>&minus;</dt><dd id="delKoboLine">Any Kobo sync endpoint</dd>
 								</dl>
-								<p class="danger__note">No book files are deleted, because none were ever kept. Books already on your eReader stay there. Anonymous sending keeps working.</p>
+								<p class="danger__note">Any books this server is still keeping for you go with it. Books already on your eReader stay there. Anonymous sending keeps working.</p>
 
 								<div class="danger__prompt">Type DELETE to confirm</div>
 								<div class="danger__row">
@@ -449,8 +450,8 @@
 
 								<div class="danger__confirm" id="delConfirm" hidden>
 									<div class="danger__confirm-title">Delete the account for <span id="delEmail"></span>?</div>
-									<p class="danger__confirm-text">This can't be undone and no confirmation email is sent. You'll be signed out immediately and this browser goes back to anonymous sending.</p>
-									<p class="danger__confirm-text" id="delLastWarning" hidden>This is the only account on this server. Deleting it puts the server back to its first-run state, where the next person to open it in a browser is asked to create the administrator account.</p>
+									<p class="danger__confirm-text">This can't be undone. You'll be signed out and this browser goes back to anonymous sending.</p>
+									<p class="danger__confirm-text" id="delLastWarning" hidden>The only account on this server. Deleting it puts the server back to its first-run state.</p>
 									<p class="field-error" id="delNote" hidden></p>
 									<div class="danger__actions">
 										<button type="button" class="btn btn--sm btn--danger" id="delYes">Yes, delete it</button>
@@ -494,8 +495,11 @@
 	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
 		<div class="modal__title" id="confirmTitle">Confirm it's you</div>
 		<p class="modal__text" id="confirmText">This weakens how the account is protected, so say who you are first.</p>
-		<input class="modal__field" id="confirmPassword" type="password" autocomplete="current-password" aria-label="Your password" placeholder="Your password"/>
-		<input class="modal__field" id="confirmCode" inputmode="numeric" autocomplete="one-time-code" aria-label="Code from your authenticator" placeholder="Code from your authenticator" spellcheck="false" hidden/>
+		<form class="unwrapped" id="confirmForm">
+			<input type="text" id="confirmAccount" name="username" autocomplete="username" tabindex="-1" aria-hidden="true" readonly hidden/>
+			<input class="modal__field" id="confirmPassword" type="password" autocomplete="current-password" aria-label="Your password" placeholder="Your password"/>
+			<input class="modal__field" id="confirmCode" inputmode="numeric" autocomplete="one-time-code" aria-label="Code from your authenticator" placeholder="Code from your authenticator" spellcheck="false" hidden/>
+		</form>
 		<p class="field-error" id="confirmError" hidden>That didn't match. Try again.</p>
 		<div class="modal__actions">
 			<button type="button" class="btn btn--primary" id="confirmGo" data-modal-default>Confirm</button>
@@ -544,7 +548,7 @@
 <div class="modal-scrim modal-scrim--codes" id="codesModal" hidden>
 	<div class="modal modal--codes" role="dialog" aria-modal="true" aria-labelledby="codesModalTitle">
 		<div class="modal__title" id="codesModalTitle">Save your recovery codes</div>
-		<p class="modal__text">This is the only time they're shown. Each code works once, and they're the way back in if you lose the authenticator.</p>
+		<p class="modal__text">Shown once. Each works once, and they're the way back in if you lose the authenticator.</p>
 		<div class="codes">
 			<div class="codes__grid" id="codesGrid"></div>
 		</div>

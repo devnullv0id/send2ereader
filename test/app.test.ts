@@ -722,6 +722,12 @@ describe('the headers every response carries', () => {
     expect(res.headers['strict-transport-security'], 'so no HSTS to strand anyone').toBeUndefined()
   })
 
+  it('sends no cross-origin-opener-policy a plain-http browser would only log about', async () => {
+    const res = await app.inject({ url: '/' })
+    expect(config.publicUrl.startsWith('https://'), 'the test server is plain http').toBe(false)
+    expect(res.headers['cross-origin-opener-policy']).toBeUndefined()
+  })
+
   it('does not upgrade its own assets to https it cannot serve', async () => {
     const csp = String((await app.inject({ url: '/' })).headers['content-security-policy'])
     expect(csp, 'the policy is there to check').toContain("default-src 'self'")

@@ -22,6 +22,7 @@ function attachCodeCells(root, options) {
   field.className = 'key-cells__input'
   field.inputMode = options.numeric ? 'numeric' : 'latin'
   field.autocomplete = options.autocomplete || 'off'
+  field.name = options.name || root.id || 'code'
   field.spellcheck = false
   field.maxLength = length
   if (!options.numeric) field.autocapitalize = 'characters'

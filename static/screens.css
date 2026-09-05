@@ -1615,11 +1615,15 @@
 
 .setup-card {
   overflow: hidden;
+  margin-top: 12px;
+  padding-top: 16px;
+  padding-bottom: 16px;
 }
 
 .setup-card .step-stack {
   flex: 1 1 auto;
   min-height: 0;
+  gap: 14px;
 }
 
 .setup-card .step-stack > .step:not(.step--summary) {
@@ -1654,7 +1658,14 @@
 }
 
 .setup-card .save-row {
-  margin-top: 26px;
+  margin-top: 12px;
+}
+
+.setup-card .step:not(.step--summary) > .step__body > .save-row:last-child {
+  position: sticky;
+  bottom: 0;
+  padding-top: 16px;
+  background: linear-gradient(to top, var(--surface) 68%, rgba(251, 248, 242, 0));
 }
 
 .setup-card .save-row + .save-row {
@@ -1694,6 +1705,10 @@
 .save-row__msg {
   font: 400 11.5px/1.5 var(--font-ui);
   color: var(--text-2);
+}
+
+.field-row > .save-row__msg {
+  align-self: center;
 }
 
 .save-row__msg.is-ok {
@@ -2214,6 +2229,10 @@
   margin-top: 20px;
 }
 
+.unwrapped {
+  display: contents;
+}
+
 .modal__field {
   margin-top: 16px;
   width: 100%;
@@ -2313,6 +2332,10 @@
   background: var(--accent);
 }
 
+.codes__ack-box.is-on::after {
+  content: '✓';
+}
+
 .codes__ack-label {
   font: 500 12.5px/1.45 var(--font-ui);
   color: var(--text);
@@ -2331,7 +2354,7 @@
   cursor: default;
 }
 
-.codes__done.is-armed {
+.codes__done:enabled {
   background: var(--btn-dark);
   color: var(--btn-dark-text);
   cursor: pointer;

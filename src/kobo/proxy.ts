@@ -1,5 +1,4 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
-import { config } from '../config.js'
 import type { Device } from '../db/repositories.js'
 import { settings } from '../settings.js'
 

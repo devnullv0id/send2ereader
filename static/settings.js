@@ -452,6 +452,7 @@ onPage('settings', async (page) => {
 
     $('emailNow').textContent = user.email
 
+    $('pwaccount').value = user.email
     $('pwnone').hidden = user.hasPassword
     $('pwcurrent').hidden = !user.hasPassword
     $('pwIntro').textContent = user.hasPassword
@@ -641,6 +642,10 @@ onPage('settings', async (page) => {
     return { password: user.hasPassword !== false, code: user.totpEnabled === true }
   }
 
+  function stopSubmit(e) {
+    e.preventDefault()
+  }
+
   function confirmIdentity(text) {
     const needs = confirmNeeds()
     if (!needs.password && !needs.code) return Promise.resolve({})
@@ -651,6 +656,7 @@ onPage('settings', async (page) => {
       const code = $('confirmCode')
 
       $('confirmText').textContent = text
+      $('confirmAccount').value = ((readCachedStatus() || {}).user || {}).email || ''
       password.hidden = !needs.password
       code.hidden = !needs.code
       password.value = ''
@@ -663,6 +669,7 @@ onPage('settings', async (page) => {
         scrim.hidden = true
         $('confirmGo').removeEventListener('click', accept)
         $('confirmCancel').removeEventListener('click', cancel)
+        $('confirmForm').removeEventListener('submit', stopSubmit)
         resolve(value)
       }
       const accept = () => finish({ password: password.value, code: code.value })
@@ -670,6 +677,7 @@ onPage('settings', async (page) => {
 
       $('confirmGo').addEventListener('click', accept)
       $('confirmCancel').addEventListener('click', cancel)
+      $('confirmForm').addEventListener('submit', stopSubmit)
     })
   }
 
@@ -1078,9 +1086,7 @@ onPage('settings', async (page) => {
   function paintCodesAck() {
     const box = $('codesAck').querySelector('.codes__ack-box')
     box.classList.toggle('is-on', codesAcknowledged)
-    box.textContent = codesAcknowledged ? '✓' : ''
     $('codesAck').setAttribute('aria-checked', String(codesAcknowledged))
-    $('codesDone').classList.toggle('is-armed', codesAcknowledged)
     $('codesDone').disabled = !codesAcknowledged
   }
 

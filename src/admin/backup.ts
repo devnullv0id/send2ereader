@@ -10,7 +10,7 @@ import type { Db } from '../db/index.js'
 const BLOCK = 512
 
 function octal(value: number, width: number): string {
-  return value.toString(8).padStart(width - 1, '0') + '\0'
+  return `${value.toString(8).padStart(width - 1, '0')}\0`
 }
 
 function header(name: string, size: number, mtime: number): Buffer {

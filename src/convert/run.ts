@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process'
 import type { FastifyBaseLogger } from 'fastify'
-import { config } from '../config.js'
 import { ChildOutput } from '../logging/child.js'
 import { settings } from '../settings.js'
 

@@ -26,3 +26,8 @@ queue
 TMP/
 
 .tmp-*/
+
+CODE_REVIEW.md
+*REVIEW*.md
+review-*.md
+audit-*.md
