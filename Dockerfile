@@ -40,26 +40,29 @@ COPY docker/fetch-calibre-plugin.sh /fetch-calibre-plugin.sh
 RUN sh /fetch-calibre-plugin.sh 'KFX Input.zip' "${KFX_INPUT_THREAD}" "${KFX_INPUT_PLUGIN_URL}" /out-kfx-input.zip && \
     sh /fetch-calibre-plugin.sh 'KFX Output.zip' "${KFX_OUTPUT_THREAD}" "${KFX_OUTPUT_PLUGIN_URL}" /out-kfx-output.zip
 
+ARG EPUB_LAYOUT_FIX_ASSET=EPUB-Layout-Fix.zip
+
 RUN FORGE="${EPUB_LAYOUT_FIX_FORGE:-github}" && \
     HOST="${EPUB_LAYOUT_FIX_HOST:-code.private-home-network.de}" && \
     case "$FORGE" in \
-        github)  BASE="https://api.github.com/repos/${EPUB_LAYOUT_FIX_REPO}" ;; \
-        forgejo) BASE="https://${HOST}/api/v1/repos/${EPUB_LAYOUT_FIX_REPO}" ;; \
+        github)  BASE="https://github.com/${EPUB_LAYOUT_FIX_REPO}" ;; \
+        forgejo) BASE="https://${HOST}/${EPUB_LAYOUT_FIX_REPO}" ;; \
         *) echo "EPUB_LAYOUT_FIX_FORGE must be github or forgejo, not ${FORGE}" >&2 ; exit 1 ;; \
     esac && \
     if [ "${EPUB_LAYOUT_FIX_REF}" = "latest" ]; then \
-        API="${BASE}/releases/latest" ; \
+        if [ "$FORGE" != "github" ]; then \
+            echo "EPUB_LAYOUT_FIX_REF=latest only works on github; pin a version for ${FORGE}" >&2 ; \
+            exit 1 ; \
+        fi ; \
+        URL="${BASE}/releases/latest/download/${EPUB_LAYOUT_FIX_ASSET}" ; \
     else \
-        API="${BASE}/releases/tags/${EPUB_LAYOUT_FIX_REF}" ; \
+        URL="${BASE}/releases/download/${EPUB_LAYOUT_FIX_REF}/${EPUB_LAYOUT_FIX_ASSET}" ; \
     fi && \
-    META="$(curl -fsSL "$API")" && \
-    TAG="$(printf '%s' "$META" | grep -o '"tag_name"[[:space:]]*:[[:space:]]*"[^"]*"' | head -1 | cut -d'"' -f4)" && \
-    URL="$(printf '%s' "$META" | grep -o '"browser_download_url"[[:space:]]*:[[:space:]]*"[^"]*\.zip"' | head -1 | cut -d'"' -f4)" && \
-    test -n "$URL" && echo "EPUB Layout Fix ${TAG}: ${URL}" && \
+    echo "EPUB Layout Fix ${EPUB_LAYOUT_FIX_REF}: ${URL}" && \
     mkdir -p /out-layout-fix && \
-    curl -fsSL -o /tmp/elf.zip "$URL" && \
+    curl -fsSL --retry 3 --retry-delay 2 -o /tmp/elf.zip "$URL" && \
     unzip -j -o /tmp/elf.zip fixer.py -d /out-layout-fix && \
-    printf '%s\n' "$TAG" > /out-layout-fix/VERSION
+    printf '%s\n' "${EPUB_LAYOUT_FIX_REF}" > /out-layout-fix/VERSION
 
 FROM node:24-trixie-slim AS runtime
 
@@ -101,9 +104,10 @@ WORKDIR /usr/src/app
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 COPY --from=builder /usr/src/app/dist ./dist
 COPY static ./static
+COPY languages ./languages
 COPY package.json ./
 
-RUN mkdir -p /data/uploads /data/db /data/queue /data/library /opt/calibre-config /etc/s2e/extensions && \
+RUN mkdir -p /data/uploads /data/db /data/queue /data/library /data/languages /opt/calibre-config /etc/s2e/extensions && \
     chown -R node:node /data /opt/calibre-config
 
 ENV DATA_DIR=/data

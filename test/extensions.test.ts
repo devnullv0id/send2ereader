@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises'
+import { mkdir, rm, utimes, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -25,9 +25,19 @@ const PASSWORD = 'a-perfectly-fine-password'
 let app: FastifyInstance
 let db: Db
 
+const stateDir = join(config.dataDir, 'extensions')
+const agentMark = join(stateDir, 'agent')
+
+async function agentIsHere() {
+  await mkdir(stateDir, { recursive: true })
+  await writeFile(agentMark, '')
+}
+
 beforeEach(async () => {
   await prepareUploadDir(true)
-  await rm(join(config.dataDir, 'extensions'), { recursive: true, force: true })
+  await rm(stateDir, { recursive: true, force: true })
+  await rm(join(config.dataDir, 'kfx'), { recursive: true, force: true })
+  await agentIsHere()
   db = openDatabase(':memory:')
   app = asBrowser(await buildApp({ tools: { ...noTools }, logger: false, accounts: true, db }))
   await app.ready()
@@ -235,6 +245,110 @@ describe('who may ask for an extension', () => {
     })
     expect(asked.statusCode).toBe(409)
     expect((asked.json() as { error: string }).error).toMatch(/needs calibre/i)
+  })
+
+  it('will not remove calibre while KFX is only queued for install', async () => {
+    const cookie = await join2('first@example.com')
+    const token = await csrf(cookie)
+    app.tools.calibre = true
+
+    const asked = await app.inject({
+      method: 'POST',
+      url: '/api/admin/extensions/kfx',
+      headers: { cookie, 'x-csrf-token': token },
+    })
+    expect(asked.statusCode).toBe(200)
+
+    const removal = await app.inject({
+      method: 'DELETE',
+      url: '/api/admin/extensions/calibre',
+      headers: { cookie, 'x-csrf-token': token },
+    })
+
+    expect(removal.statusCode).toBe(409)
+    expect((removal.json() as { error: string }).error).toMatch(/KFX.*needs calibre/i)
+  })
+
+  it('admits when no agent is there, and refuses every install and removal', async () => {
+    await rm(agentMark, { force: true })
+    const cookie = await join2('first@example.com')
+    const token = await csrf(cookie)
+
+    const listed = await app.inject({ url: '/api/admin/extensions', headers: { cookie } })
+    const body = listed.json() as { agent: boolean; extensions: { blocked: string | null }[] }
+    expect(body.agent).toBe(false)
+    expect(body.extensions.every((one) => /docker image/i.test(one.blocked ?? ''))).toBe(true)
+
+    const install = await ask('POST', 'calibre', cookie, token)
+    expect(install.statusCode).toBe(409)
+    expect((install.json() as { error: string }).error).toMatch(/docker image/i)
+
+    app.tools.calibre = true
+    const removal = await ask('DELETE', 'calibre', cookie, token)
+    expect(removal.statusCode).toBe(409)
+    expect((removal.json() as { error: string }).error).toMatch(/docker image/i)
+
+    const progress = await app.inject({
+      url: '/api/admin/extensions/kfx/progress',
+      headers: { cookie },
+    })
+    expect((progress.json() as { blocked: string | null }).blocked).toMatch(/docker image/i)
+  })
+
+  it('reads a marker gone stale as no agent', async () => {
+    const old = new Date(Date.now() - 10 * 60 * 1000)
+    await utimes(agentMark, old, old)
+    const cookie = await join2('first@example.com')
+
+    const listed = await app.inject({ url: '/api/admin/extensions', headers: { cookie } })
+    expect((listed.json() as { agent: boolean }).agent).toBe(false)
+  })
+
+  it('counts a run in flight as the agent being there, however long it takes', async () => {
+    await rm(agentMark, { force: true })
+    await writeFile(join(stateDir, 'running'), 'install kfx\n')
+    const cookie = await join2('first@example.com')
+
+    const listed = await app.inject({ url: '/api/admin/extensions', headers: { cookie } })
+    expect((listed.json() as { agent: boolean }).agent).toBe(true)
+  })
+
+  it('tells an admin what is installing on /auth/status, and nobody else', async () => {
+    const admin = await join2('first@example.com')
+    settings.set('ALLOW_SIGNUP', 'true', null)
+    const other = await join2('second@example.com')
+
+    await mkdir(join(config.dataDir, 'kfx'), { recursive: true })
+    await writeFile(join(stateDir, 'running'), 'install kfx\n')
+    await writeFile(join(stateDir, 'spool'), 'install pdfcrop\n')
+    await writeFile(
+      join(config.dataDir, 'kfx', 'kfx.progress'),
+      'run install\npackages done\ndownload running 41\n'
+    )
+
+    const seen = (await app.inject({ url: '/auth/status', headers: { cookie: admin } })).json()
+    expect(seen.installing).toEqual({
+      id: 'kfx',
+      label: 'KFX',
+      kind: 'install',
+      stage: 'download',
+      percent: 41,
+      queued: 1,
+    })
+
+    const hidden = (await app.inject({ url: '/auth/status', headers: { cookie: other } })).json()
+    expect(hidden.installing).toBeNull()
+  })
+
+  it('reports what is only queued, and nothing when all is quiet', async () => {
+    const admin = await join2('first@example.com')
+
+    const quiet = (await app.inject({ url: '/auth/status', headers: { cookie: admin } })).json()
+    expect(quiet.installing).toBeNull()
+
+    await writeFile(join(stateDir, 'request'), 'install calibre\n')
+    const queuedUp = (await app.inject({ url: '/auth/status', headers: { cookie: admin } })).json()
+    expect(queuedUp.installing).toMatchObject({ id: 'calibre', kind: 'install', queued: 0 })
   })
 
   it('refuses an extension nobody has heard of', async () => {

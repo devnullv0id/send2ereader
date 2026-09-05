@@ -21,7 +21,7 @@ const KOBO_FORMAT: Partial<Record<EbookFormat, string>> = {
   kfxZip: 'KFX',
 }
 
-export function koboFormat(format: EbookFormat): string {
+function koboFormat(format: EbookFormat): string {
   return KOBO_FORMAT[format] ?? 'EPUB'
 }
 

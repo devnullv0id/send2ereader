@@ -310,6 +310,36 @@ describe('filename handling', () => {
     expect(decodeOriginalName('..\\..\\win.epub')).not.toContain('\\')
   })
 
+  describe('a name the sanitiser has to change', () => {
+    const ext = (name: string) => name.slice(name.lastIndexOf('.'))
+
+    it('keeps the extension when a long name is cut', () => {
+      for (const stem of ['x'.repeat(300), 'ä'.repeat(200), '本'.repeat(150)]) {
+        const out = decodeOriginalName(`${stem}.epub`)
+        expect(ext(out), stem.slice(0, 2)).toBe('.epub')
+        expect(
+          Buffer.byteLength(out, 'utf8'),
+          'still fits what the sanitiser allows'
+        ).toBeLessThanOrEqual(255)
+      }
+    })
+
+    it('keeps a name that already fits exactly as it is', () => {
+      const fits = `${'x'.repeat(250)}.epub`
+      expect(decodeOriginalName(fits)).toBe(fits)
+    })
+
+    it('gives a name back to a book the sanitiser emptied', () => {
+      expect(decodeOriginalName('con.epub')).toBe('book.epub')
+      expect(decodeOriginalName('nul.pdf')).toBe('book.pdf')
+      expect(decodeOriginalName('.epub')).toBe('book.epub')
+    })
+
+    it('leaves the double extension intact', () => {
+      expect(decodeOriginalName(`${'x'.repeat(300)}.kepub.epub`)).toMatch(/\.kepub\.epub$/)
+    })
+  })
+
   it('transliterates the stem but keeps the extension', () => {
     expect(transliterateName('Æblegrød.epub')).toBe('AEblegrod.epub')
     expect(transliterateName('日本語.kepub.epub')).toMatch(/\.epub$/)

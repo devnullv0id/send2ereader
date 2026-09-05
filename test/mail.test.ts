@@ -61,17 +61,17 @@ describe('mailer selection', () => {
   })
 
   it.each([
-    ['a missing host', { ...SMTP_OK, SMTP_HOST: '' }, /SMTP_HOST is empty/],
-    ['a username with no password', { ...SMTP_OK, SMTP_PASSWORD: '' }, /SMTP_PASSWORD is empty/],
+    ['a missing host', { ...SMTP_OK, SMTP_HOST: '' }, /no server to send it through/],
+    ['a username with no password', { ...SMTP_OK, SMTP_PASSWORD: '' }, /no password beside it/],
     [
       'no sender and nothing to infer one from',
       { ...SMTP_OK, SMTP_FROM_EMAIL: '', SMTP_USERNAME: '', SMTP_PASSWORD: '' },
-      /no SMTP_FROM_EMAIL or SMTP_USERNAME/,
+      /no From address to send it from/,
     ],
     [
       'a username that is not an address',
       { ...SMTP_OK, SMTP_FROM_EMAIL: '', SMTP_USERNAME: 'noreply' },
-      /not an address to fall back to/,
+      /not one to fall back on/,
     ],
   ])('falls back to logging on %s', (_label, env, expected) => {
     const result = run(env)

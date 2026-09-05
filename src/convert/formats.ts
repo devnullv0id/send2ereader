@@ -1,10 +1,11 @@
 import { supportsLayoutFix } from '../files.js'
+import { i18n } from '../i18n.js'
 import type { ConversionOptions, EbookFormat } from '../types.js'
 import type { ConversionPlan, ConversionStep, ToolAvailability } from './index.js'
 
 export type OutputFormat = 'kepub' | 'epub' | 'kfx' | 'azw3' | 'mobi' | 'pdf' | 'txt' | 'htmlz'
 
-export const outputFormats: OutputFormat[] = [
+const outputFormats: OutputFormat[] = [
   'kepub',
   'epub',
   'kfx',
@@ -32,9 +33,13 @@ export interface FormatOffer {
 export function offerFormat(
   from: EbookFormat | null,
   to: OutputFormat,
-  tools: ToolAvailability
+  tools: ToolAvailability,
+  lang = 'en'
 ): FormatOffer {
-  const refusal = (reason: string): FormatOffer => ({ format: to, refusal: reason })
+  const refusal = (reason: string): FormatOffer => ({
+    format: to,
+    refusal: i18n.translate(lang, reason),
+  })
 
   if (to === 'kfx' && !tools.kfxOutput) {
     return refusal(
@@ -76,7 +81,7 @@ export interface FormatGroup {
   items: { format: OutputFormat; label: string; note: string }[]
 }
 
-export const formatGroups: FormatGroup[] = [
+const formatGroups: FormatGroup[] = [
   {
     name: 'Kobo',
     hint: 'also Tolino and PocketBook',
@@ -115,7 +120,8 @@ export interface OfferedTarget {
 
 export function offerGroups(
   from: EbookFormat | null,
-  tools: ToolAvailability
+  tools: ToolAvailability,
+  lang = 'en'
 ): (Omit<FormatGroup, 'items'> & { items: OfferedTarget[] })[] {
   const plain = {
     target: 'none' as const,
@@ -126,15 +132,15 @@ export function offerGroups(
   }
 
   return formatGroups.map((group) => ({
-    name: group.name,
-    hint: group.hint,
+    name: i18n.translate(lang, group.name),
+    hint: i18n.translate(lang, group.hint),
     items: group.items.map((item) => {
-      const { refusal } = offerFormat(from, item.format, tools)
+      const { refusal } = offerFormat(from, item.format, tools, lang)
       const via =
         from && !refusal
           ? planFormatConversion(from, item.format, plain, tools).steps.map((s) => s.converter)
           : []
-      return { ...item, refusal, via }
+      return { ...item, note: i18n.translate(lang, item.note), refusal, via }
     }),
   }))
 }

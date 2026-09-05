@@ -8,13 +8,12 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
   const LINK_WATCH_MS = 20 * 60 * 1000
 
   const DESIGN_TEXT = {
-    noAccount: 'No account for that address on this server. Create one first.',
-    noPassword:
-      'That account has no password. Sign in by link or code, then set one in Settings.',
-    wrongPassword: "Wrong password. Reset it if you've forgotten.",
-    badEmail: "That doesn't look like an email address.",
-    accountExists: 'An account already exists for that address. Sign in instead.',
-    mismatch: "Those two don't match.",
+    noAccount: t('No account for that address on this server. Create one first.'),
+    noPassword: t('That account has no password. Sign in by link or code, then set one in Settings.'),
+    wrongPassword: t("Wrong password. Reset it if you've forgotten."),
+    badEmail: t("That doesn't look like an email address."),
+    accountExists: t('An account already exists for that address. Sign in instead.'),
+    mismatch: t("Those two don't match."),
   }
 
   const PLACEHOLDER = {
@@ -92,19 +91,19 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
       for (const field of fields) field.type = shown ? 'password' : 'text'
 
       toggle.setAttribute('aria-pressed', String(!shown))
-      toggle.setAttribute('aria-label', shown ? 'Show the passwords' : 'Hide the passwords')
+      toggle.setAttribute('aria-label', shown ? t('Show the passwords') : t('Hide the passwords'))
       toggle.querySelector('.ph').className = shown ? 'ph ph-eye' : 'ph ph-eye-slash'
     })
   }
 
   const MARK_TITLE = {
     email: {
-      ok: 'This is a valid email address.',
-      bad: 'This is not a valid email address.',
+      ok: t('This is a valid email address.'),
+      bad: t('This is not a valid email address.'),
     },
     match: {
-      ok: 'The passwords match.',
-      bad: 'The passwords do not match.',
+      ok: t('The passwords match.'),
+      bad: t('The passwords do not match.'),
     },
   }
 
@@ -188,7 +187,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
     $('codesCopy').addEventListener('click', async () => {
       try {
         await navigator.clipboard.writeText(asText)
-        $('codesCopy').querySelector('span').textContent = 'Copied'
+        $('codesCopy').querySelector('span').textContent = t('Copied')
       } catch {
       }
     })
@@ -250,32 +249,35 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
 
     if (queryParam('error') === 'verify') {
       notice(
-        'That confirmation link no longer works',
-        'It has expired, or it was already used. Sign in and ask for another from your account page.'
+        t('That confirmation link no longer works'),
+        t('It has expired or was already used — sign in and ask for another.')
       )
     }
     if (queryParam('error') === 'link') {
       notice(
-        'That sign-in link no longer works',
-        'A sign-in link is good once and for fifteen minutes. Ask for another and open the newest message.'
+        t('That sign-in link no longer works'),
+        t(
+          'A sign-in link is good once and for fifteen minutes. Ask for another and open the newest message.'
+        )
       )
     }
     if (queryParam('error') === 'email') {
       notice(
-        'That address link no longer works',
-        'It has expired, was already used, or someone else took the address in the meantime. Sign in and ask again from your account page.'
+        t('That address link no longer works'),
+        t('It has expired, was used, or the address was taken — sign in and ask again.')
       )
     }
     if (queryParam('moved')) {
       notice(
-        'That is the address now',
-        'Sign in with it from here on. The old one has been told, and it no longer signs in to this account.'
+        t('That is the address now'),
+        t('Sign in with it from here on; the old address no longer works.')
       )
     }
     if (status?.registrationOpen) $('registerlink').hidden = false
     if (status?.ssoEnabled) {
       $('ssofield').hidden = false
-      if (status.ssoProvider) $('ssolabel').textContent = `Continue with ${status.ssoProvider}`
+      if (status.ssoProvider)
+        $('ssolabel').textContent = t('Continue with {provider}', { provider: status.ssoProvider })
     }
 
     const check = gate(loginForm, $('submitbtn'))
@@ -366,8 +368,9 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
     }
 
     if (status && status.mailEnabled === false) {
-      $('linkSentText').textContent =
-        'We don’t say which addresses exist. This server has no mail configured, so the link is in its log.'
+      $('linkSentText').textContent = t(
+        'We don’t say which addresses exist — the link is in the server log.'
+      )
     }
 
     const recoveryLink = $('useAccountCode')
@@ -378,13 +381,13 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
       const paintRecovery = () => {
         const field = $('password')
         field.type = usingCode ? 'text' : 'password'
-        field.placeholder = usingCode ? 'six words joined by hyphens' : ''
+        field.placeholder = usingCode ? t('six words joined by hyphens') : ''
         field.value = ''
         field.autocomplete = usingCode ? 'one-time-code' : 'current-password'
         recoveryLink.textContent = usingCode
-          ? 'Use my password instead'
-          : 'Lost your password? Use your recovery phrase'
-        $('submitbtn').textContent = usingCode ? 'Sign in with the phrase' : 'Sign in'
+          ? t('Use my password instead')
+          : t('Lost your password? Use your recovery phrase')
+        $('submitbtn').textContent = usingCode ? t('Sign in with the phrase') : t('Sign in')
       }
 
       recoveryLink.addEventListener('click', (event) => {
@@ -401,7 +404,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
     loginForm.addEventListener('submit', async (event) => {
       event.preventDefault()
       fail('')
-      busy($('submitbtn'), true, 'Signing in…')
+      busy($('submitbtn'), true, t('Signing in…'))
 
       const byCode = loginForm.usingCode === true
       const result = byCode
@@ -427,12 +430,12 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
         return
       }
       if (!result.data?.error) {
-        fail('Could not reach the server')
+        fail(t('Could not reach the server'))
         return
       }
 
       fail(
-        byCode ? 'That recovery phrase does not match that address.' : DESIGN_TEXT.wrongPassword
+        byCode ? t('That recovery phrase does not match that address.') : DESIGN_TEXT.wrongPassword
       )
       $('password').value = ''
       $('password').focus()
@@ -446,7 +449,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
       length: 6,
       numeric: true,
       autocomplete: 'one-time-code',
-      label: 'The six digits your authenticator app shows',
+      label: t('The six digits your authenticator app shows'),
       onInput: (value) => {
         $('codebtn').disabled = value.length < 6
         sayCode('')
@@ -504,10 +507,10 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
 
     $('useRecovery').addEventListener('click', () => {
       recovering = !recovering
-      $('codeLabel').textContent = recovering ? 'Recovery code' : 'Code'
+      $('codeLabel').textContent = recovering ? t('Recovery code') : t('Code')
       $('useRecovery').textContent = recovering
-        ? 'Use the authenticator instead'
-        : 'Use a recovery code instead'
+        ? t('Use the authenticator instead')
+        : t('Use a recovery code instead')
 
       $('codeCells').hidden = recovering
       $('recoveryCode').hidden = !recovering
@@ -525,7 +528,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
       if (checking) return
       checking = true
       sayCode('')
-      busy($('codebtn'), true, 'Checking…')
+      busy($('codebtn'), true, t('Checking…'))
 
       const result = await postJson('/auth/login/second-factor', { code: typedCode() })
       checking = false
@@ -537,13 +540,13 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
         return
       }
       if (result.status === 440) {
-        sayCode('That took too long. Start again with your password.')
+        sayCode(t('That took too long. Start again with your password.'))
         return
       }
       sayCode(
         recovering
-          ? 'That recovery code has been used, or was never one of yours.'
-          : 'That code did not match. Codes change every 30 seconds, so use the one showing now.'
+          ? t('That recovery code has been used, or was never one of yours.')
+          : t('That code did not match. Codes change every 30 seconds, so use the one showing now.')
       )
       if (recovering) {
         $('recoveryCode').select()
@@ -560,12 +563,12 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
 
     $('passkeybtn').addEventListener('click', async () => {
       $('passkeynote').hidden = true
-      busy($('passkeybtn'), true, 'Ask your device…')
+      busy($('passkeybtn'), true, t('Ask your device…'))
 
       const begun = await postJson('/auth/passkey/login/options', {})
       if (!begun.ok) {
         busy($('passkeybtn'), false)
-        return sayPasskey('That did not start. Try again in a moment.')
+        return sayPasskey(t('That did not start. Try again in a moment.'))
       }
 
       let assertion
@@ -582,7 +585,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
         })
       } catch {
         busy($('passkeybtn'), false)
-        return sayPasskey('No passkey was offered for this site on this device.')
+        return sayPasskey(t('No passkey was offered for this site on this device.'))
       }
 
       const result = await postJson('/auth/passkey/login', {
@@ -613,7 +616,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
         window.location.href = safeNext('/')
         return
       }
-      sayPasskey(result.data?.error || 'That passkey was not accepted.')
+      sayPasskey(result.data?.error || t('That passkey was not accepted.'))
     })
 
     function sayPasskey(text) {
@@ -628,16 +631,18 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
     if (!page.alive) return
 
     if (now?.awaitingSecondFactor) {
-      $('linkedTitle').textContent = 'Nearly there'
-      $('linkedText').textContent =
+      $('linkedTitle').textContent = t('Nearly there')
+      $('linkedText').textContent = t(
         'Enter the code from your authenticator app in the tab where you asked for the link.'
-      $('linkedHere').textContent = 'Enter it here instead'
+      )
+      $('linkedHere').textContent = t('Enter it here instead')
       $('linkedHere').href = '/login?step=code'
     } else if (!now?.user) {
-      $('linkedTitle').textContent = 'That link no longer works'
-      $('linkedText').textContent =
+      $('linkedTitle').textContent = t('That link no longer works')
+      $('linkedText').textContent = t(
         'A sign-in link is good once and for fifteen minutes. Ask for another and open the newest message.'
-      $('linkedHere').textContent = 'Back to sign in'
+      )
+      $('linkedHere').textContent = t('Back to sign in')
       $('linkedHere').href = '/login'
     }
   }
@@ -653,9 +658,9 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
         return
       }
       if (status && status.mailEnabled === false) {
-        $('mailnote').textContent =
-          'This server has no mail configured, so the confirmation link will be written to its ' +
-          'log rather than sent. Use a real address anyway — it is how you reset a lost password.'
+        $('mailnote').textContent = t(
+          'No mail is configured — the confirmation link goes to the server log.'
+        )
       }
     }
 
@@ -671,7 +676,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
         return
       }
 
-      busy($('submitbtn'), true, 'Creating…')
+      busy($('submitbtn'), true, t('Creating…'))
       const result = await postJson('/auth/register', {
         email: $('email').value,
         password: $('password').value,
@@ -690,7 +695,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
         return
       }
       if (result.status === 409) return fail(DESIGN_TEXT.accountExists)
-      if (result.status === 0) return fail('Could not reach the server')
+      if (result.status === 0) return fail(t('Could not reach the server'))
       fail(result.data?.error || DESIGN_TEXT.badEmail)
     })
   }
@@ -701,22 +706,23 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
 
     forgotForm.addEventListener('submit', async (event) => {
       event.preventDefault()
-      busy($('submitbtn'), true, 'Sending…')
+      busy($('submitbtn'), true, t('Sending…'))
       await postJson('/auth/reset/request', { email: $('email').value })
       if (!page.alive) return
       busy($('submitbtn'), false)
 
       $('sent').hidden = false
       if (status && status.mailEnabled === false) {
-        $('sentText').textContent =
-          'We don’t say which addresses exist. This server has no mail configured, so the link is in its log.'
+        $('sentText').textContent = t(
+          'We don’t say which addresses exist — the link is in the server log.'
+        )
       }
     })
   }
 
   const resetForm = $('resetform')
   if (resetForm) {
-    $('resetEmail').textContent = PLACEHOLDER.resetEmail
+    $('resetEmail').textContent = t(PLACEHOLDER.resetEmail)
     gate(resetForm, $('submitbtn'))
 
     resetForm.addEventListener('submit', async (event) => {
@@ -729,7 +735,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
         return
       }
 
-      busy($('submitbtn'), true, 'Saving…')
+      busy($('submitbtn'), true, t('Saving…'))
       const result = await postJson('/auth/reset', {
         token: queryParam('token') || '',
         password: $('password').value,
@@ -746,7 +752,7 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
         window.location.href = '/settings#profile'
         return
       }
-      fail(result.data?.error || 'That link is invalid or has expired.')
+      fail(result.data?.error || t('That link is invalid or has expired.'))
     })
   }
 })

@@ -1,5 +1,6 @@
 import { randomBytes, type ScryptOptions, scrypt, timingSafeEqual } from 'node:crypto'
 import { config } from '../config.js'
+import { i18n } from '../i18n.js'
 import { settings } from '../settings.js'
 
 function scryptAsync(
@@ -84,33 +85,42 @@ export interface PasswordRules {
   needs: { id: string; said: string }[]
 }
 
-export function passwordRules(): PasswordRules {
+export function passwordRules(lang = 'en'): PasswordRules {
   return {
     minLength: settings.int('MIN_PASSWORD_LENGTH'),
     maxLength: settings.int('MAX_PASSWORD_LENGTH'),
     needs: RULES.filter((rule) => settings.bool(rule.key)).map((rule) => ({
       id: rule.id,
-      said: rule.said,
+      said: i18n.translate(lang, rule.said),
     })),
   }
 }
 
-function listOut(items: string[]): string {
+function listOut(items: string[], lang: string): string {
   if (items.length <= 1) return items[0] ?? ''
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+  return i18n.translate(lang, '{list} and {last}', {
+    list: items.slice(0, -1).join(', '),
+    last: items[items.length - 1]!,
+  })
 }
 
-export function passwordProblem(password: string): string | null {
+export function passwordProblem(password: string, lang = 'en'): string | null {
   const minLength = settings.int('MIN_PASSWORD_LENGTH')
   if (password.length < minLength) {
-    return `Password must be at least ${minLength} characters`
+    return i18n.translate(lang, 'Password must be at least {n} characters', { n: minLength })
   }
-  if (password.length > settings.int('MAX_PASSWORD_LENGTH')) return 'Password is too long'
+  if (password.length > settings.int('MAX_PASSWORD_LENGTH')) {
+    return i18n.translate(lang, 'Password is too long')
+  }
 
   const missing = RULES.filter((rule) => settings.bool(rule.key) && !rule.test.test(password)).map(
-    (rule) => rule.said
+    (rule) => i18n.translate(lang, rule.said)
   )
-  if (missing.length > 0) return `Password must contain ${listOut(missing)}`
+  if (missing.length > 0) {
+    return i18n.translate(lang, 'Password must contain {needs}', {
+      needs: listOut(missing, lang),
+    })
+  }
 
   return null
 }

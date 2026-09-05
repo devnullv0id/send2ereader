@@ -1,5 +1,16 @@
 'use strict'
 
+var I18N = { language: 'en', languages: [], strings: {} }
+
+function t(text, params) {
+  var hit = I18N.strings[text]
+  var out = hit === undefined ? text : hit
+  if (!params) return out
+  return out.replace(/\{(\w+)\}/g, function (whole, name) {
+    return params[name] === undefined ? whole : String(params[name])
+  })
+}
+
 let csrf = null
 
 const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']
@@ -48,6 +59,53 @@ async function sendJson(method, url, body) {
 
 function postJson(url, body) {
   return sendJson('POST', url, body)
+}
+
+async function send(url, options = {}) {
+  try {
+    const headers = await csrfHeaders(options.headers)
+    const res = await fetch(url, { credentials: 'same-origin', ...options, headers })
+    let data = null
+    try {
+      data = await res.json()
+    } catch {
+    }
+    return { ok: res.ok, status: res.status, data }
+  } catch {
+    return { ok: false, status: 0, data: null }
+  }
+}
+
+function size(value) {
+  if (!value) return ''
+  const mb = value / (1024 * 1024)
+  return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`
+}
+
+function bytes(value) {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let amount = Number(value)
+  let unit = 0
+  while (amount >= 1024 && unit < units.length - 1) {
+    amount /= 1024
+    unit++
+  }
+  const rounded = amount >= 100 || Number.isInteger(amount) ? Math.round(amount) : amount.toFixed(1)
+  return `${rounded} ${units[unit]}`
+}
+
+function ago(iso) {
+  if (!iso) return t('NEVER')
+  const seconds = Math.floor((Date.now() - Date.parse(iso)) / 1000)
+  if (!Number.isFinite(seconds) || seconds < 60) return t('JUST NOW')
+  if (seconds < 3600) return t('{n} MIN AGO', { n: Math.floor(seconds / 60) })
+  if (seconds < 86400) return t('{n} HR AGO', { n: Math.floor(seconds / 3600) })
+  return t('{n} DAYS AGO', { n: Math.floor(seconds / 86400) })
+}
+
+function badge(el, done, current, mark) {
+  el.className = `step__badge${done ? ' is-complete' : current ? ' is-current' : ''}`
+  el.textContent = done ? '✓' : mark
 }
 
 const STATUS_CACHE_KEY = 's2e_status_v1'
@@ -99,23 +157,53 @@ async function getHealth() {
   return health
 }
 
+// The shell and the page ask while loading; one request serves both.
+let asking = null
+
 async function getStatus() {
+  if (asking) return asking
+
+  asking = (async () => {
+    try {
+      const res = await fetch('/auth/status', { credentials: 'same-origin' })
+      if (!res.ok) return null
+      const status = await res.json()
+      csrf = status.csrf || null
+      writeCachedStatus(status)
+      return status
+    } catch {
+      return null
+    }
+  })()
+
   try {
-    const res = await fetch('/auth/status', { credentials: 'same-origin' })
-    if (!res.ok) return null
-    const status = await res.json()
-    csrf = status.csrf || null
-    writeCachedStatus(status)
-    return status
-  } catch {
-    return null
+    return await asking
+  } finally {
+    asking = null
   }
 }
 
-function setNote(el, message, kind) {
-  if (!el) return
-  el.textContent = message || ''
-  el.className = message ? `note ${kind || ''}`.trim() : 'note'
+// Same rule as getStatus: one request, two readers.
+let counting = null
+
+async function getWaitingCount() {
+  if (counting) return counting
+
+  counting = (async () => {
+    try {
+      const res = await fetch('/api/waiting/count', { credentials: 'same-origin' })
+      if (!res.ok) return 0
+      return (await res.json()).count || 0
+    } catch {
+      return 0
+    }
+  })()
+
+  try {
+    return await counting
+  } finally {
+    counting = null
+  }
 }
 
 function queryParam(name) {
@@ -137,7 +225,10 @@ function safeNext(fallback) {
 
 function listOut(items) {
   if (items.length <= 1) return items[0] || ''
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`
+  return t('{list} and {last}', {
+    list: items.slice(0, -1).join(', '),
+    last: items[items.length - 1],
+  })
 }
 
 const PASSWORD_TESTS = {
@@ -157,21 +248,33 @@ function applyPasswordPolicy(status) {
   if (!min) return
 
   const said = (rules.needs || []).map(saidOf)
-  const needs = said.length ? `, with ${listOut(said)}` : ''
 
   for (const input of document.querySelectorAll('input[type="password"]')) {
     input.minLength = min
   }
   for (const note of document.querySelectorAll('[data-password-note]')) {
-    if (note.tagName === 'INPUT') note.placeholder = `At least ${min} characters${needs}`
-    else if (needs) note.textContent = `At least ${min} characters${needs}.`
-    else note.textContent = `At least ${min} characters. Length beats punctuation.`
+    if (note.tagName === 'INPUT') {
+      note.placeholder = said.length
+        ? t('At least {min} characters, with {needs}', { min, needs: listOut(said) })
+        : t('At least {min} characters', { min })
+    } else if (said.length) {
+      note.textContent = t('At least {min} characters, with {needs}.', {
+        min,
+        needs: listOut(said),
+      })
+    } else {
+      note.textContent = t('At least {min} characters. Length beats punctuation.', { min })
+    }
   }
 }
 
 function passwordChecks(rules, min) {
   const checks = [
-    { id: 'length', said: `At least ${min} characters`, met: (value) => value.length >= min },
+    {
+      id: 'length',
+      said: t('At least {min} characters', { min }),
+      met: (value) => value.length >= min,
+    },
   ]
   for (const need of rules.needs || []) {
     const id = typeof need === 'string' ? '' : need.id
@@ -262,7 +365,7 @@ function applyLinkPolicy(status) {
   for (const note of document.querySelectorAll('[data-link-ttl]')) {
     const value = lasts[note.dataset.linkTtl]
     if (!value) continue
-    note.textContent = note.textContent.replace(/\b\d+ (?:minutes?|hours?|days?)\b/, value)
+    note.textContent = note.textContent.replace(/\d+ \p{L}+/u, value)
   }
 }
 
@@ -276,7 +379,7 @@ function busy(button, isBusy, busyLabel) {
   if (!button) return
   if (isBusy) {
     button.dataset.label = button.textContent
-    button.textContent = busyLabel || 'Working…'
+    button.textContent = busyLabel || t('Working…')
     button.disabled = true
   } else {
     button.textContent = button.dataset.label || button.textContent

@@ -1,4 +1,5 @@
-import { spawn } from 'node:child_process'
+import { type ChildProcessByStdio, spawn } from 'node:child_process'
+import type { Readable } from 'node:stream'
 import type { FastifyBaseLogger } from 'fastify'
 import { ChildOutput } from '../logging/child.js'
 import { settings } from '../settings.js'
@@ -22,6 +23,17 @@ export class ConversionError extends Error {
 
   toUserMessage(): string {
     return this.message
+  }
+
+  // Already redacted by runCommand: infile/outfile replace the real paths before output reaches here.
+  toUserDetail(): string | null {
+    const said = this.output
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .filter((line) => line.trim().length > 0)
+      .slice(-12)
+      .join('\n')
+    return said.length > 0 ? said.slice(-1200) : null
   }
 }
 
@@ -47,7 +59,7 @@ function redactAll(text: string, redact: Record<string, string> | undefined): st
   return out
 }
 
-const WINDOWS_SUFFIXES = ['.exe', '.cmd', '.bat']
+const WINDOWS_SUFFIXES = ['.exe']
 
 function candidates(bin: string): string[] {
   if (process.platform !== 'win32') return [bin]
@@ -90,7 +102,18 @@ function runExact(bin: string, args: string[], options: RunOptions = {}): Promis
     let settled = false
     let timedOut = false
 
-    const child = spawn(bin, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+    let child: ChildProcessByStdio<null, Readable, Readable>
+    try {
+      child = spawn(bin, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      const hint =
+        code === 'ENOENT' || code === 'EINVAL'
+          ? `${bin} is not installed or not on PATH`
+          : (err as Error).message
+      reject(new ConversionError(bin, `Could not run ${bin}: ${hint}`))
+      return
+    }
 
     const timer = setTimeout(() => {
       timedOut = true

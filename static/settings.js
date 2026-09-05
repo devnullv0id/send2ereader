@@ -7,14 +7,6 @@ onPage('settings', async (page) => {
 
   const TABS = ['profile', 'defaults', 'history', 'security', 'kobo', 'danger']
 
-  function ago(iso) {
-    const seconds = Math.floor((Date.now() - Date.parse(iso)) / 1000)
-    if (!Number.isFinite(seconds) || seconds < 60) return 'JUST NOW'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} MIN AGO`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} HR AGO`
-    return `${Math.floor(seconds / 86400)} DAYS AGO`
-  }
-
   const PREFS_KEY = 's2e_prefs_v1'
   const DEFAULTS = {
     kindleFormat: 'mobi',
@@ -123,13 +115,15 @@ onPage('settings', async (page) => {
       panel.hidden = panel.dataset.panel !== tab
     }
     for (const item of document.querySelectorAll('.rail__item')) {
-      item.classList.toggle('is-active', item.dataset.tab === tab)
-      item.setAttribute('aria-current', item.dataset.tab === tab ? 'true' : 'false')
+      const here = item.dataset.tab === tab
+      item.classList.toggle('is-active', here)
+      item.setAttribute('aria-current', here ? 'true' : 'false')
+      if (here) keepInTheRail(item)
     }
     history.replaceState(null, '', `#${tab}`)
   }
 
-  for (const item of document.querySelectorAll('.rail__item')) {
+  for (const item of document.querySelectorAll('.rail__item[data-tab]')) {
     item.addEventListener('click', () => showTab(item.dataset.tab))
   }
 
@@ -157,7 +151,11 @@ onPage('settings', async (page) => {
       el.classList.toggle('is-on', stage === 'ok')
       el.classList.toggle('is-pending', stage === 'pending')
     }
-    $('koboStatus').textContent = { off: 'NOT CONNECTED', ok: 'CONNECTED', pending: 'AWAITING FIRST SYNC' }[stage]
+    $('koboStatus').textContent = {
+      off: t('NOT CONNECTED'),
+      ok: t('CONNECTED'),
+      pending: t('AWAITING FIRST SYNC'),
+    }[stage]
     if (!on) return
 
     const endpoint = state.endpoint || device.endpoint
@@ -175,7 +173,7 @@ onPage('settings', async (page) => {
         ? `api_endpoint=${endpoint}`
         : `api_endpoint=${mask(endpoint)}`
       $('manualOriginal').textContent = `api_endpoint=${state.storeEndpoint}`
-      $('endpointShow').textContent = state.revealed ? 'Hide' : 'Show'
+      $('endpointShow').textContent = state.revealed ? t('Hide') : t('Show')
       $('endpointShow').setAttribute('aria-pressed', String(state.revealed))
     }
 
@@ -201,42 +199,46 @@ onPage('settings', async (page) => {
     if (!device.paired) {
       return {
         tone: 'is-warn',
-        title: 'Not connected yet',
-        meta: 'Enter the endpoint on your Kobo and tap Sync. This turns green once it checks in.',
+        title: t('Not connected yet'),
+        meta: t('Enter the endpoint on your Kobo and tap Sync.'),
       }
     }
 
     if (device.lastSyncFailedAt) {
       return {
         tone: 'is-error',
-        title: 'Last sync failed',
-        meta: 'Your Kobo reached the endpoint but the transfer broke off. It retries on the next sync.',
+        title: t('Last sync failed'),
+        meta: t('The transfer broke off; it retries on the next sync.'),
       }
     }
 
     if (since < SYNCING_WITHIN_MS) {
       return {
         tone: 'is-syncing',
-        title: 'Syncing now',
-        meta: 'Your Kobo is checking in. Anything waiting goes across in a moment.',
+        title: t('Syncing now'),
+        meta: t('Your Kobo is checking in. Anything waiting goes across in a moment.'),
       }
     }
 
     if (since > STALE_AFTER_MS) {
       return {
         tone: 'is-warn',
-        title: 'Not seen in a while',
-        meta: `Last sync ${when}. Open the Kobo and tap Sync if something is waiting.`,
+        title: t('Not seen in a while'),
+        meta: t('Last sync {when}. Open the Kobo and tap Sync if something is waiting.', { when }),
       }
     }
 
     const waiting =
       state.waiting === 0
-        ? 'Nothing waiting to be collected.'
+        ? t('Nothing waiting to be collected.')
         : state.waiting === 1
-          ? '1 book waiting to be collected.'
-          : `${state.waiting} books waiting to be collected.`
-    return { tone: 'is-ok', title: 'Connected', meta: `Last sync ${when}. ${waiting}` }
+          ? t('1 book waiting to be collected.')
+          : t('{n} books waiting to be collected.', { n: state.waiting })
+    return {
+      tone: 'is-ok',
+      title: t('Connected'),
+      meta: t('Last sync {when}. {waiting}', { when, waiting }),
+    }
   }
 
   async function loadDevice() {
@@ -251,20 +253,14 @@ onPage('settings', async (page) => {
     } catch {
     }
 
-    if (!state.blocked) {
-      try {
-        const res = await fetch('/api/waiting/count', { credentials: 'same-origin' })
-        if (res.ok) state.waiting = (await res.json()).count || 0
-      } catch {
-      }
-    }
+    if (!state.blocked) state.waiting = await getWaitingCount()
     if (gone()) return
     renderKobo()
     renderProfile()
   }
 
   $('koboGenerate').addEventListener('click', async () => {
-    const result = await postJson('/api/devices', { label: 'My Kobo' })
+    const result = await postJson('/api/devices', { label: t('My Kobo') })
     if (gone() || !result.ok) return
     state.device = result.data.device
     state.endpoint = result.data.endpoint
@@ -315,7 +311,7 @@ onPage('settings', async (page) => {
     renderKobo()
   })
 
-  async function copyTo(button, text, done = 'Copied') {
+  async function copyTo(button, text, done = t('Copied')) {
     const was = button.textContent
     if (!(await copyText(text))) return
     button.textContent = done
@@ -330,10 +326,10 @@ onPage('settings', async (page) => {
     copyTo($('endpointCopy'), state.endpoint || state.device?.endpoint || '')
   )
   $('manualCopy').addEventListener('click', () =>
-    copyTo($('manualCopy'), `api_endpoint=${state.endpoint || state.device?.endpoint || ''}`, 'Copied')
+    copyTo($('manualCopy'), `api_endpoint=${state.endpoint || state.device?.endpoint || ''}`)
   )
   $('manualOriginalCopy').addEventListener('click', () =>
-    copyTo($('manualOriginalCopy'), `api_endpoint=${state.storeEndpoint}`, 'Copied')
+    copyTo($('manualOriginalCopy'), `api_endpoint=${state.storeEndpoint}`)
   )
 
   function showManual(open) {
@@ -350,12 +346,6 @@ onPage('settings', async (page) => {
     if (e.key === 'Escape' && !$('manual').hidden) showManual(false)
   })
 
-  function bytes(value) {
-    if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(1)} GB`
-    if (value >= 1024 ** 2) return `${Math.round(value / 1024 ** 2)} MB`
-    return `${Math.max(1, Math.round(value / 1024))} KB`
-  }
-
   function asAmount(minutes) {
     if (minutes > 0 && minutes % 1440 === 0) return { value: minutes / 1440, unit: 1440 }
     if (minutes > 0 && minutes % 60 === 0) return { value: minutes / 60, unit: 60 }
@@ -364,8 +354,9 @@ onPage('settings', async (page) => {
 
   function spellMinutes(minutes) {
     const { value, unit } = asAmount(minutes)
-    const name = unit === 1440 ? 'day' : unit === 60 ? 'hour' : 'minute'
-    return `${value} ${value === 1 ? name : `${name}s`}`
+    if (unit === 1440) return value === 1 ? t('1 day') : t('{n} days', { n: value })
+    if (unit === 60) return value === 1 ? t('1 hour') : t('{n} hours', { n: value })
+    return value === 1 ? t('1 minute') : t('{n} minutes', { n: value })
   }
 
   function renderLibrary() {
@@ -385,12 +376,19 @@ onPage('settings', async (page) => {
       $('retainUnit').value = String(shown.unit)
     }
 
-    $('retainNote').textContent =
-      `How long a book stays here, up to ${spellMinutes(info.ceilingMinutes)} on this server. Changing it affects new books only — anything already kept keeps the deadline it started with.`
+    $('retainNote').textContent = t('How long a book stays, up to {limit}; new books only.', {
+      limit: spellMinutes(info.ceilingMinutes),
+    })
 
-    $('libraryUsage').textContent =
-      `${bytes(info.usedBytes)} of ${bytes(info.limitBytes)} used by this account` +
-      `, ${bytes(info.serverUsedBytes)} of ${bytes(info.serverLimitBytes)} across the server.`
+    $('libraryUsage').textContent = t(
+      '{used} of {limit} used by this account, {serverUsed} of {serverLimit} across the server.',
+      {
+        used: bytes(info.usedBytes),
+        limit: bytes(info.limitBytes),
+        serverUsed: bytes(info.serverUsedBytes),
+        serverLimit: bytes(info.serverLimitBytes),
+      }
+    )
   }
 
   async function loadLibrary() {
@@ -435,20 +433,20 @@ onPage('settings', async (page) => {
     $('nameFirst').value = user.firstName || ''
     $('nameLast').value = user.lastName || ''
     $('nameIntro').textContent = named
-      ? 'Shown to whoever administers this server, so they can tell one account from another without reading everybody’s address.'
-      : 'This account was made before names were asked for. Give one and the person administering this server can tell it apart from the others without reading everybody’s address.'
+      ? t('Shown to the administrator, so accounts can be told apart.')
+      : t('No name yet — give one so the administrator can tell accounts apart.')
 
-    const sends = History.all().length
+    const sends = History.all().filter((entry) => entry.ok).length
     $('statSends').textContent = String(sends)
-    $('statSendsLabel').textContent = sends === 1 ? 'book sent' : 'books sent'
+    $('statSendsLabel').textContent = sends === 1 ? t('book sent') : t('books sent')
 
     const stage = !state.device ? 'off' : state.device.paired ? 'ok' : 'pending'
-    $('statSync').textContent = { off: 'Off', ok: 'On', pending: 'Pending' }[stage]
+    $('statSync').textContent = { off: t('Off'), ok: t('On'), pending: t('Pending') }[stage]
     $('statSync').classList.toggle('is-on', stage === 'ok')
     $('statSync').classList.toggle('is-pending', stage === 'pending')
 
     const since = new Date(user.createdAt)
-    $('since').textContent = `Signed in since ${since.toLocaleDateString()}.`
+    $('since').textContent = t('Signed in since {date}.', { date: since.toLocaleDateString() })
 
     $('emailNow').textContent = user.email
 
@@ -456,13 +454,13 @@ onPage('settings', async (page) => {
     $('pwnone').hidden = user.hasPassword
     $('pwcurrent').hidden = !user.hasPassword
     $('pwIntro').textContent = user.hasPassword
-      ? 'This account has a password as well as emailed sign-in links. Change it here.'
-      : "This account signs in with emailed links, so there's no password yet. Set one if you'd rather type than wait for mail."
-    $('pwsave').textContent = user.hasPassword ? 'Change password' : 'Set a password'
+      ? t('This account has a password as well as emailed sign-in links. Change it here.')
+      : t("Sign-in is by emailed link; set a password if you'd rather type.")
+    $('pwsave').textContent = user.hasPassword ? t('Change password') : t('Set a password')
     $('delEmail').textContent = user.email
     $('delKoboLine').textContent = state.device
-      ? 'The Kobo sync endpoint — devices pointed at it stop syncing'
-      : 'Any Kobo sync endpoint'
+      ? t('The Kobo sync endpoint — devices pointed at it stop syncing')
+      : t('Any Kobo sync endpoint')
   }
 
   function renderVerification() {
@@ -477,7 +475,10 @@ onPage('settings', async (page) => {
     const generate = $('koboGenerate')
     generate.disabled = !settled
     if (settled) generate.removeAttribute('title')
-    else generate.title = 'Confirm your email address first — the box above will send the link again.'
+    else
+      generate.title = t(
+        'Confirm your email address first — the box above will send the link again.'
+      )
   }
 
   function passkeysWork() {
@@ -490,7 +491,7 @@ onPage('settings', async (page) => {
     length: 6,
     numeric: true,
     autocomplete: 'one-time-code',
-    label: 'The six digits your authenticator app shows',
+    label: t('The six digits your authenticator app shows'),
     onInput: (value) => {
       $('tfaConfirm').disabled = value.length < 6
       $('tfaError').hidden = true
@@ -504,7 +505,7 @@ onPage('settings', async (page) => {
     const on = state.tfa.enabled
     const setting = state.tfaSetup !== null
 
-    $('tfaStatus').textContent = setting ? 'SETTING UP' : on ? 'ON' : 'OFF'
+    $('tfaStatus').textContent = setting ? t('SETTING UP') : on ? t('ON') : t('OFF')
     $('tfaOff').hidden = on
     $('tfaOn').hidden = !on
     $('tfaModal').hidden = !setting
@@ -517,12 +518,15 @@ onPage('settings', async (page) => {
       $('tfaSecret').textContent = state.tfaSetup.typed
       const qr = $('tfaQr')
       if (state.tfaSetup.svg) qr.innerHTML = state.tfaSetup.svg
-      else qr.replaceChildren(document.createTextNode('Type the key instead'))
+      else qr.replaceChildren(document.createTextNode(t('Type the key instead')))
     }
 
     const left = state.tfa.recoveryCodes
     $('codesLeft').textContent = left
-      ? `${left.unused} of ${left.total} recovery codes unused. They were shown once when you turned this on.`
+      ? t(
+          '{unused} of {total} recovery codes unused. They were shown once when you turned this on.',
+          { unused: left.unused, total: left.total }
+        )
       : ''
   }
 
@@ -564,17 +568,6 @@ onPage('settings', async (page) => {
     }
   }
 
-  function requestOptions(options) {
-    return {
-      ...options,
-      challenge: fromBase64Url(options.challenge),
-      allowCredentials: (options.allowCredentials || []).map((c) => ({
-        ...c,
-        id: fromBase64Url(c.id),
-      })),
-    }
-  }
-
   $('addPasskey').addEventListener('click', () => {
     $('passkeyName').value = ''
     $('passkeyError').hidden = true
@@ -583,15 +576,15 @@ onPage('settings', async (page) => {
   })
 
   $('passkeyCreate').addEventListener('click', async () => {
-    const label = $('passkeyName').value.trim() || 'This computer'
+    const label = $('passkeyName').value.trim() || t('This computer')
     $('passkeyError').hidden = true
-    busy($('passkeyCreate'), true, 'Waiting for your device…')
+    busy($('passkeyCreate'), true, t('Waiting for your device…'))
 
     const begun = await postJson('/auth/passkeys/options', {})
     if (gone()) return
     if (!begun.ok) {
       busy($('passkeyCreate'), false)
-      return sayPasskey('That did not start. Try again in a moment.')
+      return sayPasskey(t('That did not start. Try again in a moment.'))
     }
 
     let credential
@@ -604,8 +597,8 @@ onPage('settings', async (page) => {
       busy($('passkeyCreate'), false)
       return sayPasskey(
         err?.name === 'InvalidStateError'
-          ? 'This device already has a passkey for this account.'
-          : 'Your device did not hand one over.'
+          ? t('This device already has a passkey for this account.')
+          : t('Your device did not hand one over.')
       )
     }
     if (gone()) return
@@ -627,7 +620,7 @@ onPage('settings', async (page) => {
     if (gone()) return
     busy($('passkeyCreate'), false)
 
-    if (!saved.ok) return sayPasskey(saved.data?.error || 'That passkey was not accepted.')
+    if (!saved.ok) return sayPasskey(saved.data?.error || t('That passkey was not accepted.'))
     $('passkeyModal').hidden = true
     await loadSecurity()
   })
@@ -682,7 +675,7 @@ onPage('settings', async (page) => {
   }
 
   async function removePasskey(key, button) {
-    const proof = await confirmIdentity('Removing a passkey changes how you sign in.')
+    const proof = await confirmIdentity(t('Removing a passkey changes how you sign in.'))
     if (gone() || !proof) return
 
     button.disabled = true
@@ -696,7 +689,7 @@ onPage('settings', async (page) => {
   }
 
   $('tfaBegin').addEventListener('click', async () => {
-    busy($('tfaBegin'), true, 'Making a secret…')
+    busy($('tfaBegin'), true, t('Making a secret…'))
     const res = await postJson('/auth/tfa/begin', {})
     if (gone()) return
     busy($('tfaBegin'), false)
@@ -714,7 +707,7 @@ onPage('settings', async (page) => {
     const code = tfaCells.value
     if (code.length < 6 || confirming) return
     confirming = true
-    busy($('tfaConfirm'), true, 'Checking…')
+    busy($('tfaConfirm'), true, t('Checking…'))
     const res = await postJson('/auth/tfa/confirm', { code })
     confirming = false
     if (gone()) return
@@ -733,10 +726,10 @@ onPage('settings', async (page) => {
   })
 
   $('tfaDisable').addEventListener('click', async () => {
-    const proof = await confirmIdentity('Turning two-factor off leaves the password on its own.')
+    const proof = await confirmIdentity(t('Turning two-factor off leaves the password on its own.'))
     if (gone() || !proof) return
 
-    busy($('tfaDisable'), true, 'Turning off…')
+    busy($('tfaDisable'), true, t('Turning off…'))
     const res = await postJson('/auth/tfa/disable', proof)
     if (gone()) return
     busy($('tfaDisable'), false)
@@ -744,10 +737,10 @@ onPage('settings', async (page) => {
   })
 
   $('regenCodes').addEventListener('click', async () => {
-    const proof = await confirmIdentity('A fresh set retires the codes you have now.')
+    const proof = await confirmIdentity(t('A fresh set retires the codes you have now.'))
     if (gone() || !proof) return
 
-    busy($('regenCodes'), true, 'Making a fresh set…')
+    busy($('regenCodes'), true, t('Making a fresh set…'))
     const res = await postJson('/auth/tfa/codes', proof)
     if (gone()) return
     busy($('regenCodes'), false)
@@ -777,27 +770,27 @@ onPage('settings', async (page) => {
     const label = $('tfaCopy').querySelector('span')
     const icon = $('tfaCopy').querySelector('.ph')
     if (!(await copyText($('tfaSecret').textContent))) return
-    label.textContent = 'Copied'
+    label.textContent = t('Copied')
     icon.className = 'ph ph-check'
     $('tfaCopy').classList.add('is-done')
     page.after(1600, () => {
-      label.textContent = 'Copy'
+      label.textContent = t('Copy')
       icon.className = 'ph ph-copy'
       $('tfaCopy').classList.remove('is-done')
     })
   })
 
   $('resendVerify').addEventListener('click', async () => {
-    busy($('resendVerify'), true, 'Sending…')
+    busy($('resendVerify'), true, t('Sending…'))
     const result = await postJson('/auth/verify/resend', {})
     if (gone()) return
     busy($('resendVerify'), false)
 
     $('resendMsg').textContent = !result.ok
-      ? 'That did not go through. Try again in a moment.'
+      ? t('That did not go through. Try again in a moment.')
       : result.data?.mailEnabled === false
-        ? 'This server has no mail configured, so the link is in its log.'
-        : 'Sent. Open the link in that message to confirm.'
+        ? t('This server has no mail configured, so the link is in its log.')
+        : t('Sent. Open the link in that message to confirm.')
   })
 
   function describeAgent(agent) {
@@ -825,7 +818,7 @@ onPage('settings', async (page) => {
     const passkeys = state.passkeys
     $('passkeyList').hidden = passkeys.length === 0
     $('passkeyEmpty').hidden = passkeys.length > 0
-    $('addPasskey').textContent = passkeys.length ? 'Add another passkey' : 'Add a passkey'
+    $('addPasskey').textContent = passkeys.length ? t('Add another passkey') : t('Add a passkey')
     $('addPasskey').disabled = !passkeysWork()
     $('passkeyUnsupported').hidden = passkeysWork()
 
@@ -835,8 +828,11 @@ onPage('settings', async (page) => {
         const row = keyTpl.content.firstElementChild.cloneNode(true)
         row.querySelector('.key-row__name').textContent = key.label
         row.querySelector('.key-row__meta').textContent = key.lastUsedAt
-          ? `ADDED ${ago(key.createdAt)} · LAST USED ${ago(key.lastUsedAt)}`
-          : `ADDED ${ago(key.createdAt)} · NEVER USED`
+          ? t('ADDED {added} · LAST USED {used}', {
+              added: ago(key.createdAt),
+              used: ago(key.lastUsedAt),
+            })
+          : t('ADDED {added} · NEVER USED', { added: ago(key.createdAt) })
 
         const remove = row.querySelector('.row-action')
         remove.addEventListener('click', () => removePasskey(key, remove))
@@ -854,19 +850,19 @@ onPage('settings', async (page) => {
 
         row.querySelector('.session__dot').classList.toggle('is-current', session.current)
         row.querySelector('.session__name').textContent = session.current
-          ? 'This browser'
-          : os || browser || 'Unknown device'
+          ? t('This browser')
+          : os || browser || t('Unknown device')
         row.querySelector('.session__meta').textContent = [
-          browser || 'UNKNOWN BROWSER',
-          os || 'UNKNOWN SYSTEM',
-          session.current ? 'ACTIVE NOW' : ago(session.lastSeenAt),
+          browser || t('UNKNOWN BROWSER'),
+          os || t('UNKNOWN SYSTEM'),
+          session.current ? t('ACTIVE NOW') : ago(session.lastSeenAt),
         ]
           .join(' · ')
           .toUpperCase()
 
         const action = row.querySelector('.session__action')
         action.hidden = session.current
-        action.textContent = 'Sign out'
+        action.textContent = t('Sign out')
         if (!session.current) {
           action.addEventListener('click', () => endOther(session.id, action))
         }
@@ -911,14 +907,14 @@ onPage('settings', async (page) => {
 
     if (!result.ok) {
       msg.classList.add('is-error')
-      msg.textContent = result.data?.error || 'That name was not saved'
+      msg.textContent = result.data?.error || t('That name was not saved')
       return
     }
 
     state.user = result.data.user
     cacheUser(result.data.user)
     msg.classList.add('is-ok')
-    msg.textContent = 'Saved.'
+    msg.textContent = t('Saved.')
     renderProfile()
   })
 
@@ -931,8 +927,9 @@ onPage('settings', async (page) => {
       msg.classList.add('is-error')
       msg.textContent = text
     }
-    if (state.user?.hasPassword && !$('pwcurrent').value) return fail('Enter your current password')
-    if ($('pwnew').value !== $('pwagain').value) return fail("Those don't match")
+    if (state.user?.hasPassword && !$('pwcurrent').value)
+      return fail(t('Enter your current password'))
+    if ($('pwnew').value !== $('pwagain').value) return fail(t("Those don't match"))
 
     const result = await postJson('/auth/password', {
       current: $('pwcurrent').value,
@@ -942,19 +939,18 @@ onPage('settings', async (page) => {
 
     if (result.ok) {
       msg.classList.add('is-ok')
-      msg.textContent = 'Saved. Other sessions signed out.'
+      msg.textContent = t('Saved. Other sessions signed out.')
       $('pwform').reset()
       if (state.user) state.user.hasPassword = true
       renderProfile()
       await loadSessions()
       return
     }
-    fail(result.data?.error || 'That current password is incorrect')
+    fail(result.data?.error || t('That current password is incorrect'))
   })
 
   $('newEmail').addEventListener('input', () => {
     const ready = looksLikeEmail($('newEmail').value)
-    $('emailGo').classList.toggle('is-ready', ready)
     $('emailGo').disabled = !ready
     $('emailTaken').hidden = true
   })
@@ -963,24 +959,23 @@ onPage('settings', async (page) => {
     const wanted = $('newEmail').value.trim()
     if (!looksLikeEmail(wanted)) return
 
-    const proof = await confirmIdentity('Changing the address changes how you sign in.')
+    const proof = await confirmIdentity(t('Changing the address changes how you sign in.'))
     if (gone() || !proof) return
 
-    busy($('emailGo'), true, 'Sending…')
+    busy($('emailGo'), true, t('Sending…'))
     const result = await postJson('/auth/email', { email: wanted, ...proof })
     if (gone()) return
     busy($('emailGo'), false)
 
     if (!result.ok) {
       $('emailTaken').textContent =
-        result.data?.error || 'That address was not accepted. Try another.'
+        result.data?.error || t('That address was not accepted. Try another.')
       $('emailTaken').hidden = false
       return
     }
 
     $('newEmail').value = ''
     $('emailGo').disabled = true
-    $('emailGo').classList.remove('is-ready')
     state.pendingEmail = result.data.pendingEmail
     renderPendingEmail()
   })
@@ -999,9 +994,9 @@ onPage('settings', async (page) => {
     if (!waiting) return
 
     $('pendingEmail').textContent = state.pendingEmail
-    $('pendingText').textContent =
-      `Still delivering to ${state.user?.email ?? 'the old address'} until that link is opened. ` +
-      `It lasts ${state.emailTokenLasts || '24 hours'} and works once.`
+    $('pendingText').textContent = t('Still delivering to {email} until that link is opened.', {
+      email: state.user?.email ?? t('the old address'),
+    })
   }
 
   function renderDelete() {
@@ -1021,7 +1016,7 @@ onPage('settings', async (page) => {
   })
 
   $('delYes').addEventListener('click', async () => {
-    const proof = await confirmIdentity('Deleting the account cannot be undone.')
+    const proof = await confirmIdentity(t('Deleting the account cannot be undone.'))
     if (gone() || !proof) return
 
     $('delYes').disabled = true
@@ -1029,7 +1024,7 @@ onPage('settings', async (page) => {
     if (gone()) return
     if (!res.ok) {
       $('delYes').disabled = false
-      $('delNote').textContent = res.data?.error || 'That could not be deleted.'
+      $('delNote').textContent = res.data?.error || t('That could not be deleted.')
       $('delNote').hidden = false
       return
     }
@@ -1044,13 +1039,11 @@ onPage('settings', async (page) => {
 
   for (const modal of document.querySelectorAll('.modal-scrim')) {
     modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeModal(modal)
+      if (e.target !== modal) return
+      const out = modal.querySelector('[data-modal-close]')
+      if (out && !out.disabled) out.click()
     })
   }
-  page.on(document, 'keydown', (e) => {
-    if (e.key !== 'Escape') return
-    for (const modal of document.querySelectorAll('.modal-scrim')) closeModal(modal)
-  })
 
   $('passkeyCancel').addEventListener('click', () => closeModal($('passkeyModal')))
 
@@ -1062,18 +1055,18 @@ onPage('settings', async (page) => {
     const label = $('codesCopy').querySelector('span')
     const icon = $('codesCopy').querySelector('.ph')
     if (!(await copyText(currentCodes()))) return
-    label.textContent = 'Copied'
+    label.textContent = t('Copied')
     icon.className = 'ph ph-check'
     $('codesCopy').classList.add('is-done')
     page.after(1600, () => {
-      label.textContent = 'Copy all'
+      label.textContent = t('Copy all')
       icon.className = 'ph ph-copy'
       $('codesCopy').classList.remove('is-done')
     })
   })
 
   $('codesDownload').addEventListener('click', () => {
-    const body = `Send to eReader — recovery codes\n${state.user?.email || ''}\n\n${currentCodes()}\n\nEach code works once.\n`
+    const body = `${t('Send to eReader — recovery codes')}\n${state.user?.email || ''}\n\n${currentCodes()}\n\n${t('Each code works once.')}\n`
     const link = document.createElement('a')
     link.href = URL.createObjectURL(new Blob([body], { type: 'text/plain' }))
     link.download = 'send-to-eReader-recovery-codes.txt'
@@ -1116,6 +1109,30 @@ onPage('settings', async (page) => {
   state.pendingEmail = status.pendingEmail || null
   state.emailTokenLasts = status.emailTokenLasts || ''
   $('delLastWarning').hidden = status.soleAccount !== true
+  $('adminRail').hidden = state.user.isAdmin !== true
+
+  const languages = status.languages || []
+  $('prefLanguage').replaceChildren(
+    ...languages.map((entry) => {
+      const option = document.createElement('option')
+      option.value = entry.code
+      option.textContent = entry.name
+      return option
+    })
+  )
+  $('prefLanguage').value = status.language || 'en'
+  $('prefLanguage').addEventListener('change', async () => {
+    const code = $('prefLanguage').value
+    await sendJson('POST', '/auth/language', { language: code })
+    const secure = window.location.protocol === 'https:' ? '; secure' : ''
+    document.cookie = `s2e_lang=${encodeURIComponent(code)}; path=/; max-age=31536000; samesite=lax${secure}`
+    try {
+      sessionStorage.removeItem('s2e_status_v1')
+      sessionStorage.removeItem('s2e_i18n_v1')
+    } catch {
+    }
+    window.location.reload()
+  })
 
   applyPasswordPolicy(status)
   attachPasswordRules(status)
@@ -1126,7 +1143,7 @@ onPage('settings', async (page) => {
   renderDelete()
 
   if (queryParam('verified')) {
-    $('confirmedMeta').textContent = 'CONFIRMED JUST NOW — KOBO SYNC IS AVAILABLE'
+    $('confirmedMeta').textContent = t('CONFIRMED JUST NOW — KOBO SYNC IS AVAILABLE')
     showTab('profile')
   }
   if (queryParam('moved')) showTab('profile')

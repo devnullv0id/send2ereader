@@ -15,6 +15,7 @@ import {
   SYNC_TOKEN_HEADER,
   serialiseSyncToken,
 } from '../src/kobo/synctoken.js'
+import { settings } from '../src/settings.js'
 import {
   asBrowser,
   COVER_PNG,
@@ -78,14 +79,16 @@ async function ownerCookie(): Promise<string> {
   return cookieFrom(res)
 }
 
-async function registerDevice(cookie: string, body: Record<string, unknown> = {}) {
+async function registerDevice(cookie: string, body: Record<string, unknown> = {}, synced = true) {
   const res = await app.inject({
     method: 'POST',
     url: '/api/devices',
     headers: { cookie },
     payload: { label: 'Clara', ...body },
   })
-  return { id: res.json().device.id as string, token: res.json().token as string }
+  const id = res.json().device.id as string
+  if (synced) app.repos.devices.recordSeen(id)
+  return { id, token: res.json().token as string }
 }
 
 async function sendBook(
@@ -174,6 +177,64 @@ describe('sending to a registered device', () => {
       ]),
     })
     expect(res.statusCode).toBe(401)
+  })
+
+  it('refuses a device that has never synced, since nothing could collect it', async () => {
+    const cookie = await ownerCookie()
+    const { id } = await registerDevice(cookie, {}, false)
+
+    const res = await sendBook(cookie, id)
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toMatch(/never synced/i)
+  })
+
+  it('takes the book once that device has checked in', async () => {
+    const cookie = await ownerCookie()
+    const { id } = await registerDevice(cookie, {}, false)
+    app.repos.devices.recordSeen(id)
+
+    expect((await sendBook(cookie, id)).statusCode).toBe(200)
+  })
+
+  it('takes the book from an unconfirmed sender when no mail could confirm them', async () => {
+    settings.set('SMTP_ENABLED', 'false', null)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/register',
+      payload: {
+        email: 'owner@example.com',
+        password: PASSWORD,
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      },
+    })
+    const cookie = cookieFrom(res)
+    expect(app.repos.users.byEmail('owner@example.com')?.emailVerified).toBe(false)
+    const { id } = await registerDevice(cookie)
+
+    expect((await sendBook(cookie, id)).statusCode).toBe(200)
+  })
+
+  it('refuses the unconfirmed sender the moment mail is configured', async () => {
+    settings.set('SMTP_ENABLED', 'false', null)
+    const res = await app.inject({
+      method: 'POST',
+      url: '/auth/register',
+      payload: {
+        email: 'owner@example.com',
+        password: PASSWORD,
+        firstName: 'Ada',
+        lastName: 'Lovelace',
+      },
+    })
+    const cookie = cookieFrom(res)
+    const { id } = await registerDevice(cookie)
+
+    settings.set('SMTP_ENABLED', 'true', null)
+    const refused = await sendBook(cookie, id)
+    expect(refused.statusCode).toBe(403)
+    expect(refused.json().error).toMatch(/confirm/i)
   })
 
   it("refuses someone else's device as missing", async () => {
@@ -778,7 +839,7 @@ describe('the device collecting a book', () => {
 describe('check-in', () => {
   it('marks the device paired once it announces itself', async () => {
     const cookie = await ownerCookie()
-    const { id, token } = await registerDevice(cookie)
+    const { id, token } = await registerDevice(cookie, {}, false)
     expect(app.repos.devices.byId(id)!.lastSeenAt).toBeNull()
 
     const res = await app.inject({
@@ -935,6 +996,16 @@ describe('a kept copy backs up a book the queue has already let go', () => {
     const res = await app.inject({ url: `/kobo/${token}/v1/library/${bookId}/metadata` })
     expect(res.statusCode).toBe(200)
     expect(res.json()[0].Title).toBe('My Book')
+  })
+
+  it('answers reading state for the kept copy, like metadata and download do', async () => {
+    const cookie = await ownerCookie()
+    const { id, token } = await registerDevice(cookie)
+    const { bookId } = await keepFor(id)
+
+    const res = await app.inject({ url: `/kobo/${token}/v1/library/${bookId}/state` })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().ReadingStates[0].EntitlementId).toBe(bookId)
   })
 
   it('refuses a device the copy was not sent to', async () => {

@@ -21,8 +21,6 @@ stage run remove
 stage install running
 SIZE="$(du -sm "$VENV" 2>/dev/null | cut -f1 || echo 0)"
 say "deleting the python environment under ${VENV}"
-# only the venv, never $PREFIX itself — the progress this page is reading
-# lives beside it, and taking the directory would leave the page waiting.
 rm -rf "$VENV"
 rm -f /usr/local/bin/pdfcropmargins
 stage install done

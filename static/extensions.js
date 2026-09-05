@@ -1,94 +1,67 @@
-/* global onPage, csrfHeaders */
-
 onPage('extensions', async (page) => {
   const $ = (id) => document.getElementById(id)
   const gone = () => !page.alive
   const POLL_MS = 1000
 
-  // What each extension is for, what it costs, and what every stage of its
-  // install is doing. The server owns the stage names; this owns the words.
+  // The server owns the stage names; this owns the words.
   const ABOUT = {
     calibre: {
-      unlocks: 'MOBI, AZW3, PDF, TXT and HTMLZ, and reading KFX',
+      unlocks: t('MOBI, AZW3, PDF, TXT and HTMLZ, and reading KFX'),
       cost: [
-        ['~150MB', 'downloaded from calibre-ebook.com, once'],
-        ['550MB', 'on the data volume, kept when the container is recreated'],
-        ['~10 min', 'depending on the connection'],
+        ['~150MB', t('downloaded from calibre-ebook.com, once')],
+        ['550MB', t('on the data volume, kept when the container is recreated')],
+        ['~10 min', t('depending on the connection')],
       ],
-      note: 'Everything Kindle-shaped goes through calibre. Without it this server still sends EPUB and makes KEPUB for a Kobo, but converts nothing else.',
+      note: t('Everything Kindle-shaped goes through calibre.'),
       stages: {
-        packages: ['The libraries it needs', 'Qt, fonts, and the X libraries its PDF renderer loads.'],
-        download: ['calibre itself', 'From calibre-ebook.com, the version they publish today.'],
-        install: [
-          'Unpacking it',
-          'Into the data volume rather than the container, so recreating the container does not fetch it again.',
+        packages: [
+          t('The libraries it needs'),
+          t('Qt, fonts, and the X libraries its PDF renderer loads.'),
         ],
-        plugins: [
-          'The KFX plugins',
-          'Registering KFX Input and Output with calibre. Input works at once; Output waits for the Previewer.',
-        ],
-        verify: [
-          'Checking it took',
-          'ebook-convert is asked its version, and the Convert page opens up when it answers.',
-        ],
+        download: [t('calibre itself'), t('From calibre-ebook.com, the version they publish today.')],
+        install: [t('Unpacking it'), t('Into the data volume, so a recreated container keeps it.')],
+        plugins: [t('The KFX plugins'), t('Input works at once; Output waits for the Previewer.')],
+        verify: [t('Checking it took'), t('ebook-convert is asked its version.')],
       },
     },
     pdfcrop: {
-      unlocks: 'trimming the white border off a PDF',
+      unlocks: t('trimming the white border off a PDF'),
       cost: [
-        ['~90MB', 'on the data volume'],
-        ['~2 min', 'mostly PyMuPDF'],
+        ['~90MB', t('on the data volume')],
+        ['~2 min', t('mostly PyMuPDF')],
       ],
-      note: 'Only ever used on a PDF, and only when you tick the box. Everything else is unaffected.',
+      note: t('Only used on a PDF, and only when you tick the box.'),
       stages: {
-        packages: [
-          'Python and its venv module',
-          'The server already ships Python; this makes sure the venv module is there.',
-        ],
-        install: [
-          'pdfCropMargins',
-          'Installed into the data volume with pip, so it survives the container being recreated.',
-        ],
-        verify: [
-          'Checking it took',
-          'It is asked its version, and the crop option lights up when it answers.',
-        ],
+        packages: [t('Python and its venv module'), t('Makes sure the venv module is there.')],
+        install: [t('pdfCropMargins'), t('Installed to the data volume with pip.')],
+        verify: [t('Checking it took'), t('Asked its version; the crop option lights up.')],
       },
     },
     kfx: {
-      unlocks: 'writing KFX, the newest Kindle format',
+      unlocks: t('writing KFX, the newest Kindle format'),
       cost: [
-        ['356MB', 'downloaded from Amazon, once, then deleted'],
-        ['2.6GB', 'Wine prefix, kept on the data volume'],
-        ['1.7GB', 'Wine packages in the container'],
-        ['~920MB', 'memory while a KFX conversion runs'],
+        ['356MB', t('downloaded from Amazon, once, then deleted')],
+        ['2.6GB', t('Wine prefix, kept on the data volume')],
+        ['1.7GB', t('Wine packages in the container')],
+        ['~920MB', t('memory while a KFX conversion runs')],
       ],
-      note: 'Every Kindle since 2011 reads AZW3, which calibre writes on its own. KFX is only worth this if you specifically need it.',
+      note: t('AZW3 already covers every Kindle since 2011.'),
       stages: {
         packages: [
-          'Wine, from WineHQ',
-          "Debian ships Wine 10 and the Previewer crashes on it, so this takes WineHQ's build, with the X libraries its display driver needs.",
+          t('Wine, from WineHQ'),
+          t("Debian's Wine crashes the Previewer, so this takes WineHQ's build."),
         ],
         download: [
-          "Amazon's Kindle Previewer",
-          'Fetched from Amazon by this machine, at your instruction — it is not ours to redistribute. The slow part.',
+          t("Amazon's Kindle Previewer"),
+          t('Fetched at your instruction — not ours to redistribute.'),
         ],
-        prefix: [
-          'The Wine prefix',
-          'A Windows filesystem for it to live in, with the mono and gecko prompts turned off so nothing waits for a click.',
-        ],
-        previewer: [
-          'Installing the Previewer',
-          'Run silently against a virtual screen, as the user that will later run it.',
-        ],
+        prefix: [t('The Wine prefix'), t('A Windows filesystem for it to live in.')],
+        previewer: [t('Installing the Previewer'), t('Run silently against a virtual screen.')],
         wire: [
-          'Wiring it to calibre',
-          'The registry key, the ~/.wine link, and a wrapper so plain wine brings its own screen.',
+          t('Wiring it to calibre'),
+          t('Registry key, ~/.wine link, and a wrapper that brings a screen.'),
         ],
-        verify: [
-          'Checking it took',
-          'Both the plugin and the Previewer have to answer before KFX is offered.',
-        ],
+        verify: [t('Checking it took'), t('Plugin and Previewer both have to answer.')],
       },
     },
   }
@@ -136,29 +109,28 @@ onPage('extensions', async (page) => {
   const entry = (id) => state.list.find((one) => one.id === id)
 
   function statusWords(one) {
-    if (one.pending) return 'Working…'
-    if (one.installed) return 'Installed'
+    if (one.pending) return t('Working…')
+    if (one.installed) return t('Installed')
     if (one.blocked) return one.blocked
-    return 'Not installed'
+    return t('Not installed')
   }
 
   function renderList() {
     $('extList').innerHTML = state.list
       .map((one) => {
         const disabled = state.busy || Boolean(one.blocked)
-        const action = one.installed ? 'Remove' : 'Install'
         const cls = one.installed ? 'is-on' : one.blocked ? 'is-blocked' : ''
+        const act = one.installed ? 'remove' : 'install'
         return `
-        <div class="ext ${cls}">
-          <div class="ext__body">
-            <div class="ext__name">${one.label}</div>
-            <div class="ext__what">Adds ${about(one.id).unlocks}</div>
-          </div>
-          <div class="ext__state">${statusWords(one)}</div>
-          <button type="button" class="btn btn--sm ${one.installed ? 'btn--err' : 'btn--primary'}"
-                  data-act="${action.toLowerCase()}" data-id="${one.id}"
-                  ${disabled ? 'disabled' : ''}>${action}</button>
-        </div>`
+        <button type="button" class="ext ${cls}" data-act="${act}" data-id="${one.id}"
+                aria-pressed="${one.installed}" ${disabled ? 'disabled' : ''}>
+          <span class="ext__body">
+            <span class="ext__name">${t(one.label)}</span>
+            <span class="ext__what">${t('Adds {what}', { what: about(one.id).unlocks })}</span>
+          </span>
+          <span class="ext__state">${statusWords(one)}</span>
+          <span class="toggle${one.installed ? ' is-on' : ''}"><span class="toggle__knob"></span></span>
+        </button>`
       })
       .join('')
   }
@@ -201,6 +173,11 @@ onPage('extensions', async (page) => {
           `<button type="button" class="step-rail__dot" data-step="${index + 1}" role="tab" aria-label="${stage.name}"></button>`
       )
       .join('')
+      .concat(
+        `<button type="button" class="step-rail__dot" data-step="${outStep()}" role="tab" aria-label="output"></button>`
+      )
+
+    $('outSummaryBadge').textContent = String(outStep())
 
     for (const [index] of state.stages.entries()) {
       const n = index + 1
@@ -211,8 +188,12 @@ onPage('extensions', async (page) => {
     }
   }
 
+  function outStep() {
+    return state.stages.length + 1
+  }
+
   function goToStep(n) {
-    state.opened = Math.min(state.stages.length, Math.max(1, n))
+    state.opened = Math.min(outStep(), Math.max(1, n))
     state.pinned = true
     render()
   }
@@ -225,8 +206,6 @@ onPage('extensions', async (page) => {
     return state.opened
   }
 
-  // A tick means that stage finished. Anything still going gets the spinner, and
-  // a stage nobody has reached yet keeps its number.
   function paintBadge(el, stage, position) {
     if (!el) return
     if (stage.state === 'done') {
@@ -249,10 +228,10 @@ onPage('extensions', async (page) => {
   }
 
   function stageWords(stage) {
-    if (stage.state === 'done') return 'Done'
-    if (stage.state === 'failed') return stage.detail || 'Failed'
-    if (stage.state === 'running') return stage.percent === null ? 'Working' : `${stage.percent}%`
-    return state.run === 'idle' ? 'Not started' : 'Waiting'
+    if (stage.state === 'done') return t('Done')
+    if (stage.state === 'failed') return stage.detail || t('Failed')
+    if (stage.state === 'running') return stage.percent === null ? t('Working') : `${stage.percent}%`
+    return state.run === 'idle' ? t('Not started') : t('Waiting')
   }
 
   function render() {
@@ -264,9 +243,8 @@ onPage('extensions', async (page) => {
 
     const removing = state.kind === 'remove'
     if (!state.pinned) state.opened = liveStep()
+    const outOpen = state.opened === outStep() && state.run !== 'idle'
 
-    // A removal runs in a different order from an install and touches fewer
-    // stages: a spinner sitting above two finished rows reads as broken.
     const shownStage = (stage) => !removing || stage.state !== 'waiting'
 
     state.stages.forEach((stage, index) => {
@@ -309,7 +287,13 @@ onPage('extensions', async (page) => {
       detail.classList.toggle('is-error', stage.state === 'failed')
     })
 
-    $('outWrap').hidden = state.run === 'idle'
+    $('outWrap').hidden = !outOpen
+    $('outSummary').hidden = state.run === 'idle' || outOpen
+    $('outRule').hidden = state.run === 'idle' || outOpen
+    $('run').classList.toggle('is-out-open', outOpen)
+
+    const outDot = document.querySelector(`.step-rail__dot[data-step="${outStep()}"]`)
+    if (outDot) outDot.classList.toggle('is-current', outOpen)
 
     const busy = state.run === 'running' || state.pending
     const failed = state.run === 'failed'
@@ -320,18 +304,22 @@ onPage('extensions', async (page) => {
     $('doneBox').classList.toggle('is-ok', !failed)
     $('doneBox').classList.toggle('is-error', failed)
     if (failed) {
-      $('doneTitle').textContent = 'It did not finish'
-      $('doneMeta').textContent = 'THE OUTPUT SAYS WHERE IT STOPPED'
+      $('doneTitle').textContent = t('It did not finish')
+      $('doneMeta').textContent = t('THE OUTPUT SAYS WHERE IT STOPPED')
     } else if (finished) {
-      $('doneTitle').textContent = `${one?.label} is ready`
-      $('doneMeta').textContent = 'NO RESTART NEEDED'
+      $('doneTitle').textContent = t('{label} is ready', { label: t(one?.label ?? '') })
+      $('doneMeta').textContent = t('NO RESTART NEEDED')
     }
 
     if (removed && !state.removedShown) {
       state.removedShown = true
-      $('removedText').textContent = `${one?.label} is gone and the space it took is back. You can install it again whenever you like.`
+      $('removedText').textContent = t('{label} is gone and the space is back.', {
+        label: t(one?.label ?? ''),
+      })
       $('removedModal').hidden = false
     }
+
+    if (outOpen && state.following) $('out').scrollTop = $('out').scrollHeight
   }
 
   async function refreshList() {
@@ -380,8 +368,8 @@ onPage('extensions', async (page) => {
     if (gone()) return
     if (!result.ok) {
       notice(
-        method === 'POST' ? 'Not started' : 'Not removed',
-        result.data?.error || 'The server refused.'
+        method === 'POST' ? t('Not started') : t('Not removed'),
+        result.data?.error || t('The server refused.')
       )
       return
     }
@@ -397,8 +385,8 @@ onPage('extensions', async (page) => {
   }
 
   $('extList').addEventListener('click', (event) => {
-    const button = event.target.closest('button[data-act]')
-    if (!button) return
+    const button = event.target.closest('button.ext[data-act]')
+    if (!button || button.disabled) return
 
     const id = button.dataset.id
     const one = entry(id)
@@ -408,7 +396,7 @@ onPage('extensions', async (page) => {
 
     if (button.dataset.act === 'install') {
       const info = about(id)
-      $('costTitle').textContent = `What installing ${one.label} costs`
+      $('costTitle').textContent = t('What installing {label} costs', { label: t(one.label) })
       $('costList').innerHTML = info.cost
         .map(
           ([figure, what]) =>
@@ -420,9 +408,11 @@ onPage('extensions', async (page) => {
       return
     }
 
-    $('confirmTitle').textContent = `Remove ${one.label}?`
-    $('confirmText').textContent = `This deletes it from the data volume and from the container. ${one.label} adds ${about(id).unlocks}, and those options go back to being refused.`
-    $('confirmCost').textContent = 'Putting it back means downloading it again.'
+    $('confirmTitle').textContent = t('Remove {label}?', { label: t(one.label) })
+    $('confirmText').textContent = t('Deleted from the volume; {what} is refused again.', {
+      what: about(id).unlocks,
+    })
+    $('confirmCost').textContent = t('Putting it back means downloading it again.')
     $('confirmModal').hidden = false
   })
 
@@ -461,9 +451,11 @@ onPage('extensions', async (page) => {
     $('noticeModal').hidden = true
   })
 
+  $('outSummary').addEventListener('click', () => goToStep(outStep()))
+
   $('followBtn').addEventListener('click', () => {
     state.following = !state.following
-    $('followBtn').textContent = state.following ? 'Following' : 'Paused'
+    $('followBtn').textContent = state.following ? t('Following') : t('Paused')
     if (state.following) $('out').scrollTop = $('out').scrollHeight
   })
 
@@ -472,14 +464,13 @@ onPage('extensions', async (page) => {
     const atBottom = out.scrollHeight - out.scrollTop - out.clientHeight < 24
     if (state.following !== atBottom) {
       state.following = atBottom
-      $('followBtn').textContent = atBottom ? 'Following' : 'Paused'
+      $('followBtn').textContent = atBottom ? t('Following') : t('Paused')
     }
   })
 
   await refreshList()
   if (gone()) return
 
-  // Something already running, or a run that finished while nobody was looking.
   const active = state.list.find((one) => one.pending || one.state === 'running')
   const recent = active ?? state.list.find((one) => one.state !== 'idle')
   if (recent) {

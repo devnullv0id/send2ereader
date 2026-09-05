@@ -4,19 +4,7 @@ onPage('history', async (page) => {
   const $ = (id) => document.getElementById(id)
   const VIEW_KEY = 's2e_history_view'
 
-  function size(bytes) {
-    if (!bytes) return ''
-    const mb = bytes / (1024 * 1024)
-    return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
-  }
-
-  function when(iso) {
-    const seconds = Math.floor((Date.now() - Date.parse(iso)) / 1000)
-    if (!Number.isFinite(seconds) || seconds < 60) return 'JUST NOW'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} MIN AGO`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} HR AGO`
-    return `${Math.floor(seconds / 86400)} DAYS AGO`
-  }
+  let whyNoDownload = t('Sign in and turn keeping on to download books again')
 
   function renderLocal() {
     const entries = History.all()
@@ -33,13 +21,20 @@ onPage('history', async (page) => {
         row.querySelector('.list__dot').classList.add(entry.ok ? 'is-ok' : 'is-error')
         row.querySelector('.list__name').textContent = entry.filename
         row.querySelector('.list__meta').textContent = [
-          entry.destination?.toUpperCase(),
+          entry.destination ? t(entry.destination.toUpperCase()) : '',
           entry.format?.toUpperCase(),
           size(entry.size),
-          when(entry.at),
+          ago(entry.at),
         ]
           .filter(Boolean)
           .join(' · ')
+
+        row.querySelector('.list__collect').title = whyNoDownload
+
+        row.querySelector('.list__cancel').addEventListener('click', () => {
+          History.drop(entry.at)
+          renderLocal()
+        })
         return row
       })
     )
@@ -58,7 +53,7 @@ onPage('history', async (page) => {
     const h = Math.floor((total % 86400) / 3600)
     const m = Math.floor((total % 3600) / 60)
     const s = total % 60
-    return `${pad(d)}D ${pad(h)}H ${pad(m)}M ${pad(s)}S LEFT`
+    return t('{d}D {h}H {m}M {s}S LEFT', { d: pad(d), h: pad(h), m: pad(m), s: pad(s) })
   }
 
   function by(authors) {
@@ -119,8 +114,8 @@ onPage('history', async (page) => {
         row.querySelector('.list__meta').textContent = [
           book.format?.toUpperCase(),
           size(book.size),
-          book.source === 'convert' ? 'CONVERTED' : 'SENT',
-          when(book.createdAt),
+          book.source === 'convert' ? t('CONVERTED') : t('SENT'),
+          ago(book.createdAt),
         ]
           .filter(Boolean)
           .join(' · ')
@@ -129,7 +124,7 @@ onPage('history', async (page) => {
         collect.href = `/api/library/${encodeURIComponent(book.id)}/download`
         collect.setAttribute('download', book.name)
 
-        row.querySelector('.list__cancel').addEventListener('click', () => remove(book.id))
+        row.querySelector('.list__cancel').addEventListener('click', () => remove(book))
 
         ticking.push({
           expiry: row.querySelector('.expiry'),
@@ -183,10 +178,14 @@ onPage('history', async (page) => {
     }
   }
 
-  async function remove(id) {
+  // Matched on the book id, never the filename two sends of the same book would share.
+  async function remove(book) {
     try {
-      await sendJson('DELETE', `/api/library/${encodeURIComponent(id)}`)
+      await sendJson('DELETE', `/api/library/${encodeURIComponent(book.id)}`)
     } catch {
+    }
+    for (const entry of History.all()) {
+      if (entry.bookId === book.id) History.drop(entry.at)
     }
     await load()
   }
@@ -218,6 +217,7 @@ onPage('history', async (page) => {
   if (!page.alive) return
 
   let kept = false
+  let ceiling = 0
   if (status?.user) {
     try {
       const res = await fetch('/api/library/books', { credentials: 'same-origin' })
@@ -226,14 +226,26 @@ onPage('history', async (page) => {
         const data = await res.json()
         books = data.books || []
         kept = (data.retainMinutes || 0) > 0 || books.length > 0
+        ceiling = data.ceilingMinutes || 0
       }
     } catch {
     }
   }
 
-  $('subLocal').hidden = kept
+  const adminOff = Boolean(status?.user) && !kept && ceiling === 0
+  const mine = Boolean(status?.user) && !kept && ceiling > 0
+
+  if (adminOff) whyNoDownload = t('The administrator turned off keeping books on this server')
+  else if (mine)
+    whyNoDownload = t('Keeping is off for your account — turn it on under Settings → History')
+
+  $('subLocal').hidden = kept || mine || adminOff
+  $('subLocalUser').hidden = !mine
+  $('subLocalAdmin').hidden = !adminOff
   $('subKept').hidden = !kept
-  $('noteLocal').hidden = kept
+  $('noteLocal').hidden = kept || mine || adminOff
+  $('noteLocalUser').hidden = !mine
+  $('noteLocalAdmin').hidden = !adminOff
   $('noteKept').hidden = !kept
   $('empty').hidden = true
   $('emptyKept').hidden = true

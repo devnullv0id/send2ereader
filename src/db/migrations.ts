@@ -262,4 +262,10 @@ export const MIGRATIONS: string[] = [
   -- trap for whoever reads this next; is_admin does the work.
   ALTER TABLE users DROP COLUMN is_owner;
   `,
+
+  `
+  -- NULL means "follow the server default", so an admin changing LANGUAGE moves
+  -- everyone who never picked for themselves.
+  ALTER TABLE users ADD COLUMN language TEXT;
+  `,
 ]

@@ -128,10 +128,6 @@ export class TooBusyError extends Error {
 
 let running = 0
 
-export function conversionsRunning(): number {
-  return running
-}
-
 export interface ConversionLogging {
   logger?: FastifyBaseLogger
   job?: string
@@ -272,34 +268,45 @@ async function runStep(
     log: logging.logger?.child({ scope: step.converter, job: logging.job }),
   }
 
-  switch (step.converter) {
-    case 'kepubify':
-      return expectSuccess(
-        step.converter,
-        await runCommand(config.bin.kepubify, ['-v', '-u', '-o', outputName, inputName], opts)
-      )
-
-    case 'calibre':
-      return expectSuccess(
-        step.converter,
-        await runCommand(config.bin.ebookConvert, calibreArgs(inputName, outputName, step), opts)
-      )
-
-    case 'pdfcropmargins':
-      return expectSuccess(
-        step.converter,
-        await runCommand(config.bin.pdfCropMargins, ['-s', '-u', '-o', outputName, inputName], opts)
-      )
-
-    case 'layoutfix':
-      return expectSuccess(
-        step.converter,
-        await runCommand(
-          config.bin.layoutFix,
-          [...layoutFixArgs(step.layout), inputName, outputName],
-          opts
+  try {
+    switch (step.converter) {
+      case 'kepubify':
+        return await expectSuccess(
+          step.converter,
+          await runCommand(config.bin.kepubify, ['-v', '-u', '-o', outputName, inputName], opts)
         )
-      )
+
+      case 'calibre':
+        return await expectSuccess(
+          step.converter,
+          await runCommand(config.bin.ebookConvert, calibreArgs(inputName, outputName, step), opts)
+        )
+
+      case 'pdfcropmargins':
+        return await expectSuccess(
+          step.converter,
+          await runCommand(
+            config.bin.pdfCropMargins,
+            ['-s', '-u', '-o', outputName, inputName],
+            opts
+          )
+        )
+
+      case 'layoutfix':
+        return await expectSuccess(
+          step.converter,
+          await runCommand(
+            config.bin.layoutFix,
+            [...layoutFixArgs(step.layout), inputName, outputName],
+            opts
+          )
+        )
+    }
+  } catch (err) {
+    if (err instanceof ConversionError && err.tool !== step.converter) {
+      throw new ConversionError(step.converter, err.message, err.output)
+    }
+    throw err
   }
 }
 

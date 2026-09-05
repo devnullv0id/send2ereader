@@ -125,16 +125,16 @@ export function senderHeader(): string {
 
 export function smtpProblem(): string | null {
   if (!settings.bool('SMTP_ENABLED')) return null
-  if (!settings.str('SMTP_HOST')) return 'SMTP_ENABLED is set but SMTP_HOST is empty'
+  if (!settings.str('SMTP_HOST')) return 'Mail is on, but there is no server to send it through yet'
 
   const username = settings.str('SMTP_USERNAME')
   if (!senderAddress()) {
     return username
-      ? 'SMTP_FROM_EMAIL is empty and SMTP_USERNAME is not an address to fall back to'
-      : 'SMTP_ENABLED is set but there is no SMTP_FROM_EMAIL or SMTP_USERNAME to send from'
+      ? 'There is no From address, and the username is not one to fall back on'
+      : 'Mail is on, but there is no From address to send it from'
   }
   if (username && !settings.str('SMTP_PASSWORD')) {
-    return 'SMTP_USERNAME is set but SMTP_PASSWORD is empty'
+    return 'There is a username to sign in with, but no password beside it'
   }
   return null
 }

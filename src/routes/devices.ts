@@ -7,6 +7,7 @@ import { config, publicUrlFor } from '../config.js'
 import type { Book, Device } from '../db/repositories.js'
 import { contentTypeFor, formatFromName } from '../files.js'
 import type { QueuedBook } from '../kobo/queue.js'
+import { say } from '../language.js'
 import { settings } from '../settings.js'
 
 interface IdParams {
@@ -101,11 +102,12 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const device = ownedBy(req, req.params.id)
-      if (!device) return reply.code(404).send({ ok: false, error: 'Unknown device' })
+      if (!device) return reply.code(404).send({ ok: false, error: say(req, 'Unknown device') })
 
       if (req.body?.label !== undefined) {
         const label = cleanLabel(req.body.label)
-        if (!label) return reply.code(400).send({ ok: false, error: 'A name is required' })
+        if (!label)
+          return reply.code(400).send({ ok: false, error: say(req, 'A name is required') })
         app.repos.devices.rename(device.id, label)
       }
       if (req.body?.proxyStore !== undefined) {
@@ -150,7 +152,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireVerifiedUser, schema: { params: idParamsSchema } },
     async (req, reply) => {
       const device = ownedBy(req, req.params.id)
-      if (!device) return reply.code(404).send({ ok: false, error: 'Unknown device' })
+      if (!device) return reply.code(404).send({ ok: false, error: say(req, 'Unknown device') })
 
       const token = app.repos.devices.rotateToken(device.id)
       req.log.info({ deviceId: device.id }, 'Rotated device token')
@@ -172,7 +174,8 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireVerifiedUser, schema: { params: idParamsSchema } },
     async (req, reply) => {
       const book = queuedFor(req, req.params.id)
-      if (!book) return reply.code(404).send({ ok: false, error: 'Nothing queued under that id' })
+      if (!book)
+        return reply.code(404).send({ ok: false, error: say(req, 'Nothing queued under that id') })
 
       await app.deliveries.remove(book.id)
       req.log.info({ bookId: book.id }, 'Cancelled a queued book')
@@ -185,7 +188,8 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireVerifiedUser, schema: { params: idParamsSchema } },
     async (req, reply) => {
       const book = queuedFor(req, req.params.id)
-      if (!book) return reply.code(404).send({ ok: false, error: 'Nothing queued under that id' })
+      if (!book)
+        return reply.code(404).send({ ok: false, error: say(req, 'Nothing queued under that id') })
 
       let size: number
       try {
@@ -193,7 +197,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
       } catch {
         req.log.error({ bookId: book.id }, 'Queued file vanished from disk')
         await app.deliveries.remove(book.id)
-        return reply.code(404).send({ ok: false, error: 'Nothing queued under that id' })
+        return reply.code(404).send({ ok: false, error: say(req, 'Nothing queued under that id') })
       }
 
       reply.header('Content-Type', contentTypeFor(book.format))
@@ -270,6 +274,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({
       books,
       retainMinutes: app.library.retainMinutesFor(req.user!.retainMinutes),
+      ceilingMinutes: settings.int('RETAIN_DAYS') * 24 * 60,
     })
   })
 
@@ -278,14 +283,14 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireUser, schema: { params: idParamsSchema } },
     async (req, reply) => {
       const book = keptBy(req, req.params.id)
-      if (!book?.coverPath) return reply.code(404).send({ ok: false, error: 'No cover' })
+      if (!book?.coverPath) return reply.code(404).send({ ok: false, error: say(req, 'No cover') })
 
       let size: number
       try {
         size = (await stat(book.coverPath)).size
       } catch {
         req.log.warn({ bookId: book.id }, 'A kept cover vanished from disk')
-        return reply.code(404).send({ ok: false, error: 'No cover' })
+        return reply.code(404).send({ ok: false, error: say(req, 'No cover') })
       }
 
       reply.header('Content-Type', book.coverType ?? 'application/octet-stream')
@@ -300,7 +305,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireUser, schema: { params: idParamsSchema } },
     async (req, reply) => {
       const book = keptBy(req, req.params.id)
-      if (!book) return reply.code(404).send({ ok: false, error: 'No such book' })
+      if (!book) return reply.code(404).send({ ok: false, error: say(req, 'No such book') })
 
       let size: number
       try {
@@ -308,7 +313,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
       } catch {
         req.log.error({ bookId: book.id }, 'A kept book vanished from disk')
         await app.library.forget(book)
-        return reply.code(404).send({ ok: false, error: 'No such book' })
+        return reply.code(404).send({ ok: false, error: say(req, 'No such book') })
       }
 
       const format = formatFromName(book.name)
@@ -325,7 +330,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireUser, schema: { params: idParamsSchema } },
     async (req, reply) => {
       const book = keptBy(req, req.params.id)
-      if (!book) return reply.code(404).send({ ok: false, error: 'No such book' })
+      if (!book) return reply.code(404).send({ ok: false, error: say(req, 'No such book') })
 
       await app.library.forget(book)
       req.log.info({ bookId: book.id, userId: req.user!.id }, 'Deleted a kept book')
@@ -342,7 +347,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
       if (app.repos.users.isFounder(user.id) && app.repos.users.count() > 1) {
         return reply.code(409).send({
           ok: false,
-          error: 'Hand the first account to someone else before deleting it',
+          error: say(req, 'Hand the first account to someone else before deleting it'),
         })
       }
 
@@ -372,7 +377,7 @@ export async function deviceRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireVerifiedUser, schema: { params: idParamsSchema } },
     async (req, reply) => {
       const device = ownedBy(req, req.params.id)
-      if (!device) return reply.code(404).send({ ok: false, error: 'Unknown device' })
+      if (!device) return reply.code(404).send({ ok: false, error: say(req, 'Unknown device') })
 
       app.repos.devices.remove(device.id)
       req.log.info({ deviceId: device.id }, 'Removed device')

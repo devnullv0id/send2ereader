@@ -42,9 +42,6 @@ remember_extension() {
 install_extension() {
     ref="$1"
 
-    # The three this image carries are named by their bare id. They used to fall
-    # into the branch below and be skipped for not looking like a registry ref,
-    # which left EXTENSIONS=kfx depending on a package that was never published.
     if builtin_extension "$ref"; then
         log "${ref} is carried by this image — installing it from here"
         remember_extension "$ref"
@@ -117,19 +114,25 @@ install_extension() {
     done
 }
 
-# The script is kept before it is run. It used to be deleted outright, which
-# meant nothing could ever run an extension a second time: a container recreated
-# against the same volume had to pull the image again, and asking for one from
-# the browser had no script to reach for at all.
-run_extension_scripts() {
-    mkdir -p "$S2E_KEEP_DIR"
+# Builtins are queued so the server starts without waiting; any other script runs here, because the agent only answers for names it knows. The copy kept first is what makes a later reinstall possible.
+queue_extension_scripts() {
+    mkdir -p "$S2E_KEEP_DIR" "$S2E_STATE_DIR"
     for script in /etc/s2e/extensions/*.sh; do
         [ -f "$script" ] || continue
 
-        cp "$script" "${S2E_KEEP_DIR}/$(basename "$script")" 2>/dev/null || true
-        log "running ${script}"
-        chmod +x "$script" 2>/dev/null || true
-        sh "$script" || log "${script} failed — carrying on without it"
+        base="$(basename "$script")"
+        cp "$script" "${S2E_KEEP_DIR}/${base}" 2>/dev/null || true
+        name="${base#*-}"
+        name="${name%.sh}"
+
+        if builtin_extension "$name"; then
+            log "queueing ${name} for the agent to install once the server is up"
+            printf 'install %s\n' "$name" >> "$S2E_REQUEST_FILE"
+        else
+            log "running ${script}"
+            chmod +x "$script" 2>/dev/null || true
+            sh "$script" || log "${script} failed — carrying on without it"
+        fi
         rm -f "$script" 2>/dev/null || true
     done
 }
@@ -144,13 +147,7 @@ kept_script_for() {
     return 1
 }
 
-# A remembered extension has to survive the container being recreated, and the
-# registry is not the way: the browser path never needed one, and the package it
-# would reach for may not exist. Anything the image carries, or kept from an
-# earlier run, is staged here so run_extension_scripts picks it up.
-#
-# The number prefixes are the install order, and it is not arbitrary: pdfCrop
-# and KFX are both useless without calibre, and KFX is a calibre plugin.
+# The prefixes are install order: pdfcrop and KFX are useless without calibre.
 S2E_ORDER='10:calibre 20:pdfcrop 30:kfx'
 
 stage_kept_scripts() {

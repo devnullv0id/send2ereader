@@ -73,7 +73,7 @@
 									<p class="key-status__checking" id="keyChecking" hidden>LOOKING FOR THAT EREADER…</p>
 									<div class="key-status__bad" id="keyBadInline" hidden>
 										<span class="bang bang--sm">!</span>
-										<p class="key-status__bad-text">No eReader is showing <span class="mono" id="badKeyInline"></span>. Keys change every time the page loads — reload it and read the new one.</p>
+										<p class="key-status__bad-text">No eReader is showing <span class="mono" id="badKeyInline"></span>. Keys change every load — reload and read the new one.</p>
 									</div>
 								</div>
 							</div>
@@ -115,11 +115,11 @@
 									<span class="bang bang--md bang--warn">!</span>
 									<div>
 										<div class="sync-none__title">No device has synced yet</div>
-										<p class="sync-none__text">The endpoint exists, but nothing has connected to it. Sync once from the device and it shows up here.</p>
+										<p class="sync-none__text">Sync once from the device and it shows up here.</p>
 									</div>
 								</div>
 
-								<p class="sync-note">Collected on the next sync; asleep or off wifi is fine. Dropped after a day, or once it downloads.</p>
+								<p class="sync-note">Collected on the next sync; dropped after a day.</p>
 							</div>
 
 							<div class="branch-overlay" id="overlay" hidden>
@@ -283,7 +283,7 @@
 						<p class="panel__kept" id="doneKept" hidden></p>
 						<div class="panel__actions">
 							<button type="button" class="btn btn--primary" id="sendAnother">Send another</button>
-							<a class="btn btn--ok" href="/history">View history</a>
+							<a class="btn btn--quiet" href="/history">View history</a>
 						</div>
 					</div>
 				</div>
@@ -297,8 +297,8 @@
 							<pre class="panel__log" id="errorLog" hidden></pre>
 							<div class="panel__err-actions">
 								<button type="button" class="btn btn--primary" id="retry">Try again</button>
-								<button type="button" class="btn btn--err" id="sendRaw" hidden>Send unconverted</button>
-								<button type="button" class="btn btn--faint" id="pickAnother">Pick another file</button>
+								<button type="button" class="btn btn--quiet" id="sendRaw" hidden>Send unconverted</button>
+								<button type="button" class="btn btn--quiet" id="pickAnother">Pick another file</button>
 							</div>
 						</div>
 					</div>
@@ -328,11 +328,10 @@
 <div class="modal-scrim" id="cancelModal" hidden>
 	<div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
 		<div class="modal__title" id="cancelTitle">Stop the send?</div>
-		<p class="modal__text">The upload and conversion finish either way. Only the hand-off to your eReader waits for your answer.</p>
-		<p class="modal__text">Stop it and the converted file is deleted here. Nothing reaches the device.</p>
+		<p class="modal__text">Stop it and nothing reaches the device.</p>
 		<div class="modal__actions">
-			<button type="button" class="btn btn--primary" id="cancelKeep" data-modal-default>Keep sending</button>
-			<button type="button" class="btn btn--err" id="cancelConfirm">Stop the send</button>
+			<button type="button" data-modal-close class="btn btn--primary" id="cancelKeep" data-modal-default>Keep sending</button>
+			<button type="button" class="btn btn--danger" id="cancelConfirm">Stop the send</button>
 		</div>
 	</div>
 </div>
@@ -342,8 +341,8 @@
 		<div class="modal__title" id="caveatTitle">Send as AZW3?</div>
 		<div id="caveatText"></div>
 		<div class="modal__actions">
-			<button type="button" class="btn btn--primary" id="caveatCancel" data-modal-default>Keep MOBI</button>
-			<button type="button" class="btn btn--err" id="caveatConfirm">Send as AZW3</button>
+			<button type="button" data-modal-close class="btn btn--primary" id="caveatCancel" data-modal-default>Keep MOBI</button>
+			<button type="button" class="btn btn--quiet" id="caveatConfirm">Send as AZW3</button>
 		</div>
 	</div>
 </div>

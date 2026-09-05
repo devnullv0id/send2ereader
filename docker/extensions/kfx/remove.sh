@@ -21,10 +21,6 @@ stage() {
 
 WINE_PACKAGES='winehq-staging wine-staging wine-staging-amd64 wine-staging-i386
                wine wine32 wine64 winbind'
-# Only what nothing else here uses. The X and GL libraries wine wanted are the
-# same ones calibre's PDF renderer loads, and purging them by name left
-# ebook-convert unable to import QWebEnginePage. Whatever was pulled in for
-# wine alone is reclaimed by autoremove below instead.
 KFX_ONLY='xvfb xauth cabextract'
 
 stage run remove

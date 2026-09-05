@@ -15,49 +15,15 @@ onPage('admin', async (page) => {
     addressPending: false,
     runningAddress: '',
     units: {},
+    switched: {},
     canRestart: false,
-  }
-
-  async function send(url, options = {}) {
-    try {
-      const headers = await csrfHeaders(options.headers)
-      const res = await fetch(url, { credentials: 'same-origin', ...options, headers })
-      let data = null
-      try {
-        data = await res.json()
-      } catch {
-      }
-      return { ok: res.ok, status: res.status, data }
-    } catch {
-      return { ok: false, status: 0, data: null }
-    }
+    restore: null,
   }
 
   const asJson = (body) => ({
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),
   })
-
-  function ago(iso) {
-    if (!iso) return 'NEVER'
-    const seconds = Math.floor((Date.now() - Date.parse(iso)) / 1000)
-    if (!Number.isFinite(seconds) || seconds < 60) return 'JUST NOW'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} MIN AGO`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} HR AGO`
-    return `${Math.floor(seconds / 86400)} DAYS AGO`
-  }
-
-  function bytes(value) {
-    const units = ['B', 'KB', 'MB', 'GB', 'TB']
-    let size = Number(value)
-    let unit = 0
-    while (size >= 1024 && unit < units.length - 1) {
-      size /= 1024
-      unit++
-    }
-    const rounded = size >= 100 || Number.isInteger(size) ? Math.round(size) : size.toFixed(1)
-    return `${rounded} ${units[unit]}`
-  }
 
   function plural(count, unit) {
     return `${count} ${unit}${count === 1 ? '' : 's'}`
@@ -70,12 +36,6 @@ onPage('admin', async (page) => {
     if (total % 3600 === 0 && total >= 3600) return plural(total / 3600, 'hour')
     if (total % 60 === 0 && total >= 60) return plural(total / 60, 'minute')
     return plural(total, 'second')
-  }
-
-  function aside(spec, value) {
-    if (spec.unit === 'bytes') return bytes(value)
-    if (spec.unit === 'seconds') return seconds(value)
-    return ''
   }
 
   const SCALES = {
@@ -159,8 +119,10 @@ onPage('admin', async (page) => {
     $('panel-settings').hidden = PANELS.includes(tab)
 
     for (const item of document.querySelectorAll('.rail__item')) {
-      item.classList.toggle('is-active', item.dataset.tab === tab)
-      item.setAttribute('aria-current', item.dataset.tab === tab ? 'true' : 'false')
+      const here = item.dataset.tab === tab
+      item.classList.toggle('is-active', here)
+      item.setAttribute('aria-current', here ? 'true' : 'false')
+      if (here) keepInTheRail(item)
     }
 
     if (!PANELS.includes(tab)) renderGroup(tab)
@@ -184,18 +146,18 @@ onPage('admin', async (page) => {
       .map((one) => {
         const mark = one.installed ? '&plus;' : '&minus;'
         const words = one.installed
-          ? 'Installed'
+          ? t('Installed')
           : one.pending
-            ? 'Installing now'
-            : (one.blocked ?? 'Not installed')
-        return `<dt class="${one.installed ? '' : 'is-muted'}">${mark}</dt><dd class="${one.installed ? '' : 'is-muted'}">${one.label} — ${words}</dd>`
+            ? t('Installing now')
+            : (one.blocked ?? t('Not installed'))
+        return `<dt class="${one.installed ? '' : 'is-muted'}">${mark}</dt><dd class="${one.installed ? '' : 'is-muted'}">${t(one.label)} — ${words}</dd>`
       })
       .join('')
 
     const installed = list.filter((one) => one.installed).length
     $('kfxState').textContent = result.data.busy
-      ? 'Something is installing'
-      : `${installed} of ${list.length} installed`
+      ? t('Something is installing')
+      : t('{n} of {total} installed', { n: installed, total: list.length })
   }
 
   async function load() {
@@ -206,7 +168,7 @@ onPage('admin', async (page) => {
     if (gone()) return false
 
     if (!config.ok || !people.ok) {
-      notice('That did not load', 'The server would not hand over the settings. Try reloading.')
+      notice(t('That did not load'), t('The server would not hand over the settings. Try reloading.'))
       return false
     }
 
@@ -220,6 +182,7 @@ onPage('admin', async (page) => {
     renderAddressNotice()
 
     renderBackup(config.data.backup)
+    renderRestore(config.data.restore)
 
     $('restartGo').disabled = !state.canRestart
     $('restartGo').classList.toggle('is-armed', state.canRestart)
@@ -229,32 +192,133 @@ onPage('admin', async (page) => {
 
   function renderBackup(facts) {
     if (!facts) return
-    const books = facts.books === 1 ? 'One book' : `${facts.books} books`
-    const people = facts.accounts === 1 ? 'one account' : `${facts.accounts} accounts`
+    const books = facts.books === 1 ? t('One book') : t('{n} books', { n: facts.books })
+    const people = facts.accounts === 1 ? t('one account') : t('{n} accounts', { n: facts.accounts })
 
-    $('backupAccounts').textContent =
-      `${people[0].toUpperCase()}${people.slice(1)}, their devices, their sessions and everything set on this page`
+    $('backupAccounts').textContent = t(
+      '{people}, their devices, their sessions and everything set on this page',
+      { people: `${people[0].toUpperCase()}${people.slice(1)}` }
+    )
     $('backupBooks').textContent =
       facts.books === 0
-        ? 'No books are kept right now, so the archive is the database alone'
-        : `${books} kept in the library, ${bytes(facts.bytes)} of them`
+        ? t('No books are kept right now, so the archive is the database alone')
+        : t('{books} kept in the library, {size} of them', { books, size: bytes(facts.bytes) })
     $('backupSize').textContent =
-      facts.books === 0 ? '' : `About ${bytes(facts.bytes)} before compression`
+      facts.books === 0 ? '' : t('About {size} before compression', { size: bytes(facts.bytes) })
   }
+
+  function sayRestore(text, bad) {
+    $('restoreMsg').className = bad ? 'save-row__msg is-error' : 'save-row__msg'
+    $('restoreMsg').textContent = text
+  }
+
+  function renderRestore(held) {
+    state.restore = held ?? null
+    $('restoreStaged').hidden = !held
+    if (!held) return
+
+    $('restoreName').textContent = held.name
+    $('restoreFacts').textContent = t(
+      '{size}, uploaded {when}. Nothing changes until the next start.',
+      { size: bytes(held.size), when: ago(held.stagedAt).toLowerCase() }
+    )
+  }
+
+  $('restoreFile').addEventListener('change', async (event) => {
+    const file = event.target.files?.[0]
+    $('restoreFile').value = ''
+    if (!file) return
+
+    if (!/\.tar\.gz$|\.tgz$/i.test(file.name)) {
+      sayRestore(t('That is not a .tar.gz — use the archive this page downloads.'), true)
+      return
+    }
+
+    sayRestore(t('Uploading {size}…', { size: bytes(file.size) }), false)
+    const body = new FormData()
+    body.append('file', file, file.name)
+
+    const result = await send('/api/admin/restore', { method: 'POST', body })
+    if (gone()) return
+    if (!result.ok) {
+      sayRestore(result.data?.error || t('The server would not take it.'), true)
+      return
+    }
+    sayRestore('', false)
+    renderRestore(result.data.staged)
+  })
+
+  $('restoreDrop').addEventListener('click', async () => {
+    const result = await send('/api/admin/restore', { method: 'DELETE' })
+    if (gone()) return
+    if (!result.ok) {
+      notice(t('Not removed'), result.data?.error || t('The server refused.'))
+      return
+    }
+    sayRestore(t('Thrown away. Nothing was changed.'), false)
+    renderRestore(null)
+  })
+
+  $('restoreGo').addEventListener('click', () => {
+    const held = state.restore
+    if (!held) return
+
+    $('restoreModalWhat').textContent = t('{name}, {size}, replaces what is here.', {
+      name: held.name,
+      size: bytes(held.size),
+    })
+    $('restoreModalHow').textContent = state.canRestart
+      ? t('Reboot restarts the container now, back on the archive within seconds.')
+      : t('Not in a container — Reboot marks the archive and you restart the server yourself.')
+    $('restoreModal').hidden = false
+    $('restoreCancel').focus()
+  })
+
+  $('restoreCancel').addEventListener('click', () => {
+    $('restoreModal').hidden = true
+  })
+
+  $('restoreReboot').addEventListener('click', async () => {
+    $('restoreReboot').disabled = true
+    const result = await send('/api/admin/restore/confirm', { method: 'POST' })
+    if (gone()) return
+
+    $('restoreReboot').disabled = false
+    if (!result.ok) {
+      $('restoreModal').hidden = true
+      notice(t('Not restored'), result.data?.error || t('The server refused.'))
+      return
+    }
+
+    $('restoreModal').hidden = true
+    if (!result.data.restarting) {
+      notice(t('Marked for the next start'), t('Restart the server when you are ready.'))
+      await load()
+      return
+    }
+
+    showTab('restart')
+    $('restartWaiting').hidden = false
+    $('restartWaitingTitle').textContent = t('Restoring…')
+    $('restartWaitingMeta').textContent = t('WIPING AND UNPACKING BEFORE IT ANSWERS AGAIN')
+    void waitForTheServer()
+  })
 
   $('restoreCopy').addEventListener('click', async () => {
     const copied = await copyText($('restoreLine').textContent)
-    $('restoreCopy').textContent = copied ? 'Copied' : 'Copy failed'
+    $('restoreCopy').textContent = copied ? t('Copied') : t('Copy failed')
     page.after(2000, () => {
-      $('restoreCopy').textContent = 'Copy'
+      $('restoreCopy').textContent = t('Copy')
     })
   })
 
   function askAboutPasskeys(count) {
     $('passkeyWarnCount').textContent =
       count === 1
-        ? 'One account has a passkey. It stops working the moment the address moves.'
-        : `${count} accounts have a passkey. They stop working the moment the address moves.`
+        ? t('One account has a passkey. It stops working the moment the address moves.')
+        : t('{n} accounts have a passkey. They stop working the moment the address moves.', {
+            n: count,
+          })
     $('passkeyWarnModal').hidden = false
     $('passkeyWarnGo').focus()
 
@@ -289,7 +353,7 @@ onPage('admin', async (page) => {
     }
 
     if (!result.ok) {
-      notice('Not saved', result.data?.error || 'The server refused that value.')
+      notice(t('Not saved'), result.data?.error || t('The server refused that value.'))
       await load()
       renderGroup(state.tab)
       return
@@ -306,7 +370,7 @@ onPage('admin', async (page) => {
     })
     if (gone()) return
     if (!result.ok) {
-      notice('Not reset', result.data?.error || 'The server refused.')
+      notice(t('Not reset'), result.data?.error || t('The server refused.'))
       return
     }
     state.settings = result.data.settings
@@ -318,19 +382,64 @@ onPage('admin', async (page) => {
   const frozen = (spec) => spec.locked === true || spec.readOnly === true
 
   const ORIGIN = {
-    environment: (key) => `Set in the environment file — change ${key} there and restart the server`,
-    generated: (key) =>
-      `Generated on first boot — set ${key} in the environment file and restart the server to replace it`,
-    default: (key) =>
-      `Built-in default — set ${key} in the environment file and restart the server to change it`,
+    environment: (key) => t('Set in the environment — change {key} there and restart', { key }),
+    generated: (key) => t('Generated on first boot — replace {key} in the environment', { key }),
+    default: (key) => t('Built-in default — set {key} in the environment', { key }),
   }
 
   function statusLine(spec) {
-    if (spec.locked) return 'Locked in the environment file'
+    if (spec.locked) return t('Locked in the environment')
     if (spec.readOnly) return (ORIGIN[spec.origin] || ORIGIN.default)(spec.key)
     if (!spec.overridden) return ''
-    if (!spec.changed) return 'Changed from this page'
-    return `Changed from this page by ${spec.changed.by}, ${ago(spec.changed.at).toLowerCase()}`
+    if (!spec.changed) return t('Changed from this page')
+    return t('Changed from this page by {who}, {when}', {
+      who: spec.changed.by,
+      when: ago(spec.changed.at).toLowerCase(),
+    })
+  }
+
+  function copyButton(spec, loose = false) {
+    const line = `${spec.key}=${spec.value}`
+
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = loose ? 'admin-key__copy admin-key__copy--loose' : 'admin-key__copy'
+    button.title = t('Copy {line}', { line })
+    button.setAttribute('aria-label', t('Copy {line}', { line }))
+
+    const icon = document.createElement('i')
+    icon.className = 'ph ph-copy'
+    icon.setAttribute('aria-hidden', 'true')
+    button.appendChild(icon)
+
+    const word = document.createElement('span')
+    word.className = 'admin-key__copy-word'
+    word.textContent = t('Copy')
+    if (!loose) button.appendChild(word)
+
+    button.addEventListener('click', async () => {
+      if (!(await copyText(line))) return
+      icon.className = 'ph ph-check'
+      word.textContent = t('Copied')
+      button.classList.add('is-done')
+      page.after(1600, () => {
+        icon.className = 'ph ph-copy'
+        word.textContent = t('Copy')
+        button.classList.remove('is-done')
+      })
+    })
+    return button
+  }
+
+  function inField(field, spec) {
+    if (spec.kind === 'secret') return field
+
+    const wrap = document.createElement('span')
+    wrap.className = 'admin-key__field'
+    if (field.classList.contains('field--amount')) wrap.classList.add('admin-key__field--amount')
+    wrap.appendChild(field)
+    wrap.appendChild(copyButton(spec))
+    return wrap
   }
 
   function footFor(spec) {
@@ -349,7 +458,7 @@ onPage('admin', async (page) => {
       const undo = document.createElement('button')
       undo.type = 'button'
       undo.className = 'btn-link'
-      undo.textContent = 'Reset'
+      undo.textContent = t('Reset')
       undo.addEventListener('click', () => reset(spec.key))
       foot.appendChild(undo)
     }
@@ -359,14 +468,11 @@ onPage('admin', async (page) => {
   function restartChip() {
     const chip = document.createElement('span')
     chip.className = 'admin-key__chip'
-    chip.textContent = 'NEEDS A RESTART'
+    chip.textContent = t('NEEDS A RESTART')
     return chip
   }
 
-  function renderToggle(spec) {
-    const block = document.createElement('div')
-    block.className = 'admin-key'
-
+  function prefRow(spec, on) {
     const row = document.createElement('button')
     row.type = 'button'
     row.className = 'pref'
@@ -393,17 +499,90 @@ onPage('admin', async (page) => {
     row.appendChild(text)
 
     const toggle = document.createElement('span')
-    toggle.className = spec.value === 'true' ? 'toggle is-on' : 'toggle'
+    toggle.className = on ? 'toggle is-on' : 'toggle'
     const knob = document.createElement('span')
     knob.className = 'toggle__knob'
     toggle.appendChild(knob)
     row.appendChild(toggle)
 
+    return row
+  }
+
+  function toggleLine(row, spec, copy) {
+    const line = document.createElement('div')
+    line.className = 'admin-key__line'
+    line.appendChild(row)
+    if (copy) line.appendChild(copyButton(spec, true))
+    return line
+  }
+
+  function renderToggle(spec) {
+    const block = document.createElement('div')
+    block.className = 'admin-key'
+
+    const row = prefRow(spec, spec.value === 'true')
     if (!frozen(spec)) {
       row.addEventListener('click', () => apply(spec.key, spec.value === 'true' ? 'false' : 'true'))
     }
 
-    block.appendChild(row)
+    block.appendChild(toggleLine(row, spec, true))
+    block.appendChild(footFor(spec))
+    return block
+  }
+
+  const OFF_WORDS = ['', '0', 'false', 'no', 'off', 'none']
+  const ON_WORDS = ['1', 'true', 'yes', 'on']
+
+  const switchedOn = (value) => !OFF_WORDS.includes(String(value).trim().toLowerCase())
+  const addressOf = (value) => (ON_WORDS.includes(String(value).trim().toLowerCase()) ? '' : value)
+
+  function renderToggled(spec) {
+    const block = document.createElement('div')
+    block.className = 'admin-key'
+
+    const on = state.switched[spec.key] ?? switchedOn(spec.value)
+
+    const row = prefRow(spec, on)
+    if (!frozen(spec)) {
+      row.addEventListener('click', () => {
+        if (on) {
+          delete state.switched[spec.key]
+          void apply(spec.key, 'false')
+          return
+        }
+        state.switched[spec.key] = true
+        renderGroup(state.tab)
+        $(`key-${spec.key}`)?.focus()
+      })
+    }
+
+    block.appendChild(toggleLine(row, spec, true))
+
+    if (on) {
+      const field = document.createElement('input')
+      field.className = 'field field--inline'
+      field.id = `key-${spec.key}`
+      field.type = 'text'
+      field.value = addressOf(spec.value)
+      field.placeholder = spec.placeholder
+      field.spellcheck = false
+      field.disabled = frozen(spec)
+
+      const row2 = document.createElement('div')
+      row2.className = 'field-row'
+      row2.appendChild(field)
+      block.appendChild(row2)
+
+      let last = field.value
+      field.addEventListener('change', () => {
+        const typed = field.value.trim()
+        if (typed === last) return
+        last = typed
+        state.switched[spec.key] = true
+        void apply(spec.key, typed)
+      })
+    }
+
     block.appendChild(footFor(spec))
     return block
   }
@@ -448,7 +627,7 @@ onPage('admin', async (page) => {
     field.spellcheck = false
     if (spec.kind === 'secret') {
       field.autocomplete = 'new-password'
-      field.placeholder = spec.isSet ? '••••••••••••' : 'Not set'
+      field.placeholder = spec.isSet ? '••••••••••••' : t('Not set')
     } else if (spec.placeholder) {
       field.placeholder = spec.placeholder
     }
@@ -456,7 +635,7 @@ onPage('admin', async (page) => {
     const divisor = scaled ? scaled.factor : 1
     if (spec.min !== null) field.min = String(Math.ceil(spec.min / divisor))
     if (spec.max !== null) field.max = String(Math.floor(spec.max / divisor))
-    row.appendChild(field)
+    row.appendChild(inField(field, spec))
 
     let picker = null
     if (scale) {
@@ -467,7 +646,7 @@ onPage('admin', async (page) => {
       for (const step of scale) {
         const option = document.createElement('option')
         option.value = String(step.factor)
-        option.textContent = step.label
+        option.textContent = t(step.label)
         picker.appendChild(option)
       }
       picker.value = String(divisor)
@@ -524,6 +703,9 @@ onPage('admin', async (page) => {
   }
 
   function choiceControl(spec) {
+    const holder = document.createElement('span')
+    holder.className = 'admin-key__pair'
+
     const picker = document.createElement('select')
     picker.className = 'field field--inline field--choice'
     picker.id = `key-${spec.key}`
@@ -541,7 +723,10 @@ onPage('admin', async (page) => {
       await apply(spec.key, picker.value)
       if (spec.key === 'SMTP_SECURITY') await suggestPort(picker.value)
     })
-    return picker
+
+    holder.appendChild(picker)
+    holder.appendChild(copyButton(spec, true))
+    return holder
   }
 
   function renderChoice(spec, block) {
@@ -577,14 +762,37 @@ onPage('admin', async (page) => {
     const scheme = state.settings.find((entry) => entry.key === 'PROTOCOL')?.value ?? 'http'
 
     $('addressNow').textContent = state.runningAddress
-    $('addressText').textContent =
-      `Every link it sends, the relying party for passkeys, the SSO redirect and the Kobo sync ` +
-      `endpoint all still use that. It moves to ${scheme}://${wanted} when the server restarts, ` +
-      `and not before.`
+    $('addressText').textContent = t(
+      'Everything still uses that until a restart moves it to {address}.',
+      { address: `${scheme}://${wanted}` }
+    )
     $('addressRestart').disabled = !state.canRestart
   }
 
   $('addressRestart').addEventListener('click', () => showTab('restart'))
+
+  const BEHIND = {
+    SMTP_HOST: 'SMTP_ENABLED',
+    SMTP_PORT: 'SMTP_ENABLED',
+    SMTP_SECURITY: 'SMTP_ENABLED',
+    SMTP_TLS: 'SMTP_ENABLED',
+    SMTP_USERNAME: 'SMTP_ENABLED',
+    SMTP_PASSWORD: 'SMTP_ENABLED',
+    SMTP_FROM_EMAIL: 'SMTP_ENABLED',
+    SMTP_FROM_NAME: 'SMTP_ENABLED',
+    SMTP_TIMEOUT_SECONDS: 'SMTP_ENABLED',
+    OIDC_PROVIDER_NAME: 'OIDC_ENABLED',
+    OIDC_CONFIG_URL: 'OIDC_ENABLED',
+    OIDC_CLIENT_ID: 'OIDC_ENABLED',
+    OIDC_CLIENT_SECRET: 'OIDC_ENABLED',
+    OIDC_ADMIN_GROUP: 'OIDC_ENABLED',
+  }
+
+  function shown(spec) {
+    const parent = BEHIND[spec.key]
+    if (!parent) return true
+    return state.settings.find((entry) => entry.key === parent)?.value === 'true'
+  }
 
   function renderGroup(id) {
     const group = state.groups.find((entry) => entry.id === id)
@@ -596,7 +804,7 @@ onPage('admin', async (page) => {
     const host = $('keys')
     host.replaceChildren()
 
-    const here = state.settings.filter((entry) => entry.group === id)
+    const here = state.settings.filter((entry) => entry.group === id).filter(shown)
     const inlined = new Map()
     for (const spec of here) {
       if (spec.inlineWith) inlined.set(spec.inlineWith, spec)
@@ -605,6 +813,11 @@ onPage('admin', async (page) => {
     let toggles = null
     for (const spec of here) {
       if (spec.inlineWith) continue
+      if (spec.kind === 'toggled') {
+        toggles = null
+        host.appendChild(renderToggled(spec))
+        continue
+      }
       if (spec.kind !== 'bool') {
         toggles = null
         host.appendChild(renderTextual(spec, inlined.get(spec.key)))
@@ -645,7 +858,7 @@ onPage('admin', async (page) => {
       name.textContent =
         person.firstName || person.lastName
           ? `${person.firstName} ${person.lastName}`.trim()
-          : 'No name given'
+          : t('No name given')
       if (!person.firstName && !person.lastName) name.classList.add('is-muted')
       who.appendChild(name)
 
@@ -657,11 +870,11 @@ onPage('admin', async (page) => {
       const tags = document.createElement('div')
       tags.className = 'admin-person__tags'
       const badges = []
-      if (person.isAdmin) badges.push('ADMIN')
-      if (person.id === state.me?.id) badges.push('YOU')
-      if (!person.emailVerified) badges.push('UNVERIFIED')
-      if (person.totpEnabled) badges.push('TWO-FACTOR')
-      if (!person.hasPassword) badges.push('SSO ONLY')
+      if (person.isAdmin) badges.push(t('ADMIN'))
+      if (person.id === state.me?.id) badges.push(t('YOU'))
+      if (!person.emailVerified) badges.push(t('UNVERIFIED'))
+      if (person.totpEnabled) badges.push(t('TWO-FACTOR'))
+      if (!person.hasPassword) badges.push(t('SSO ONLY'))
       for (const text of badges) {
         const tag = document.createElement('span')
         tag.className = 'admin-person__tag'
@@ -673,8 +886,11 @@ onPage('admin', async (page) => {
 
       const facts = document.createElement('div')
       facts.className = 'admin-person__facts'
-      const kept = person.books === 1 ? '1 book kept' : `${person.books} books kept`
-      facts.textContent = `${kept} · signed in ${ago(person.lastLoginAt).toLowerCase()}`
+      const kept = person.books === 1 ? t('1 book kept') : t('{n} books kept', { n: person.books })
+      facts.textContent = t('{kept} · signed in {when}', {
+        kept,
+        when: ago(person.lastLoginAt).toLowerCase(),
+      })
       row.appendChild(facts)
 
       const actions = document.createElement('div')
@@ -684,7 +900,7 @@ onPage('admin', async (page) => {
         const grant = document.createElement('button')
         grant.type = 'button'
         grant.className = 'btn-link'
-        grant.textContent = person.isAdmin ? 'Take away admin' : 'Make admin'
+        grant.textContent = person.isAdmin ? t('Take away admin') : t('Make admin')
         grant.addEventListener('click', () => setAdmin(person, !person.isAdmin))
         actions.appendChild(grant)
       }
@@ -693,7 +909,7 @@ onPage('admin', async (page) => {
         const remove = document.createElement('button')
         remove.type = 'button'
         remove.className = 'btn-link btn-link--danger'
-        remove.textContent = 'Delete'
+        remove.textContent = t('Delete')
         remove.addEventListener('click', () => askToDelete(person))
         actions.appendChild(remove)
       }
@@ -712,7 +928,7 @@ onPage('admin', async (page) => {
     })
     if (gone()) return
     if (!result.ok) {
-      notice('Not changed', result.data?.error || 'The server refused.')
+      notice(t('Not changed'), result.data?.error || t('The server refused.'))
       return
     }
     await refreshPeople()
@@ -726,11 +942,15 @@ onPage('admin', async (page) => {
         : person.email
     const kept =
       person.books === 0
-        ? 'Nothing is kept for this account.'
+        ? t('Nothing is kept for this account.')
         : person.books === 1
-          ? 'The one book they kept goes with it.'
-          : `The ${person.books} books they kept go with it.`
-    $('confirmText').textContent = `${named} — ${person.email}. ${kept}`
+          ? t('The one book they kept goes with it.')
+          : t('The {n} books they kept go with it.', { n: person.books })
+    $('confirmText').textContent = t('{name} — {email}. {kept}', {
+      name: named,
+      email: person.email,
+      kept,
+    })
     $('confirmModal').hidden = false
     $('confirmCancel').focus()
   }
@@ -751,7 +971,7 @@ onPage('admin', async (page) => {
     })
     if (gone()) return
     if (!result.ok) {
-      notice('Not deleted', result.data?.error || 'The server refused.')
+      notice(t('Not deleted'), result.data?.error || t('The server refused.'))
       return
     }
     await refreshPeople()
@@ -772,8 +992,8 @@ onPage('admin', async (page) => {
       }
     }
     if (!page.alive) return
-    $('restartWaitingTitle').textContent = 'It has not come back'
-    $('restartWaitingMeta').textContent = 'CHECK THE CONTAINER — IT MAY HAVE FAILED TO START'
+    $('restartWaitingTitle').textContent = t('It has not come back')
+    $('restartWaitingMeta').textContent = t('CHECK THE CONTAINER — IT MAY HAVE FAILED TO START')
   }
 
   $('restartGo').addEventListener('click', async () => {
@@ -783,7 +1003,7 @@ onPage('admin', async (page) => {
 
     if (!result.ok) {
       $('restartGo').disabled = false
-      notice('Not restarted', result.data?.error || 'The server refused.')
+      notice(t('Not restarted'), result.data?.error || t('The server refused.'))
       return
     }
 

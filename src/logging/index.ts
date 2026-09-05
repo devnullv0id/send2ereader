@@ -32,7 +32,7 @@ function colorize(options: LogOptions): boolean {
   return Boolean(process.stdout.isTTY)
 }
 
-export function createDestination(options: LogOptions): { write(chunk: string): void } {
+function createDestination(options: LogOptions): { write(chunk: string): void } {
   const context = { options, colorize: colorize(options), startedAt: Date.now() }
   const filtering = options.include.length > 0 || options.exclude.length > 0
 

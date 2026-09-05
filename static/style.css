@@ -33,10 +33,6 @@ h1 {
 	font-style: italic;
 }
 
-.center {
-	text-align: center;
-}
-
 hr {
 	border: 0;
 	border-top: 2px solid #000;
@@ -128,12 +124,6 @@ hr {
 #downloads,
 #urls {
 	display: none;
-}
-
-.hint {
-	font-size: 15px;
-	font-style: italic;
-	margin: 6px 0 0 0;
 }
 
 .footer {

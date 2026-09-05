@@ -50,12 +50,3 @@ export function db(): Db {
   if (!instance) instance = openDatabase()
   return instance
 }
-
-export function setDatabase(value: Db | null): void {
-  instance = value
-}
-
-export function closeDatabase(): void {
-  instance?.close()
-  instance = null
-}

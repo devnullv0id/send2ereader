@@ -22,6 +22,7 @@ import {
   transliterateName,
   withExtension,
 } from '../files.js'
+import { requestLanguage, say } from '../language.js'
 import { keepACopy, publicKeep } from '../library.js'
 import { settings } from '../settings.js'
 import { readOptions } from './upload.js'
@@ -79,7 +80,7 @@ async function consume(req: FastifyRequest, body: Body): Promise<void> {
 export async function convertRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Querystring: { from?: string } }>('/api/convert/targets', async (req, reply) => {
     const from = req.query.from ? formatFromName(`x.${req.query.from}`) : null
-    return reply.send({ groups: offerGroups(from, app.tools) })
+    return reply.send({ groups: offerGroups(from, app.tools, requestLanguage(req)) })
   })
 
   app.post(
@@ -94,7 +95,9 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       if (!req.isMultipart()) {
-        return reply.code(415).send({ ok: false, error: 'Expected a multipart/form-data body' })
+        return reply
+          .code(415)
+          .send({ ok: false, error: say(req, 'Expected a multipart/form-data body') })
       }
 
       const body: Body = { fields: new Map(), upload: null }
@@ -103,29 +106,36 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
         await consume(req, body)
 
         const upload = body.upload
-        if (!upload) throw new ConvertError('No file selected')
-        if (upload.truncated) throw new ConvertError('File is too large', 413)
+        if (!upload) throw new ConvertError(say(req, 'No file selected'))
+        if (upload.truncated) throw new ConvertError(say(req, 'File is too large'), 413)
 
         const requested = body.fields.get('format')?.trim() ?? ''
-        if (!isOutputFormat(requested)) throw new ConvertError('Pick a format to convert to')
+        if (!isOutputFormat(requested)) {
+          throw new ConvertError(say(req, 'Pick a format to convert to'))
+        }
 
         const { size } = await stat(upload.path)
-        if (size === 0) throw new ConvertError('Invalid file submitted (empty file)')
+        if (size === 0) throw new ConvertError(say(req, 'Invalid file submitted (empty file)'))
 
         if (!formatFromName(upload.originalName)) {
           throw new ConvertError(
-            `Unsupported file type: ${upload.originalName}. Accepted: ${acceptedExtensions.join(', ')}`
+            say(req, 'Unsupported file type: {name}. Accepted: {accepted}', {
+              name: upload.originalName,
+              accepted: acceptedExtensions.join(', '),
+            })
           )
         }
 
         const detected = await detectFormat(upload.path, upload.originalName)
         if (!detected) {
           throw new ConvertError(
-            `That is not a readable ${extname(upload.originalName) || 'ebook'}`
+            say(req, 'That is not a readable {ext}', {
+              ext: extname(upload.originalName) || 'ebook',
+            })
           )
         }
 
-        const offer = offerFormat(detected.format, requested, app.tools)
+        const offer = offerFormat(detected.format, requested, app.tools, requestLanguage(req))
         if (offer.refusal) throw new ConvertError(offer.refusal, 422)
 
         const options = readOptions(body.fields)
@@ -179,14 +189,19 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(err.statusCode).send({ ok: false, error: err.message })
         }
         if (err instanceof TooBusyError) {
-          return reply.code(503).send({ ok: false, error: err.message })
+          return reply.code(503).send({ ok: false, error: say(req, err.message) })
         }
         if (err instanceof ConversionError) {
           req.log.error({ err, tool: err.tool, output: err.output }, 'Conversion failed')
-          return reply.code(422).send({ ok: false, error: err.toUserMessage() })
+          return reply.code(422).send({
+            ok: false,
+            error: err.toUserMessage(),
+            detail: err.toUserDetail(),
+            tool: err.tool,
+          })
         }
         if ((err as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') {
-          return reply.code(413).send({ ok: false, error: 'File is too large' })
+          return reply.code(413).send({ ok: false, error: say(req, 'File is too large') })
         }
         throw err
       }

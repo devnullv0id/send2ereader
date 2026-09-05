@@ -4,9 +4,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { config } from '../config.js'
 import type { ToolAvailability } from '../convert/index.js'
 import { refreshTools } from '../convert/index.js'
+import { i18n } from '../i18n.js'
+import { requestLanguage, say } from '../language.js'
 
-// Where the root agent leaves its work: the data volume is the one place the
-// unprivileged server and the privileged agent can both reach.
 const DATA_DIR = config.dataDir
 
 export interface ExtensionSpec {
@@ -17,9 +17,6 @@ export interface ExtensionSpec {
   requires?: string
 }
 
-// calibre first, because the other two are useless without it: pdfCropMargins
-// is only offered for a PDF, and KFX is a calibre plugin driving a Windows
-// program.
 export const EXTENSIONS: readonly ExtensionSpec[] = [
   {
     id: 'calibre',
@@ -63,11 +60,16 @@ export interface Progress {
   stages: Stage[]
 }
 
+// The data volume is the one place the unprivileged server and the root agent both reach.
 const STATE_DIR = join(DATA_DIR, 'extensions')
 const REQUEST_FILE = join(STATE_DIR, 'request')
 const ENABLED_FILE = join(STATE_DIR, 'enabled')
 const RUNNING_FILE = join(STATE_DIR, 'running')
 const SPOOL_FILE = join(STATE_DIR, 'spool')
+const AGENT_FILE = join(STATE_DIR, 'agent')
+const AGENT_FRESH_MS = 60_000
+
+const NO_AGENT = 'Only the Docker image can install converters, and this server runs without it'
 
 const progressFile = (id: string): string => join(DATA_DIR, id, `${id}.progress`)
 const logFile = (id: string): string => join(DATA_DIR, id, `${id}.log`)
@@ -90,9 +92,6 @@ export function parseProgress(text: string, stageNames: readonly string[] = KFX_
 
     const [name, state, ...rest] = trimmed.split(' ')
 
-    // A removal touches only some of the stages, so "every stage is done" can
-    // never decide whether a run has finished — it left the page saying
-    // "running" ten minutes after the work was over. The script says so itself.
     if (name === 'run') {
       if (state === 'install' || state === 'remove') kind = state
       if (state === 'done' || state === 'failed') terminal = state
@@ -113,6 +112,7 @@ export function parseProgress(text: string, stageNames: readonly string[] = KFX_
   return { kind, terminal, stages }
 }
 
+// A removal touches only some stages, so "every stage done" can never decide that a run finished.
 export function runState(progress: Progress): 'idle' | 'running' | 'done' | 'failed' {
   if (progress.terminal) return progress.terminal
   if (progress.stages.some((stage) => stage.state === 'failed')) return 'failed'
@@ -128,16 +128,53 @@ async function readOrEmpty(path: string): Promise<string> {
   }
 }
 
-// What the agent took on, and what is still waiting for it. The agent moves the
-// whole request file aside the moment it starts, so appending here can never
-// tread on a line it is part-way through reading.
 async function running(): Promise<string | null> {
   return (await readOrEmpty(RUNNING_FILE)).trim() || null
 }
 
-// Two files, because the agent moves the request file aside the moment it
-// starts on it. What is left in the spool is still waiting, and saying
-// otherwise would offer an install that is already coming.
+async function agentPresent(): Promise<boolean> {
+  if (await running()) return true
+  try {
+    const mark = await stat(AGENT_FILE)
+    return Date.now() - mark.mtimeMs < AGENT_FRESH_MS
+  } catch {
+    return false
+  }
+}
+
+export interface InstallingNow {
+  id: string
+  label: string
+  kind: 'install' | 'remove'
+  stage: string | null
+  percent: number | null
+  queued: number
+}
+
+export async function installingNow(): Promise<InstallingNow | null> {
+  const active = await running()
+  const waiting = await queued()
+  const line = active ?? waiting[0]
+  if (!line) return null
+
+  const [verb, id] = line.split(' ')
+  const spec = specFor(id ?? '')
+  if (!spec || (verb !== 'install' && verb !== 'remove')) return null
+
+  const progress = parseProgress(await readOrEmpty(progressFile(spec.id)), spec.stages)
+  const current = progress.stages.find((stage) => stage.state === 'running')
+
+  return {
+    id: spec.id,
+    label: spec.label,
+    kind: verb,
+    stage: current?.name ?? null,
+    percent: current?.percent ?? null,
+    queued: waiting.filter((one) => one !== line).length,
+  }
+}
+
+// The agent moves the request file aside the moment it starts, so what is waiting lives in two files.
 async function queued(): Promise<string[]> {
   const [asked, spooled] = await Promise.all([readOrEmpty(REQUEST_FILE), readOrEmpty(SPOOL_FILE)])
   return [...spooled.split('\n'), ...asked.split('\n')].map((line) => line.trim()).filter(Boolean)
@@ -148,10 +185,13 @@ async function askFor(request: string): Promise<void> {
   await write(REQUEST_FILE, `${[...waiting, request].join('\n')}\n`)
 }
 
-// The assistant asks for all three at once, so calibre is still in the queue
-// when KFX is checked. Waiting for it counts as having it.
-function blockedNow(spec: ExtensionSpec, tools: ToolAvailability, coming: string[]): string | null {
-  const blocked = blockedBy(spec, tools)
+function blockedNow(
+  spec: ExtensionSpec,
+  tools: ToolAvailability,
+  coming: string[],
+  lang = 'en'
+): string | null {
+  const blocked = blockedBy(spec, tools, lang)
   if (!blocked) return null
   return coming.includes(`install ${spec.requires}`) ? null : blocked
 }
@@ -171,27 +211,31 @@ function requireAdmin(req: FastifyRequest, reply: FastifyReply): FastifyReply | 
   if (!user) {
     const wantsHtml = (req.headers.accept ?? '').includes('text/html')
     if (wantsHtml) return reply.redirect('/login?next=%2Fadmin%2Fextensions')
-    return reply.code(401).send({ ok: false, error: 'Not signed in' })
+    return reply.code(401).send({ ok: false, error: say(req, 'Not signed in') })
   }
   if (!req.server.repos.users.canAdmin(user.id)) {
-    return reply.code(404).send({ ok: false, error: 'Not found' })
+    return reply.code(404).send({ ok: false, error: say(req, 'Not found') })
   }
   return undefined
 }
 
-// What a missing dependency means, said the same way everywhere: the page
-// greys the card with it, and the route refuses with it.
-export function blockedBy(spec: ExtensionSpec, tools: ToolAvailability): string | null {
+export function blockedBy(
+  spec: ExtensionSpec,
+  tools: ToolAvailability,
+  lang = 'en'
+): string | null {
   if (!spec.requires) return null
   const needed = specFor(spec.requires)
   if (!needed || needed.installed(tools)) return null
-  return `${spec.label} needs ${needed.label}, which is not installed yet`
+  return i18n.translate(lang, '{label} needs {needed}, which is not installed yet', {
+    label: spec.label,
+    needed: needed.label,
+  })
 }
 
 export type Finishes = Map<string, string>
 
-// One mark per extension, empty until its run says it is over. Watching the
-// files for any change instead would re-detect all the way through a download.
+// Watching the files for any change instead would re-detect all the way through a download.
 async function finishesOfRuns(): Promise<Finishes> {
   const marks: Finishes = new Map()
   for (const spec of EXTENSIONS) {
@@ -207,9 +251,6 @@ async function finishesOfRuns(): Promise<Finishes> {
   return marks
 }
 
-// Whether anything has finished that the running server has not accounted for.
-// The first look back is against the moment detection ran, so a run that ended
-// while the server was still starting counts as news.
 export function newlyFinished(before: Finishes | null, now: Finishes, detectedAt: number): boolean {
   if (before === null) {
     for (const mark of now.values()) {
@@ -224,15 +265,7 @@ export function newlyFinished(before: Finishes | null, now: Finishes, detectedAt
   return false
 }
 
-// The assistant queues an install and walks away, so nothing is watching the
-// progress when the agent finishes. Without this the formats stayed refused
-// until somebody opened the Converters page or restarted the server. It lives
-// outside the accounts plugin because a server with no accounts still converts,
-// and still has an agent that can be asked to install something.
-//
-// It reacts to a run saying it is over rather than to the queue going quiet:
-// the assistant asks for all three at once, and calibre being installed is a
-// fact the moment its own run ends, not when KFX finishes twenty minutes later.
+// The assistant queues installs and walks away, so finished runs are noticed here. It lives outside the accounts plugin because a server without accounts still converts.
 export function watchExtensionRuns(app: FastifyInstance): void {
   const detectedAt = Date.now()
   let seen: Finishes | null = null
@@ -253,7 +286,13 @@ export function watchExtensionRuns(app: FastifyInstance): void {
 }
 
 export async function extensionRoutes(app: FastifyInstance): Promise<void> {
-  const stateOf = async (spec: ExtensionSpec, busy: string[], enabled: string[]) => {
+  const stateOf = async (
+    spec: ExtensionSpec,
+    busy: string[],
+    enabled: string[],
+    agent: boolean,
+    lang: string
+  ) => {
     const progress = parseProgress(await readOrEmpty(progressFile(spec.id)), spec.stages)
     return {
       id: spec.id,
@@ -261,7 +300,7 @@ export async function extensionRoutes(app: FastifyInstance): Promise<void> {
       installed: spec.installed(app.tools),
       enabled: enabled.includes(spec.id),
       pending: busy.includes(`install ${spec.id}`) || busy.includes(`remove ${spec.id}`),
-      blocked: blockedNow(spec, app.tools, busy),
+      blocked: agent ? blockedNow(spec, app.tools, busy, lang) : i18n.translate(lang, NO_AGENT),
       state: runState(progress),
       kind: progress.kind,
       stages: progress.stages,
@@ -280,10 +319,12 @@ export async function extensionRoutes(app: FastifyInstance): Promise<void> {
 
     const busy = [await running(), ...(await queued())].filter((one) => one !== null)
     const enabled = await enabledIds()
+    const agent = await agentPresent()
+    const lang = requestLanguage(req)
     const extensions = []
-    for (const spec of EXTENSIONS) extensions.push(await stateOf(spec, busy, enabled))
+    for (const spec of EXTENSIONS) extensions.push(await stateOf(spec, busy, enabled, agent, lang))
 
-    return reply.send({ ok: true, extensions, busy: busy.length > 0 })
+    return reply.send({ ok: true, extensions, busy: busy.length > 0, agent })
   })
 
   app.post<{ Params: { id: string } }>('/api/admin/extensions/:id', async (req, reply) => {
@@ -291,16 +332,24 @@ export async function extensionRoutes(app: FastifyInstance): Promise<void> {
     if (refused) return refused
 
     const spec = specFor(req.params.id)
-    if (!spec) return reply.code(404).send({ ok: false, error: 'No such extension' })
+    if (!spec) return reply.code(404).send({ ok: false, error: say(req, 'No such extension') })
 
+    if (!(await agentPresent())) {
+      return reply.code(409).send({ ok: false, error: say(req, NO_AGENT) })
+    }
     const busy = [await running(), ...(await queued())].filter((one) => one !== null)
     if (busy.some((one) => one.endsWith(` ${spec.id}`))) {
-      return reply.code(409).send({ ok: false, error: `${spec.label} is already on its way` })
+      return reply.code(409).send({
+        ok: false,
+        error: say(req, '{label} is already on its way', { label: spec.label }),
+      })
     }
     if (spec.installed(app.tools)) {
-      return reply.code(409).send({ ok: false, error: `${spec.label} is already installed` })
+      return reply
+        .code(409)
+        .send({ ok: false, error: say(req, '{label} is already installed', { label: spec.label }) })
     }
-    const blocked = blockedNow(spec, app.tools, busy)
+    const blocked = blockedNow(spec, app.tools, busy, requestLanguage(req))
     if (blocked) return reply.code(409).send({ ok: false, error: blocked })
 
     await write(progressFile(spec.id), '')
@@ -316,22 +365,31 @@ export async function extensionRoutes(app: FastifyInstance): Promise<void> {
     if (refused) return refused
 
     const spec = specFor(req.params.id)
-    if (!spec) return reply.code(404).send({ ok: false, error: 'No such extension' })
+    if (!spec) return reply.code(404).send({ ok: false, error: say(req, 'No such extension') })
 
+    if (!(await agentPresent())) {
+      return reply.code(409).send({ ok: false, error: say(req, NO_AGENT) })
+    }
     const busy = [await running(), ...(await queued())].filter((one) => one !== null)
     if (busy.some((one) => one.endsWith(` ${spec.id}`))) {
-      return reply.code(409).send({ ok: false, error: `${spec.label} is already on its way` })
+      return reply.code(409).send({
+        ok: false,
+        error: say(req, '{label} is already on its way', { label: spec.label }),
+      })
     }
 
-    // Taking calibre away takes everything built on it, so say so rather than
-    // leaving a plugin behind with nothing to drive it.
+    // The queue is worked in order, so "install kfx, remove calibre" would strand the plugin it just built.
     const dependants = EXTENSIONS.filter(
-      (one) => one.requires === spec.id && one.installed(app.tools)
+      (one) =>
+        one.requires === spec.id && (one.installed(app.tools) || busy.includes(`install ${one.id}`))
     )
     if (dependants.length > 0) {
       return reply.code(409).send({
         ok: false,
-        error: `Remove ${dependants.map((one) => one.label).join(' and ')} first — it needs ${spec.label}`,
+        error: say(req, 'Remove {dependants} first — it needs {label}', {
+          dependants: dependants.map((one) => one.label).join(' and '),
+          label: spec.label,
+        }),
       })
     }
 
@@ -350,10 +408,12 @@ export async function extensionRoutes(app: FastifyInstance): Promise<void> {
       if (refused) return refused
 
       const spec = specFor(req.params.id)
-      if (!spec) return reply.code(404).send({ ok: false, error: 'No such extension' })
+      if (!spec) return reply.code(404).send({ ok: false, error: say(req, 'No such extension') })
       const busy = [await running(), ...(await queued())].filter((one) => one !== null)
       if (busy.length > 0) {
-        return reply.code(409).send({ ok: false, error: 'Something is running right now' })
+        return reply
+          .code(409)
+          .send({ ok: false, error: say(req, 'Something is running right now') })
       }
 
       await write(progressFile(spec.id), '')
@@ -369,7 +429,7 @@ export async function extensionRoutes(app: FastifyInstance): Promise<void> {
       if (refused) return refused
 
       const spec = specFor(req.params.id)
-      if (!spec) return reply.code(404).send({ ok: false, error: 'No such extension' })
+      if (!spec) return reply.code(404).send({ ok: false, error: say(req, 'No such extension') })
 
       const progress = parseProgress(await readOrEmpty(progressFile(spec.id)), spec.stages)
       const state = runState(progress)
@@ -378,10 +438,6 @@ export async function extensionRoutes(app: FastifyInstance): Promise<void> {
       const log = await readOrEmpty(logFile(spec.id))
       const offset = Number.isFinite(from) && from > 0 && from <= log.length ? from : 0
 
-      // The run has stopped and the agent has taken its request file away, so
-      // whatever it did to the filesystem is finished. Detection is what decides
-      // what the Convert page offers, and it is cheap enough to redo here rather
-      // than making anybody restart.
       const busy = [await running(), ...(await queued())].filter((one) => one !== null)
       const mine = busy.filter((one) => one.endsWith(` ${spec.id}`))
       if (mine.length === 0 && (state === 'done' || state === 'failed')) {
@@ -395,7 +451,7 @@ export async function extensionRoutes(app: FastifyInstance): Promise<void> {
         kind: progress.kind,
         stages: progress.stages,
         installed: spec.installed(app.tools),
-        blocked: blockedNow(spec, app.tools, busy),
+        blocked: (await agentPresent()) ? blockedNow(spec, app.tools, busy) : NO_AGENT,
         pending: mine.length > 0,
         busy: busy.length > 0,
         chunk: log.slice(offset),

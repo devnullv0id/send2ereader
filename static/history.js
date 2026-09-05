@@ -44,5 +44,9 @@ const History = (() => {
     }
   }
 
-  return { all, add, recent, clear }
+  function drop(at) {
+    save(all().filter((entry) => entry.at !== at))
+  }
+
+  return { all, add, recent, clear, drop }
 })()

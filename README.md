@@ -11,7 +11,7 @@ computer, pick a book, send. A download link appears on the ereader.
 One command, to try it:
 
 ```sh
-docker run -d --name send2ereader -p 3001:3001 -v s2e:/data \
+docker run -d --name send2ereader --restart unless-stopped -p 3001:3001 -v s2e:/data \
   ghcr.io/devnullv0id/send2ereader:latest
 # or: code.private-home-network.de/devnullv0id/send2ereader:latest
 ```
@@ -34,7 +34,7 @@ you can reach.
 | Tag | What it is |
 | --- | --- |
 | `latest` | Current release |
-| `2.0.2`, `2.0` | Pin to a version or a minor series |
+| `2.0.0`, `2.0` | Pin to a version or a minor series |
 | `legacy`, `1.1.0` | The original app, before the rewrite. Not updated. |
 
 ### Without Docker
@@ -56,13 +56,15 @@ is, so a device that drops the connection mid-download can ask again.
 | From | To | Via |
 | --- | --- | --- |
 | EPUB | `.kepub.epub` for Kobo | kepubify |
-| EPUB, CBZ, CBR, TXT, HTMLZ, KFX | AZW3 or MOBI for Kindle | calibre |
+| EPUB, KEPUB, CBZ, CBR, TXT, HTML, HTMLZ, KFX | AZW3 or MOBI for Kindle | calibre |
 | anything | EPUB, PDF, TXT, HTMLZ | calibre |
 | KFX, KFX-ZIP | readable formats | calibre + KFX Input |
 | anything | KFX | calibre + Kindle Previewer |
 
 A Kobo and a Kindle are never both targets: KEPUB carries Kobo markup a Kindle cannot read, and
 AZW3 means nothing to a Kobo. Tolino reads EPUB but not KEPUB, so it gets the file unconverted.
+Comics are the one exception to "anything": CBZ and CBR convert to EPUB, AZW3, MOBI, KFX or PDF,
+and nothing else — a comic squeezed into TXT would be a list of nothing.
 
 Three optional fixes ride along: **repair EPUB layout** (on by default), **crop PDF margins**,
 and **transliterate the filename** for the Kindle browser, which chokes on non-ASCII names.
@@ -77,7 +79,8 @@ if it fails the unrepaired book is still delivered. Engine from
 **Delivers to a Kobo over its own sync.** Generate a sync endpoint in Settings, put the URL in
 `.kobo/Kobo/Kobo eReader.conf` over USB, and books you queue appear in the device's library on its
 next sync. Everything the device asks for beyond your books is proxied to the real Kobo store.
-Queued books are deleted once collected, or after six hours.
+Queued books are deleted once collected, after six hours, or when the server restarts — a kept
+library copy is what survives, if the account keeps one.
 
 **Keeps a library** for signed-in accounts, with per-user and total storage caps and optional
 retention. Anything else is transient.
@@ -93,18 +96,42 @@ difference between a 105 MB pull and a 500 MB one.
 | `pdfcrop` | Cropping PDF margins | — | ~90 MB |
 | `kfx` | Writing KFX | `calibre` | ~2.6 GB, Wine and Amazon's Kindle Previewer |
 
-Install them at **Admin → Converters** while the server runs, or before it starts:
+Install them at **Admin → Converters** while the server runs, or name them in the environment:
 
 ```yaml
 environment:
   EXTENSIONS: calibre|pdfcrop|kfx
 ```
 
-Either way they land on the data volume and survive a container being recreated. A missing
-converter is never hidden — the format is greyed with the reason.
+Either way a background agent does the fetching while the server is already answering — the site
+never waits on a download, and the Converters page (and a badge in the header) show every stage
+as it happens. They land on the data volume and survive a container being recreated. A missing
+converter is never hidden — the format is greyed with the reason — and outside the Docker image,
+where no agent exists, the install switches say so instead of pretending.
 
 KFX is the one that cannot be shipped: Amazon's Previewer is a Windows program and not ours to
 redistribute, so the extension fetches it on your machine, at your instruction.
+
+## Languages
+
+The pages, e-mails and error messages speak English out of the box, and German ships alongside
+(machine-drafted, marked for native review). Everyone picks their own language in the footer of
+any page — signed in, the choice follows the account; signed out, it lives in a browser cookie —
+and the administrator sets the default for first-time visitors at **Admin → Language** (or
+`LANGUAGE=de` in the environment). E-ink pages, which carry no cookie, follow that default.
+
+Adding a language is dropping a file, no build step:
+
+1. Copy [`languages/de.json`](languages/de.json) to `<code>.json` — `fr.json`, `nl.json` — and
+   translate the values. The keys are the English sentences themselves; a key you leave out simply
+   stays English, so a half-finished file is safe to ship.
+2. Put it in the `languages` folder of a checkout, or on the data volume under `/data/languages`
+   for a Docker install (`docker cp fr.json send2ereader:/data/languages/`).
+3. Restart. The language appears in every picker and in the admin default choices.
+
+A file on the data volume with the same code as a shipped one replaces it whole, so corrections
+to the shipped German go in `/data/languages/de.json` and survive image updates.
+[`languages/README.md`](languages/README.md) is the translator's guide.
 
 ## Accounts
 
@@ -115,7 +142,9 @@ The **first account to register claims the server**. After that local registrati
 unless `ALLOW_SIGNUP=true`. Sign in with a password, a passkey, or single sign-on; two-factor and
 a printable recovery phrase are available.
 
-Without `SMTP_ENABLED`, confirmation and reset links are written to the log instead of e-mailed:
+Without `SMTP_ENABLED`, confirmation and reset links are written to the log instead of e-mailed —
+with their tokens redacted, because a link in a log is a live credential. Set
+`MAIL_LOG_SECRETS=true` (Admin → Mail) while you need a usable link:
 
 ```sh
 docker logs send2ereader | grep /auth/verify
@@ -138,30 +167,36 @@ environment variables win over the file.
 
 Most are better changed at **Admin → Settings**, which writes to the database and beats the file.
 Some stay environment-only and show read-only there: the ones read before the server exists
-(`ACCOUNTS`, `HTTP_PORT`, `HTTP_ADDR`, `DATA_DIR`, `DB_PATH`, `SESSION_SECRET`, `EXTENSIONS`), the
-paths and logging, and the converter binaries — a browser form is the wrong place to choose what
-a server executes. `LOCKED_SETTINGS` pins anything else you want left alone.
+(`ACCOUNTS`, `HTTP_PORT`, `HTTP_ADDR`, `DATA_DIR`, `DB_PATH`, `SESSION_SECRET`, `EXTENSIONS`,
+`EXTENSION_PACKAGES`), the paths, logging and rate limits, the security knobs (`SCRYPT_N`,
+`CLEAN_UPLOAD_DIR_ON_BOOT`), and the converter binaries — a browser form is the wrong place to
+choose what a server executes. `LOCKED_SETTINGS` pins anything else you want left alone.
 
 The ones worth knowing:
 
 | Variable | Default | Why |
 | --- | --- | --- |
 | `DOMAIN` / `PROTOCOL` | unset / `http` | The address the server hands out in links. Passkeys need a real https domain |
-| `TRUST_PROXY` | `false` | Behind a reverse proxy, name it — an address, a CIDR or `loopback`. Left off, everyone shares one rate limit; set to `true`, anyone who reaches the port can forge their address |
+| `TRUST_PROXY` | `false` | Behind a reverse proxy, name it — an address, a CIDR or `loopback`. Left off, everyone shares one rate limit; set to `true`, anyone who reaches the port can forge their address, which is why the admin page refuses to save that word |
 | `MAX_FILE_SIZE` | 800 MB | Upload ceiling |
 | `EXPIRE_SECONDS` | `300` | How long a key outlives the ereader that stopped polling |
 | `SESSION_SECRET` | generated | Set it when several instances share a database |
 
 ## Backups
 
-**Admin → Backup** hands you one `.tar.gz`: the database, taken with SQLite's `VACUUM INTO` so a
-running server cannot be caught half-written, plus every book in the library.
+**Admin → Backup** hands you one `.tar.gz`, named with date and time: the database, taken with
+SQLite's `VACUUM INTO` so a running server cannot be caught half-written, plus every book in the
+library.
 
-Restoring is deliberately manual — unpacking over a running server would race it:
+Restoring happens from the same page: upload the archive, confirm, and it is unpacked at the next
+boot, before anything opens the database — nothing is touched while the server runs. In a
+container the page restarts the server for you (the entrypoint supervises the process, so no
+`--restart` policy is needed for that); elsewhere you restart it yourself. The manual way still
+works too:
 
 ```sh
 docker compose down
-tar -xzf send2ereader-2026-08-12.tar.gz -C /your/data
+tar -xzf send2ereader-2026-08-12-14-31-07.tar.gz -C /your/data
 docker compose up -d
 ```
 
@@ -176,12 +211,19 @@ download require the same user-agent that asked for the key.
 ## Development
 
 ```sh
-npm ci          # also points git at .githooks
-npm run dev     # tsx watch on :3001
-npm test        # vitest
-npm run lint    # biome
+npm ci               # also points git at .githooks
+npm run dev          # tsx watch on :3001
+npm test             # vitest
+npm run lint         # biome
+npm run format       # biome, writing its fixes
 npm run typecheck
+npm run scan:secrets # the credential scan CI runs, over the whole history
 ```
+
+On Windows, `scripts/dev.ps1` resolves the converter binaries and runs the same dev loop
+(`-Setup` fetches kepubify the first time). `scripts/smoke-convert.mjs <url>` proves every
+offered format really converts against a running instance, and `scripts/compare-instances.mjs`
+diffs the page inventory of two instances.
 
 `npm ci` installs hooks that refuse to commit or push anything shaped like a credential; CI runs
 the same scan over the whole history.

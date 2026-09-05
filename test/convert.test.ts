@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../src/app.js'
 import { config } from '../src/config.js'
+import { ConversionError } from '../src/convert/run.js'
 import { prepareUploadDir } from '../src/files.js'
 import { contentsOf, multipart, multipartHeaders, sampleEpub } from './helpers.js'
 
@@ -81,6 +82,29 @@ describe('converting a file', () => {
     const res = await post(body('azw3'))
     expect(res.statusCode).toBe(422)
     expect(res.json().error).toMatch(/calibre/)
+    expect(res.json().tool, 'a refusal is not a converter failure').toBeUndefined()
+  })
+
+  it('names the converter when the converter itself failed', async () => {
+    const broken = await buildApp({
+      tools: { ...noTools, kepubify: true },
+      logger: false,
+      accounts: false,
+    })
+    await broken.ready()
+    try {
+      const res = await broken.inject({
+        method: 'POST',
+        url: '/convert',
+        headers: multipartHeaders,
+        payload: body('kepub'),
+      })
+      expect(res.statusCode).toBe(422)
+      expect(res.json().tool).toBe('kepubify')
+      expect(res.json().error).toMatch(/could not run/i)
+    } finally {
+      await broken.close()
+    }
   })
 
   it('will not be talked into a format that is not a target at all', async () => {
@@ -236,5 +260,40 @@ describe('a real client that hangs up mid-transfer', () => {
     expect(cut, 'the client really did hang up').toBe(true)
     expect(app.conversions.get(stored.id, null), 'still collectable').not.toBeNull()
     expect(existsSync(big), 'and the bytes survived').toBe(true)
+  })
+})
+
+describe('what a failed conversion tells the reader', () => {
+  const error = new ConversionError(
+    'calibre',
+    'calibre failed (exit code 1)',
+    [
+      'Traceback (most recent call last):',
+      '  File "calibre/ebooks/conversion/plugins/comic_input.py", line 178, in get_pages',
+      'ValueError: Could not find any valid pages in comic: infile.cbz',
+      '',
+    ].join('\n')
+  )
+
+  it('hands over what the converter said, last line and all', () => {
+    const detail = error.toUserDetail()
+    expect(detail).toContain('Could not find any valid pages')
+    expect(detail, 'blank lines are not worth showing').not.toMatch(/\n\s*\n/)
+  })
+
+  it('says nothing rather than an empty box when the converter said nothing', () => {
+    expect(new ConversionError('kepubify', 'kepubify failed', '').toUserDetail()).toBeNull()
+    expect(new ConversionError('kepubify', 'kepubify failed', '\n \n').toUserDetail()).toBeNull()
+  })
+
+  it('keeps the tail, not the head, of something long', () => {
+    const long = new ConversionError('calibre', 'x', `${'noise\n'.repeat(400)}the actual reason`)
+    const detail = long.toUserDetail()!
+    expect(detail.endsWith('the actual reason')).toBe(true)
+    expect(detail.length).toBeLessThanOrEqual(1200)
+  })
+
+  it('carries no absolute path, because the output was redacted before this', () => {
+    expect(error.toUserDetail()).not.toMatch(/[A-Za-z]:\\|\/tmp\/|\/data\//)
   })
 })

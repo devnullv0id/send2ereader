@@ -170,9 +170,9 @@ export async function koboRoutes(app: FastifyInstance): Promise<void> {
       const device = authenticate(req, reply, req.params.token)
       if (!device) return reply
 
-      const book = app.deliveries.get(req.params.uuid, device.id)
-      if (!book) return reply.code(404).send({ error: 'Not found' })
-      return reply.send({ ReadingStates: [readingState(book)] })
+      const found = findBook(req.params.uuid, device)
+      if (!found) return reply.code(404).send({ error: 'Not found' })
+      return reply.send({ ReadingStates: [readingState(found.book)] })
     }
   )
 

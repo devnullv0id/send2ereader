@@ -16,24 +16,11 @@ onPage('waiting', async (page) => {
   function remaining(seconds) {
     const h = Math.floor(seconds / 3600)
     const m = Math.floor((seconds % 3600) / 60)
-    return h > 0 ? `${h}H ${m}M LEFT` : `${m}M LEFT`
-  }
-
-  function size(bytes) {
-    const mb = bytes / (1024 * 1024)
-    return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
-  }
-
-  function ago(iso) {
-    const seconds = Math.floor((Date.now() - Date.parse(iso)) / 1000)
-    if (!Number.isFinite(seconds) || seconds < 60) return 'JUST NOW'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} MIN AGO`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} HR AGO`
-    return `${Math.floor(seconds / 86400)} DAYS AGO`
+    return h > 0 ? t('{h}H {m}M LEFT', { h, m }) : t('{m}M LEFT', { m })
   }
 
   function format(name) {
-    if (/\.kepub\.epub$/i.test(name)) return 'KOBO EPUB'
+    if (/\.kepub\.epub$/i.test(name)) return t('KOBO EPUB')
     return (/\.([a-z0-9]+)$/i.exec(name)?.[1] || '').toUpperCase()
   }
 
@@ -48,8 +35,11 @@ onPage('waiting', async (page) => {
       ...books.map((book) => {
         const row = tpl.content.firstElementChild.cloneNode(true)
         row.querySelector('.list__name').textContent = book.title || book.name
-        row.querySelector('.list__meta').textContent =
-          `${format(book.name)} · ${size(book.size)} · QUEUED ${ago(book.queuedAt)}`
+        row.querySelector('.list__meta').textContent = t('{format} · {size} · QUEUED {when}', {
+          format: format(book.name),
+          size: size(book.size),
+          when: ago(book.queuedAt),
+        })
 
         const left = ttlSeconds ? Math.max(0, (book.expiresIn / ttlSeconds) * 100) : 0
         const expiry = row.querySelector('.expiry')
@@ -76,7 +66,9 @@ onPage('waiting', async (page) => {
       ttlSeconds = data.ttlSeconds || 0
       const hours = Math.round(ttlSeconds / 3600)
       if (hours && hours !== 24) {
-        $('sub').textContent = `Books queued at your sync endpoint. Each is deleted the moment your Kobo takes it, or after ${hours} hours.`
+        $('sub').textContent = t('Queued for your Kobo, dropped once taken or after {n} hours.', {
+          n: hours,
+        })
       }
       render()
     } catch {

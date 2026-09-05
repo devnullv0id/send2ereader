@@ -1,6 +1,6 @@
 import { ZipFile } from './zip.js'
 
-export const MAX_XML = 4 * 1024 * 1024
+const MAX_XML = 4 * 1024 * 1024
 
 export interface OpenedEpub {
   zip: ZipFile
@@ -50,7 +50,7 @@ export function dirname(path: string): string {
   return cut < 0 ? '' : path.slice(0, cut)
 }
 
-export function decodeHref(href: string): string {
+function decodeHref(href: string): string {
   try {
     return decodeURIComponent(href)
   } catch {

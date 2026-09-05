@@ -28,8 +28,6 @@ if [ -x "${VENV}/bin/pdfcropmargins" ]; then
 else
     stage packages running
     say 'installing python and its venv module'
-    # `import venv` succeeds without python3-venv; it is ensurepip that is
-    # missing, and only `python3 -m venv` finds that out.
     if ! python3 -c 'import ensurepip' >/dev/null 2>&1; then
         apt-get update
         apt-get install -y --no-install-recommends python3 python3-venv
@@ -37,9 +35,6 @@ else
     fi
     stage packages done
 
-    # Into /data rather than the container, so recreating the container does not
-    # mean fetching it all again. pdfCropMargins pulls PyMuPDF, which is most of
-    # the weight.
     stage install running
     say "building a python environment under ${PREFIX}"
     mkdir -p "$PREFIX"
@@ -55,7 +50,6 @@ else
         exit 0
     fi
 
-    # pip is a third of the environment once it has done its job.
     rm -rf "${VENV}/lib/python"*/site-packages/pip \
            "${VENV}/lib/python"*/site-packages/pip-* \
            "${VENV}/lib/python"*/site-packages/setuptools \

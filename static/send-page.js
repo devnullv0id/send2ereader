@@ -6,9 +6,9 @@ onPage('send', (page) => {
   function spell(seconds) {
     if (seconds >= 60 && seconds % 60 === 0) {
       const minutes = seconds / 60
-      return minutes === 1 ? '1 minute' : `${minutes} minutes`
+      return minutes === 1 ? t('1 minute') : t('{n} minutes', { n: minutes })
     }
-    return `${seconds} seconds`
+    return t('{n} seconds', { n: seconds })
   }
 
   function deadlineFrom(expiresInMs) {
@@ -23,23 +23,23 @@ onPage('send', (page) => {
   const SYNC_STATUS = {
     ok: {
       className: 'is-ok',
-      text: () => `HELD ${queueHours()} OR UNTIL DOWNLOADED`,
-      menuText: (device) => `LAST SYNCED ${ago(device.lastSeenAt)}`,
+      text: () => t('HELD {time} OR UNTIL DOWNLOADED', { time: queueHours().toUpperCase() }),
+      menuText: (device) => t('LAST SYNCED {when}', { when: ago(device.lastSeenAt) }),
     },
     failed: {
       className: 'is-error',
-      text: 'LAST SYNC FAILED — IT MAY NOT ARRIVE',
-      menuText: (device) => `SYNC FAILED ${ago(device.lastSeenAt)}`,
+      text: t('LAST SYNC FAILED — IT MAY NOT ARRIVE'),
+      menuText: (device) => t('SYNC FAILED {when}', { when: ago(device.lastSeenAt) }),
     },
     never: {
       className: 'is-warn',
-      text: 'NEVER SYNCED — CONNECT THE DEVICE FIRST',
-      menuText: () => 'NEVER SYNCED',
+      text: t('NEVER SYNCED — CONNECT THE DEVICE FIRST'),
+      menuText: () => t('NEVER SYNCED'),
     },
     syncing: {
       className: 'is-syncing',
-      text: 'SYNCING NOW — IT WILL PICK THIS UP',
-      menuText: () => 'SYNCING NOW',
+      text: t('SYNCING NOW — IT WILL PICK THIS UP'),
+      menuText: () => t('SYNCING NOW'),
     },
   }
 
@@ -135,46 +135,36 @@ onPage('send', (page) => {
     return new Promise((resolve) => verdict.waiters.push(resolve))
   }
 
-  function size(bytes) {
-    const mb = bytes / (1024 * 1024)
-    return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
-  }
-
   function show(el, visible) {
     if (el) el.hidden = !visible
   }
 
   function queueHours() {
     const hours = Math.round((state.queueTtl || 24 * 3600) / 3600)
-    return hours === 1 ? '1 HOUR' : `${hours} HOURS`
-  }
-
-  function ago(iso) {
-    const seconds = Math.floor((Date.now() - Date.parse(iso)) / 1000)
-    if (!Number.isFinite(seconds) || seconds < 60) return 'JUST NOW'
-    if (seconds < 3600) return `${Math.floor(seconds / 60)} MIN AGO`
-    if (seconds < 86400) return `${Math.floor(seconds / 3600)} HR AGO`
-    return `${Math.floor(seconds / 86400)} DAYS AGO`
+    return hours === 1 ? t('1 hour') : t('{n} hours', { n: hours })
   }
 
   function device() {
     return state.devices.find((d) => d.id === state.deviceId) || null
   }
 
+  function syncable() {
+    return device()?.paired === true
+  }
+
   function ready() {
     return state.method === 'sync'
-      ? Boolean(state.deviceId && state.file)
+      ? Boolean(state.deviceId && state.file && syncable())
       : Boolean(state.paired && state.file)
   }
 
-  function badge(el, done, current, mark) {
-    el.className = `step__badge${done ? ' is-complete' : current ? ' is-current' : ''}`
-    el.textContent = done ? '✓' : mark
-  }
-
   function renderMethod() {
+    const locked = state.devices.length > 0 && !syncable()
+    if (locked && state.method === 'sync') state.method = 'key'
+
     for (const btn of document.querySelectorAll('.method')) {
       btn.classList.toggle('is-selected', btn.dataset.method === state.method)
+      if (btn.dataset.method === 'sync') btn.disabled = locked
     }
 
     const key = state.method === 'key'
@@ -204,10 +194,8 @@ onPage('send', (page) => {
 
   const FORMAT_CAVEAT = {
     azw3: [
-      [
-        'The Kindle doesn’t display the cover for a downloaded AZW3 file. The cover is embedded in the file, but the device simply ignores it.',
-      ],
-      ['The same book in MOBI format displays the cover correctly.'],
+      [t('The Kindle ignores the cover in a downloaded AZW3.')],
+      [t('The same book in MOBI shows it correctly.')],
     ],
   }
 
@@ -221,15 +209,15 @@ onPage('send', (page) => {
   }
 
   const FORMAT_NOTE = {
-    mobi: 'The oldest of the three Kindle formats, and the one whose cover the device actually shows.',
+    mobi: t('The oldest Kindle format, and the one whose cover shows.'),
   }
 
   const FORMAT_BLOCKED = {
-    kfx: 'The Kindle browser cannot download a KFX file.',
+    kfx: t('The Kindle browser cannot download a KFX file.'),
   }
 
   function askCaveat(item, paragraphs) {
-    $('caveatTitle').textContent = `Send as ${item.label}?`
+    $('caveatTitle').textContent = t('Send as {format}?', { format: item.label })
     $('caveatText').replaceChildren(
       ...paragraphs.map((lines) => {
         const p = document.createElement('p')
@@ -241,9 +229,11 @@ onPage('send', (page) => {
         return p
       })
     )
-    $('caveatConfirm').textContent = `Send as ${item.label}`
+    $('caveatConfirm').textContent = t('Send as {format}', { format: item.label })
     const fallback = formatsFor().find((f) => f.format === state.format)
-    $('caveatCancel').textContent = fallback ? `Keep ${fallback.label}` : 'Cancel'
+    $('caveatCancel').textContent = fallback
+      ? t('Keep {format}', { format: fallback.label })
+      : t('Cancel')
     state.pendingFormat = item.format
     show($('caveatModal'), true)
     $('caveatCancel').focus()
@@ -316,17 +306,17 @@ onPage('send', (page) => {
   }
 
   function targetLabel() {
-    return { kobo: 'Kobo', kindle: 'Kindle', other: 'Other devices', none: "Don't convert" }[
-      targetOf()
-    ]
+    return t(
+      { kobo: 'Kobo', kindle: 'Kindle', other: 'Other devices', none: "Don't convert" }[targetOf()]
+    )
   }
 
   function optionsSummary() {
-    if (!ready()) return 'Waiting for a file'
+    if (!ready()) return t('Waiting for a file')
     const on = offeredFixes()
       .filter((fix) => fix.applies && fix.available && chosen(fix.id))
       .map((fix) => fix.label)
-    return on.length ? on.join(', ') : 'Nothing extra'
+    return on.length ? on.join(', ') : t('Nothing extra')
   }
 
   function warningTriangle() {
@@ -392,7 +382,8 @@ onPage('send', (page) => {
         label.textContent = item.label
         tile.append(label)
         if (warn) label.append(warningTriangle())
-        const note = blocked || (refusal ? `Delivered as-is, not converted. ${refusal}.` : caveat)
+        const note =
+          blocked || (refusal ? t('Delivered as-is, not converted. {refusal}.', { refusal }) : caveat)
         if (note) {
           tile.title = note
           tile.setAttribute('aria-description', note)
@@ -412,7 +403,10 @@ onPage('send', (page) => {
     const chosen = offered.find((item) => item.format === state.format)
     const refused = chosen && refusalFor(chosen.format)
     const warned = refused
-      ? `${chosen.label} is delivered as it is — nothing is converted. ${refused}.`
+      ? t('{format} is delivered as it is — nothing is converted. {refusal}.', {
+          format: chosen.label,
+          refusal: refused,
+        })
       : chosen
         ? caveatLine(chosen.format)
         : ''
@@ -449,19 +443,19 @@ onPage('send', (page) => {
     }
 
     $('step1Value').textContent = !step1Done()
-      ? 'Not set up yet'
+      ? t('Not set up yet')
       : state.method === 'sync'
-        ? `Kobo sync · ${device()?.label || 'your Kobo'}`
-        : `${state.paired.label} · KEY ${state.paired.key}`
+        ? t('Kobo sync · {device}', { device: device()?.label || t('your Kobo') })
+        : t('{device} · KEY {key}', { device: state.paired.label, key: state.paired.key })
 
     $('step2Value').textContent = state.file
       ? `${state.file.name} · ${size(state.file.size)}`
-      : 'No file yet'
+      : t('No file yet')
 
     $('step3Value').textContent = targetLabel()
     $('step4Value').textContent = skipsFormat()
-      ? 'Not converting'
-      : formatsFor().find((f) => f.format === state.format)?.label || 'Pick one'
+      ? t('Not converting')
+      : formatsFor().find((f) => f.format === state.format)?.label || t('Pick one')
     $('step5Value').textContent = optionsSummary()
 
     if (linkLost()) {
@@ -486,7 +480,7 @@ onPage('send', (page) => {
 
   const keyCells = attachCodeCells($('cells'), {
     length: 4,
-    label: 'The four characters your eReader shows',
+    label: t('The four characters your eReader shows'),
     onInput: (value) => {
       state.key = value
       clearOverlay()
@@ -511,14 +505,16 @@ onPage('send', (page) => {
     const warn = kind === 'expired'
     $('overlayBox').className = `branch-overlay__box${warn ? ' is-warn' : ''}`
     $('overlayBang').className = `bang bang--md${warn ? ' bang--warn' : ''}`
-    $('overlayTitle').textContent = warn ? 'That key ran out' : `No eReader is showing ${key}`
+    $('overlayTitle').textContent = warn
+      ? t('That key ran out')
+      : t('No eReader is showing {key}', { key })
     $('overlayText').textContent = warn
-      ? 'Keys live five minutes, and only while the page is on screen. Reload it on your eReader for a fresh one.'
-      : 'The characters change every time the page loads. Reload it on your eReader and read the new ones.'
+      ? t('Keys live five minutes — reload your eReader for a fresh one.')
+      : t('Reload the page on your eReader and read the new characters.')
 
     const action = $('overlayAction')
     action.className = `btn btn--sm ${warn ? 'btn--accent' : 'btn--danger'}`
-    action.textContent = warn ? 'New key' : 'Try again'
+    action.textContent = warn ? t('New key') : t('Try again')
     show($('overlay'), true)
   }
 
@@ -570,20 +566,23 @@ onPage('send', (page) => {
 
   function renderPaired() {
     if (!state.paired) return
-    $('pairedTitle').textContent = `Paired with ${state.paired.label}`
+    $('pairedTitle').textContent = t('Paired with {device}', { device: state.paired.label })
     const connected = state.paired.connected
 
     $('pairedMeta').textContent = connected
-      ? `KEY ${state.paired.key}`
-      : `KEY ${state.paired.key} · EXPIRES IN ${clock(state.paired.expiresAt)}`
+      ? t('KEY {key}', { key: state.paired.key })
+      : t('KEY {key} · EXPIRES IN {time}', {
+          key: state.paired.key,
+          time: clock(state.paired.expiresAt),
+        })
     $('linkRow').className = connected
       ? 'status-box live-row status-box--well'
       : 'status-box live-row is-error'
     $('linkDot').className = `status-box__dot live-row__dot${connected ? ' is-live' : ''}`
-    $('linkTitle').textContent = connected ? 'Still connected' : 'Connection lost'
+    $('linkTitle').textContent = connected ? t('Still connected') : t('Connection lost')
     $('linkMeta').textContent = connected
-      ? `${state.paired.label.toUpperCase()} HAS THE KEY PAGE OPEN`
-      : 'THE DEVICE STOPPED ANSWERING — WIFI OR SLEEP'
+      ? t('{device} HAS THE KEY PAGE OPEN', { device: state.paired.label.toUpperCase() })
+      : t('THE DEVICE STOPPED ANSWERING — WIFI OR SLEEP')
     show($('linkRetry'), !connected)
     renderStep1()
   }
@@ -681,15 +680,15 @@ onPage('send', (page) => {
 
     if (!SendLogic.isAccepted(file.name)) {
       refuse(
-        `.${SendLogic.extensionOf(file.name)} isn't one we handle`,
-        "Convert it to EPUB first, or paste a link and we'll build one for you."
+        t(".{ext} isn't one we handle", { ext: SendLogic.extensionOf(file.name) }),
+        t("Convert it to EPUB first, or paste a link and we'll build one for you.")
       )
       return
     }
     if (state.maxFileSize && file.size > state.maxFileSize) {
       refuse(
-        `That file is ${size(file.size)}, over this server's limit`,
-        `This server accepts up to ${size(state.maxFileSize)}.`
+        t("That file is {size}, over this server's limit", { size: size(file.size) }),
+        t('This server accepts up to {size}.', { size: size(state.maxFileSize) })
       )
       return
     }
@@ -747,10 +746,10 @@ onPage('send', (page) => {
   }
 
   const TARGET_NOTES = {
-    kobo: 'Kobo, Tolino and PocketBook. KEPUB is their own format; EPUB is read by everything.',
-    kindle: 'Kindle. AZW3 is the safe choice — KFX can only be written by Amazon’s own tool.',
-    other: 'Phones, tablets, other readers. EPUB is read by everything; PDF keeps fixed pages.',
-    none: 'Sends the bytes exactly as they are. Your device may not open them.',
+    kobo: t('Kobo, Tolino and PocketBook. KEPUB is their own format; EPUB is read by everything.'),
+    kindle: t('Kindle. AZW3 is the safe choice — KFX can only be written by Amazon’s own tool.'),
+    other: t('Phones, tablets, other readers. EPUB is read by everything; PDF keeps fixed pages.'),
+    none: t('Sends the bytes exactly as they are. Your device may not open them.'),
   }
 
   function renderTargets() {
@@ -841,7 +840,11 @@ onPage('send', (page) => {
 
   function optionText(fix, live, enabled) {
     const why =
-      live && !enabled ? (fix.available ? fix.reason : 'Not installed on this server. An administrator can add it under Admin → Converters.') : ''
+      live && !enabled
+        ? fix.available
+          ? fix.reason
+          : t('Not installed — an administrator can add it under Admin → Converters.')
+        : ''
     return [fix.description || '', why].filter(Boolean).join(' ')
   }
 
@@ -896,22 +899,27 @@ onPage('send', (page) => {
     if (ready()) {
       $('submitlabel').textContent =
         state.method === 'sync'
-          ? `Deliver to ${device()?.label || 'your Kobo'}`
-          : `Send to ${state.paired.label}`
+          ? t('Deliver to {device}', { device: device()?.label || t('your Kobo') })
+          : t('Send to {device}', { device: state.paired.label })
     } else if (state.method === 'sync' && !state.deviceId) {
-      $('submitlabel').textContent = 'No device has synced yet'
+      $('submitlabel').textContent = t('No device has synced yet')
     } else if (!step1Done()) {
-      $('submitlabel').textContent = 'Enter a key to begin'
+      $('submitlabel').textContent = t('Enter a key to begin')
     } else {
-      $('submitlabel').textContent = 'Add a file to send'
+      $('submitlabel').textContent = t('Add a file to send')
     }
 
     renderStep2()
   }
 
   const EASE_MS = 700
+  const CONVERT_EASE_MS = 9000
+  const UPLOAD_SHARE = 60
+  const CONVERT_TARGET = 99
   const MAX_RATE = 45
   const FINISH_CAP_MS = 1500
+
+  let ease = EASE_MS
 
   let shownPct = 0
   let targetPct = 0
@@ -919,16 +927,26 @@ onPage('send', (page) => {
   let walk = null
 
   function paintProgress() {
-    $('submitlabel').textContent = `Sending file · ${Math.round(shownPct)}%`
+    $('submitlabel').textContent = t('Sending file · {pct}%', { pct: Math.round(shownPct) })
     $('bar').style.setProperty('--prog', `${shownPct.toFixed(2)}%`)
   }
 
   function progress(ceiling) {
     $('submitbtn').disabled = false
-    $('submitbtn').title = 'Cancel this send'
+    $('submitbtn').title = t('Cancel this send')
     $('submitbtn').classList.add('is-running')
+    ease = EASE_MS
     targetPct = ceiling
     paintProgress()
+  }
+
+  function uploaded(fraction) {
+    targetPct = Math.max(targetPct, Math.min(1, fraction) * UPLOAD_SHARE)
+  }
+
+  function converting() {
+    ease = CONVERT_EASE_MS
+    targetPct = CONVERT_TARGET
   }
 
   page.frame(() => {
@@ -952,7 +970,7 @@ onPage('send', (page) => {
 
     const gap = targetPct - shownPct
     if (gap < 0.01) return
-    const eased = gap * (1 - Math.exp(-elapsed / EASE_MS))
+    const eased = gap * (1 - Math.exp(-elapsed / ease))
     shownPct += Math.min(eased, (MAX_RATE * elapsed) / 1000)
     paintProgress()
   })
@@ -975,6 +993,7 @@ onPage('send', (page) => {
       shownPct = 0
       targetPct = 0
       lastFrame = 0
+      ease = EASE_MS
       walk = null
     } else {
       $('submitbtn').classList.remove('is-running')
@@ -1006,23 +1025,17 @@ onPage('send', (page) => {
     appendLayoutSettings(body)
     body.append('hold', 'on')
 
-    progress(65)
-    inFlight = new AbortController()
+    progress(0)
+    const call = SendLogic.postWithProgress('/upload', body, {
+      headers: await csrfHeaders(),
+      onUpload: (fraction) => {
+        uploaded(fraction)
+        if (fraction >= 1) converting()
+      },
+    })
+    inFlight = { abort: call.abort }
 
-    let result
-    try {
-      const res = await fetch('/upload', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: await csrfHeaders(),
-        body,
-        signal: inFlight.signal,
-      })
-      progress(92)
-      result = { ok: res.ok, data: await res.json().catch(() => null) }
-    } catch (err) {
-      result = { ok: false, aborted: err?.name === 'AbortError', data: null, network: true }
-    }
+    const result = await call.done
 
     inFlight = null
     if (!page.alive) return
@@ -1041,7 +1054,12 @@ onPage('send', (page) => {
       state.phase = 'idle'
       sending(false)
       renderSend()
-      failed(result.network ? 'transfer' : 'convert', result.data?.error)
+      failed(
+        result.network ? 'transfer' : result.data?.tool ? 'convert' : 'refused',
+        result.data?.error || result.data?.message,
+        result.data?.detail,
+        result.data?.tool
+      )
       return
     }
 
@@ -1106,7 +1124,9 @@ onPage('send', (page) => {
   function done(data) {
     show($('donepanel'), true)
     const sync = state.method === 'sync'
-    $('doneTitle').textContent = sync ? 'Waiting for your Kobo' : `On ${state.paired.label}`
+    $('doneTitle').textContent = sync
+      ? t('Waiting for your Kobo')
+      : t('On {device}', { device: state.paired.label })
 
     $('doneText').replaceChildren()
     const name = document.createElement('span')
@@ -1114,9 +1134,10 @@ onPage('send', (page) => {
     name.textContent = data.filename
     $('doneText').append(
       name,
+      ' ',
       sync
-        ? ` is queued at your sync endpoint. It arrives at the next sync and stays available for ${queueHours().toLowerCase()}, or until the device downloads it — whichever comes first.`
-        : ' is ready to download. Tap the entry on the key page to save it.'
+        ? t('is queued at your sync endpoint, waiting up to {time}.', { time: queueHours() })
+        : t('is ready to download. Tap the entry on the key page to save it.')
     )
 
     History.add({
@@ -1125,6 +1146,7 @@ onPage('send', (page) => {
       destination: sync ? device()?.label || 'Kobo sync' : state.paired.label,
       format: outcome().label,
       size: state.file.size,
+      bookId: data.kept?.kept ? data.kept.id : null,
     })
 
     const line = SendLogic.keptLine(data.kept, 'send')
@@ -1133,19 +1155,41 @@ onPage('send', (page) => {
     $('doneKept').textContent = line?.text ?? ''
   }
 
-  function failed(kind, error) {
+  function failed(kind, error, detail, toolName) {
     show($('errorpanel'), true)
-    const where = state.method === 'sync' ? 'Kobo' : SendLogic.label(state.paired.device) || 'eReader'
-    const tool = outcome().via[0] || 'calibre'
+    const where =
+      state.method === 'sync' ? 'Kobo' : SendLogic.label(state.paired.device) || t('eReader')
+    const tool = toolName || outcome().via[0] || 'calibre'
 
-    $('errorTitle').textContent = kind === 'transfer' ? 'Transfer interrupted' : 'Conversion failed'
+    $('errorTitle').textContent =
+      kind === 'transfer'
+        ? t('Transfer interrupted')
+        : kind === 'refused'
+          ? t('Not sent')
+          : t('Conversion failed')
     $('errorText').textContent =
       kind === 'transfer'
-        ? `The upload stopped partway through and nothing reached your ${where}. The file was never written to disk.`
-        : `${tool} could not read ${state.file.name} — it looks truncated. Nothing was sent to your ${where}.`
+        ? t('The upload stopped partway; nothing reached your {where}.', { where })
+        : kind === 'refused'
+          ? t('{error}. Nothing was sent to your {where}.', {
+              error: error || t('The server did not accept this file'),
+              where,
+            })
+          : error
+            ? t('{tool} could not convert {filename} — {error}. Nothing was sent to your {where}.', {
+                tool,
+                filename: state.file.name,
+                error,
+                where,
+              })
+            : t('{tool} could not convert {filename}. Nothing was sent to your {where}.', {
+                tool,
+                filename: state.file.name,
+                where,
+              })
 
-    show($('errorLog'), Boolean(error))
-    if (error) $('errorLog').textContent = error
+    show($('errorLog'), Boolean(detail))
+    if (detail) $('errorLog').textContent = detail
 
     show($('sendRaw'), state.target !== 'none' && state.method !== 'sync')
 
@@ -1252,14 +1296,14 @@ onPage('send', (page) => {
     zone.addEventListener(type, (e) => {
       e.preventDefault()
       zone.classList.add('is-dragging')
-      $('dzLabel').textContent = 'Let go to load it'
+      $('dzLabel').textContent = t('Let go to load it')
     })
   }
   for (const type of ['dragleave', 'drop']) {
     zone.addEventListener(type, (e) => {
       e.preventDefault()
       zone.classList.remove('is-dragging')
-      $('dzLabel').textContent = "Or drag and drop like it's hot"
+      $('dzLabel').textContent = t("Or drag and drop like it's hot")
       if (type === 'drop') setFile(e.dataTransfer?.files[0])
     })
   }
@@ -1336,12 +1380,14 @@ onPage('send', (page) => {
 
   function draw() {
     if (state.devices.length) {
-      $('syncNote').textContent = 'No key. It waits for the next sync, up to a day.'
       state.deviceId = state.devices[0].id
+      $('syncNote').textContent = syncable()
+        ? t('No key. It waits for the next sync, up to a day.')
+        : t('Sync the Kobo once first, so something can wait for it.')
     } else if (state.signedIn && !state.verified) {
-      $('syncNote').textContent = 'Confirm your email address first. Do that in Settings →'
+      $('syncNote').textContent = t('Confirm your email address first. Do that in Settings →')
     } else if (state.signedIn) {
-      $('syncNote').textContent = 'Not set up yet — takes a minute. Set it up →'
+      $('syncNote').textContent = t('Not set up yet — takes a minute. Set it up →')
     }
     document.querySelector('.method[data-method="sync"]').classList.toggle(
       'is-cta',

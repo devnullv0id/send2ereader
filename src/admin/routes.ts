@@ -1,6 +1,11 @@
+import { createWriteStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { publicUrl } from '../config.js'
 import type { User } from '../db/repositories.js'
+import { decodeOriginalName, safeUnlink, tempFilePath } from '../files.js'
+import { i18n } from '../i18n.js'
+import { requestLanguage, say } from '../language.js'
 import {
   boundsFor,
   isLocked,
@@ -14,6 +19,14 @@ import {
 } from '../settings.js'
 import { backupContents, makeBackup } from './backup.js'
 import { detectContainer, restarter } from './restart.js'
+import {
+  discard as discardRestore,
+  request as requestRestore,
+  staged as stagedRestore,
+  stage as stageRestore,
+} from './restore.js'
+
+const RESTORE_LIMIT = 32 * 1024 * 1024 * 1024
 
 export function maskEmail(email: string): string {
   const at = email.lastIndexOf('@')
@@ -35,10 +48,10 @@ function requireAdmin(req: FastifyRequest, reply: FastifyReply): FastifyReply | 
   if (!user) {
     const wantsHtml = (req.headers.accept ?? '').includes('text/html')
     if (wantsHtml) return reply.redirect('/login?next=%2Fadmin')
-    return reply.code(401).send({ ok: false, error: 'Not signed in' })
+    return reply.code(401).send({ ok: false, error: say(req, 'Not signed in') })
   }
   if (!req.server.repos.users.canAdmin(user.id)) {
-    return reply.code(404).send({ ok: false, error: 'Not found' })
+    return reply.code(404).send({ ok: false, error: say(req, 'Not found') })
   }
   return undefined
 }
@@ -51,7 +64,7 @@ function addressPending(): boolean {
 
 const ADDRESS_KEYS = new Set(['DOMAIN', 'PROTOCOL'])
 
-function settingsPayload(app: FastifyInstance) {
+function settingsPayload(app: FastifyInstance, lang = 'en') {
   const names = new Map<string, string>()
   for (const user of app.repos.users.listAll()) {
     const named = `${user.firstName} ${user.lastName}`.trim()
@@ -63,26 +76,37 @@ function settingsPayload(app: FastifyInstance) {
     if (!change) return null
     return {
       at: change.at,
-      by: change.by ? (names.get(change.by) ?? 'an account since deleted') : 'the environment',
+      by: change.by
+        ? (names.get(change.by) ?? i18n.translate(lang, 'an account since deleted'))
+        : i18n.translate(lang, 'the environment'),
     }
   }
 
   return {
-    groups: SETTING_GROUPS,
+    groups: SETTING_GROUPS.map((group) => ({
+      id: group.id,
+      title: i18n.translate(lang, group.title),
+      intro: i18n.translate(lang, group.intro),
+    })),
     addressPending: addressPending(),
     runningAddress: publicUrl(),
     settings: SETTING_SPECS.map((spec) => ({
       key: spec.key,
       group: spec.group,
-      label: spec.label,
-      note: spec.note ?? '',
+      label: i18n.translate(lang, spec.label),
+      note: spec.note ? i18n.translate(lang, spec.note) : '',
       kind: spec.kind,
       min: boundsFor(spec).min,
       max: boundsFor(spec).max,
-      unit: spec.unit ?? '',
+      unit: spec.unit ? i18n.translate(lang, spec.unit) : '',
       placeholder: spec.placeholder ?? '',
       inlineWith: spec.inlineWith ?? '',
-      choices: spec.choices ?? null,
+      choices: spec.choices
+        ? spec.choices.map((choice) => ({
+            value: choice.value,
+            label: i18n.translate(lang, choice.label),
+          }))
+        : null,
       restart: spec.restart === true,
       locked: isLocked(spec.key),
       readOnly: isReadOnly(spec.key),
@@ -132,7 +156,8 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       ok: true,
       canRestart: restarter.canRestart,
       backup: backupContents(app.db),
-      ...settingsPayload(app),
+      restore: await stagedRestore(),
+      ...settingsPayload(app, requestLanguage(req)),
     })
   })
 
@@ -150,6 +175,72 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       .send(backup.stream)
   })
 
+  app.post('/api/admin/restore', async (req, reply) => {
+    const refused = requireAdmin(req, reply)
+    if (refused) return refused
+    if (!req.isMultipart()) {
+      return reply
+        .code(415)
+        .send({ ok: false, error: say(req, 'Expected a multipart/form-data body') })
+    }
+
+    const part = await req.file({ limits: { fileSize: RESTORE_LIMIT, files: 1 } })
+    if (!part) return reply.code(400).send({ ok: false, error: say(req, 'No archive selected') })
+
+    const temp = tempFilePath('.tar.gz')
+    await pipeline(part.file, createWriteStream(temp))
+    if (part.file.truncated) {
+      await safeUnlink(temp)
+      return reply
+        .code(413)
+        .send({ ok: false, error: say(req, 'That archive is too large to take') })
+    }
+
+    const name = decodeOriginalName(part.filename ?? 'backup.tar.gz')
+    if (!/\.tar\.gz$|\.tgz$/i.test(name)) {
+      await safeUnlink(temp)
+      return reply.code(415).send({
+        ok: false,
+        error: say(req, 'That is not a .tar.gz — use the archive this page downloads'),
+      })
+    }
+
+    const held = await stageRestore(name, temp)
+    req.log.warn({ by: req.user!.id, name, size: held.size }, 'An admin staged a restore')
+    return reply.send({ ok: true, staged: held })
+  })
+
+  app.delete('/api/admin/restore', async (req, reply) => {
+    const refused = requireAdmin(req, reply)
+    if (refused) return refused
+
+    await discardRestore()
+    req.log.warn({ by: req.user!.id }, 'An admin threw a staged restore away')
+    return reply.send({ ok: true, staged: null })
+  })
+
+  app.post('/api/admin/restore/confirm', async (req, reply) => {
+    const refused = requireAdmin(req, reply)
+    if (refused) return refused
+
+    const held = await stagedRestore()
+    if (!held) {
+      return reply.code(409).send({ ok: false, error: say(req, 'There is no archive waiting') })
+    }
+
+    await requestRestore(req.user!.id)
+    req.log.warn({ by: req.user!.id, name: held.name }, 'An admin confirmed a restore')
+
+    if (!restarter.canRestart) {
+      return reply.send({ ok: true, restarting: false })
+    }
+
+    reply.raw.once('finish', () => {
+      setTimeout(() => restarter.restart(), 100).unref()
+    })
+    return reply.send({ ok: true, restarting: true })
+  })
+
   app.post('/api/admin/restart', async (req, reply) => {
     const refused = requireAdmin(req, reply)
     if (refused) return refused
@@ -157,7 +248,10 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     if (!restarter.canRestart) {
       return reply.code(409).send({
         ok: false,
-        error: 'This server is not running in a container, so nothing would bring it back',
+        error: say(
+          req,
+          'This server is not running in a container, so nothing would bring it back'
+        ),
       })
     }
 
@@ -188,17 +282,20 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       if (refused) return refused
 
       const spec = specFor(req.body.key!)
-      if (!spec) return reply.code(404).send({ ok: false, error: 'No such setting' })
+      if (!spec) return reply.code(404).send({ ok: false, error: say(req, 'No such setting') })
       if (isLocked(spec.key)) {
-        return reply.code(409).send({ ok: false, error: 'That one is locked in the environment' })
-      }
-      if (isReadOnly(spec.key)) {
         return reply
           .code(409)
-          .send({ ok: false, error: `${spec.key} is set in the environment file, not from here` })
+          .send({ ok: false, error: say(req, 'That one is locked in the environment') })
+      }
+      if (isReadOnly(spec.key)) {
+        return reply.code(409).send({
+          ok: false,
+          error: say(req, '{key} is set in the environment, not from here', { key: spec.key }),
+        })
       }
 
-      const problem = problemWith(spec, req.body.value!)
+      const problem = problemWith(spec, req.body.value!, requestLanguage(req))
       if (problem) return reply.code(400).send({ ok: false, error: problem })
 
       const movesAddress = ADDRESS_KEYS.has(spec.key) && req.body.value !== settings.raw(spec.key)
@@ -207,7 +304,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       if (holders.length > 0 && req.body.passkeysUnderstood !== true) {
         return reply.code(409).send({
           ok: false,
-          error: 'Changing the address invalidates every passkey on this server',
+          error: say(req, 'Changing the address invalidates every passkey on this server'),
           passkeysAffected: holders.length,
           needsPasskeyConfirmation: true,
         })
@@ -225,7 +322,7 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
         )
       }
       req.log.warn({ key: spec.key, by: req.user!.id }, 'An admin changed a setting')
-      return reply.send({ ok: true, ...settingsPayload(app) })
+      return reply.send({ ok: true, ...settingsPayload(app, requestLanguage(req)) })
     }
   )
 
@@ -234,19 +331,22 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     if (refused) return refused
 
     const spec = specFor(req.params.key)
-    if (!spec) return reply.code(404).send({ ok: false, error: 'No such setting' })
+    if (!spec) return reply.code(404).send({ ok: false, error: say(req, 'No such setting') })
     if (isLocked(spec.key)) {
-      return reply.code(409).send({ ok: false, error: 'That one is locked in the environment' })
-    }
-    if (isReadOnly(spec.key)) {
       return reply
         .code(409)
-        .send({ ok: false, error: `${spec.key} is set in the environment file, not from here` })
+        .send({ ok: false, error: say(req, 'That one is locked in the environment') })
+    }
+    if (isReadOnly(spec.key)) {
+      return reply.code(409).send({
+        ok: false,
+        error: say(req, '{key} is set in the environment, not from here', { key: spec.key }),
+      })
     }
 
     settings.clear(spec.key)
     req.log.warn({ key: spec.key, by: req.user!.id }, 'An admin reset a setting to the environment')
-    return reply.send({ ok: true, ...settingsPayload(app) })
+    return reply.send({ ok: true, ...settingsPayload(app, requestLanguage(req)) })
   })
 
   app.get('/api/admin/users', async (req, reply) => {
@@ -277,10 +377,12 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       if (refused) return refused
 
       const target = app.repos.users.byId(req.params.id)
-      if (!target) return reply.code(404).send({ ok: false, error: 'No such account' })
+      if (!target) return reply.code(404).send({ ok: false, error: say(req, 'No such account') })
 
       if (!app.repos.users.setAdmin(target.id, req.body.isAdmin === true)) {
-        return reply.code(409).send({ ok: false, error: 'The first account always keeps admin' })
+        return reply
+          .code(409)
+          .send({ ok: false, error: say(req, 'The first account always keeps admin') })
       }
 
       req.log.warn(
@@ -296,15 +398,17 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
     if (refused) return refused
 
     const target = app.repos.users.byId(req.params.id)
-    if (!target) return reply.code(404).send({ ok: false, error: 'No such account' })
+    if (!target) return reply.code(404).send({ ok: false, error: say(req, 'No such account') })
 
     if (target.id === req.user!.id) {
       return reply
         .code(409)
-        .send({ ok: false, error: 'Delete your own account in Settings, not here' })
+        .send({ ok: false, error: say(req, 'Delete your own account in Settings, not here') })
     }
     if (app.repos.users.isFounder(target.id)) {
-      return reply.code(409).send({ ok: false, error: 'The first account cannot be deleted here' })
+      return reply
+        .code(409)
+        .send({ ok: false, error: say(req, 'The first account cannot be deleted here') })
     }
 
     for (const device of app.repos.devices.listForUser(target.id)) {

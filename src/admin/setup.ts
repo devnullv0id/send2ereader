@@ -1,11 +1,13 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { issuerFromConfigUrl, REDIRECT_PATH } from '../auth/oidc.js'
 import { publicUrl } from '../config.js'
+import { requestLanguage, say } from '../language.js'
+import { smtpProblem } from '../mail/index.js'
 import { setupTestEmail } from '../mail/template.js'
 import { settings } from '../settings.js'
 import { restarter } from './restart.js'
 
-export const SETUP_DONE = 'setup_done'
+const SETUP_DONE = 'setup_done'
 
 const DISCOVERY_TIMEOUT_MS = 8000
 
@@ -14,15 +16,15 @@ function requireSetupAdmin(req: FastifyRequest, reply: FastifyReply): FastifyRep
   if (!user) {
     const wantsHtml = (req.headers.accept ?? '').includes('text/html')
     if (wantsHtml) return reply.redirect('/login?next=%2Fsetup%2Fstart')
-    return reply.code(401).send({ ok: false, error: 'Not signed in' })
+    return reply.code(401).send({ ok: false, error: say(req, 'Not signed in') })
   }
   if (!req.server.repos.users.canAdmin(user.id)) {
-    return reply.code(404).send({ ok: false, error: 'Not found' })
+    return reply.code(404).send({ ok: false, error: say(req, 'Not found') })
   }
   return undefined
 }
 
-export function setupDone(app: FastifyInstance): boolean {
+function setupDone(app: FastifyInstance): boolean {
   return app.repos.meta.flag(SETUP_DONE)
 }
 
@@ -61,9 +63,10 @@ export async function setupRoutes(app: FastifyInstance): Promise<void> {
 
     const configUrl = settings.str('OIDC_CONFIG_URL').trim()
     if (!configUrl) {
-      return reply
-        .code(409)
-        .send({ ok: false, error: 'There is no discovery document to ask. Fill that in first.' })
+      return reply.code(409).send({
+        ok: false,
+        error: say(req, 'There is no discovery document to ask. Fill that in first.'),
+      })
     }
 
     const url = `${issuerFromConfigUrl(configUrl)}/.well-known/openid-configuration`
@@ -74,16 +77,24 @@ export async function setupRoutes(app: FastifyInstance): Promise<void> {
         signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
       })
       if (!res.ok) {
-        return reply
-          .code(502)
-          .send({ ok: false, error: `${url} answered ${res.status}, not a discovery document` })
+        return reply.code(502).send({
+          ok: false,
+          error: say(req, '{url} answered {status}, not a discovery document', {
+            url,
+            status: res.status,
+          }),
+        })
       }
       doc = (await res.json()) as Record<string, unknown>
     } catch (err) {
       req.log.warn({ err, url }, 'The provider did not answer')
-      return reply
-        .code(502)
-        .send({ ok: false, error: `Could not reach ${url}: ${(err as Error).message}` })
+      return reply.code(502).send({
+        ok: false,
+        error: say(req, 'Could not reach {url}: {message}', {
+          url,
+          message: (err as Error).message,
+        }),
+      })
     }
 
     const missing = ['issuer', 'authorization_endpoint', 'token_endpoint', 'jwks_uri'].filter(
@@ -92,7 +103,9 @@ export async function setupRoutes(app: FastifyInstance): Promise<void> {
     if (missing.length > 0) {
       return reply.code(502).send({
         ok: false,
-        error: `That answered, but it is not a complete provider: no ${missing.join(', ')}.`,
+        error: say(req, 'That answered, but it is not a complete provider: no {missing}.', {
+          missing: missing.join(', '),
+        }),
       })
     }
 
@@ -111,18 +124,21 @@ export async function setupRoutes(app: FastifyInstance): Promise<void> {
     if (!settings.bool('SMTP_ENABLED')) {
       return reply.code(409).send({
         ok: false,
-        error: 'Mail is off, so there is nothing to test. Turn it on first.',
+        error: say(req, 'Mail is off, so there is nothing to test. Turn it on first.'),
       })
     }
 
+    const missing = smtpProblem()
+    if (missing) return reply.code(409).send({ ok: false, error: say(req, missing) })
+
     const to = req.user!.email
     try {
-      await app.mailer.send({ to, ...setupTestEmail(publicUrl()) })
+      await app.mailer.send({ to, ...setupTestEmail(publicUrl(), requestLanguage(req)) })
     } catch (err) {
       req.log.warn({ err }, 'The test message did not go out')
       return reply.code(502).send({
         ok: false,
-        error: (err as Error).message || 'The mail server would not take it',
+        error: (err as Error).message || say(req, 'The mail server would not take it'),
       })
     }
     return reply.send({ ok: true, to })

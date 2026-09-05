@@ -62,7 +62,10 @@ export async function downloadRoutes(app: FastifyInstance): Promise<void> {
     return reply.page('convert.html')
   })
 
-  app.get('/history', async (_req, reply) => reply.page('history.html'))
+  app.get('/history', async (req, reply) => {
+    if (needsSetup(req.headers['user-agent'])) return reply.redirect('/setup')
+    return reply.page('history.html')
+  })
 
   app.get('/waiting', async (_req, reply) => {
     if (!app.hasDecorator('auth')) return reply.callNotFound()

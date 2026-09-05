@@ -81,14 +81,18 @@ export interface Backup {
   filename: string
 }
 
-export async function makeBackup(db: Db, when: Date): Promise<Backup> {
+export async function makeBackup(
+  db: Db,
+  when: Date,
+  libraryDir: string = config.library.dir
+): Promise<Backup> {
   const staging = await mkdtemp(join(tmpdir(), 's2e-backup-'))
   const copy = join(staging, 'send2ereader.db')
   db.exec(`VACUUM INTO '${copy.replace(/'/g, "''")}'`)
 
   const entries: BackupEntry[] = [{ name: 'db/send2ereader.db', path: copy }]
-  for await (const path of walk(config.library.dir)) {
-    entries.push({ name: join('library', relative(config.library.dir, path)), path })
+  for await (const path of walk(libraryDir)) {
+    entries.push({ name: join('library', relative(libraryDir, path)), path })
   }
 
   const stream = Readable.from(archive(entries)).pipe(createGzip())

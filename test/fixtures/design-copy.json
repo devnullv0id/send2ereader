@@ -18,7 +18,7 @@
     },
     {
       "line": 841,
-      "text": "Good for 15 minutes, one use. Nothing to remember and nothing to leak."
+      "text": "Good for 15 minutes, one use."
     },
     {
       "line": 816,
@@ -76,7 +76,7 @@
     },
     {
       "line": 155,
-      "text": ". Keys change every time the page loads — reload it and read the new one."
+      "text": ". Keys change every load — reload and read the new one."
     },
     {
       "line": 205,
@@ -112,7 +112,7 @@
     },
     {
       "line": 123,
-      "text": "The endpoint exists, but nothing has connected to it. Sync once from the device and it shows up here."
+      "text": "Sync once from the device and it shows up here."
     },
     {
       "line": 336,
@@ -126,7 +126,7 @@
     },
     {
       "line": 190,
-      "text": "Keys live five minutes, and only while the page is on screen. Reload it on your ereader for a fresh one."
+      "text": "Keys live five minutes — reload your ereader for a fresh one."
     },
     {
       "line": 191,
@@ -134,7 +134,7 @@
     },
     {
       "line": 180,
-      "text": "The characters change every time the page loads. Reload it on your ereader and read the new ones."
+      "text": "Reload the page on your ereader and read the new characters."
     },
     {
       "line": 181,
@@ -290,11 +290,11 @@
     },
     {
       "line": 476,
-      "text": "Give it another go"
+      "text": "Try again"
     },
     {
       "line": 477,
-      "text": "Try a different file"
+      "text": "Pick another file"
     },
     {
       "line": 489,
@@ -302,10 +302,6 @@
     }
   ],
   "static/convert.js": [
-    {
-      "line": 473,
-      "text": "Nothing was written. The file looks cut short."
-    },
     {
       "line": 1931,
       "text": "Pick a file to convert"
@@ -372,7 +368,7 @@
   "static/history.html": [
     {
       "line": 496,
-      "text": "Stored in this browser only. The server keeps no record of what you sent."
+      "text": "Stored in this browser only; the server keeps no record."
     },
     {
       "line": 496,
@@ -398,7 +394,7 @@
     },
     {
       "line": 518,
-      "text": "Books queued at your sync endpoint. Each is deleted the moment your Kobo takes it, or after 24 hours."
+      "text": "Queued for your Kobo, dropped once taken or after 24 hours."
     },
     {
       "line": 519,
@@ -580,7 +576,7 @@
     },
     {
       "line": 2029,
-      "text": "Combines your requests with requests from the Rakuten Kobo Store, so users can still access purchased books and get recommendations."
+      "text": "Purchased books and recommendations keep coming from the Kobo Store."
     },
     {
       "line": 919,
@@ -600,7 +596,7 @@
     },
     {
       "line": 944,
-      "text": "A name helps you tell them apart later. Your browser asks for the fingerprint or PIN next."
+      "text": "Your browser asks for the fingerprint or PIN next."
     },
     {
       "line": 947,
@@ -626,7 +622,7 @@
     },
     {
       "line": 1968,
-      "text": "This account signs in with emailed links, so there's no password yet. Set one if you'd rather type than wait for mail."
+      "text": "Sign-in is by emailed link; set a password if you'd rather type."
     },
     {
       "line": 1978,
@@ -684,7 +680,7 @@
     },
     {
       "line": 958,
-      "text": "Your defaults and Kobo sync stay on the account. This browser's send history is cleared, and anything waiting for your Kobo stays queued on the server."
+      "text": "Everything stays on the account. This browser's send history is cleared."
     },
     {
       "line": 961,

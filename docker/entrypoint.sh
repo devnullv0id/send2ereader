@@ -4,6 +4,35 @@ set -eu
 . /usr/local/lib/s2e/extensions-lib.sh
 
 S2E_TAG=entrypoint
+RESTART_MARK="${DATA_DIR:-/data}/restart-requested"
+
+serve() {
+    rm -f "$RESTART_MARK" 2>/dev/null || true
+    stopping=0
+    while :; do
+        "$@" &
+        child=$!
+        trap 'stopping=1; kill -TERM "$child" 2>/dev/null' TERM INT
+        set +e
+        wait "$child"
+        code=$?
+        while kill -0 "$child" 2>/dev/null; do
+            wait "$child"
+            code=$?
+        done
+        set -e
+        trap - TERM INT
+        if [ "$stopping" = 1 ]; then
+            exit "$code"
+        fi
+        if [ -f "$RESTART_MARK" ]; then
+            rm -f "$RESTART_MARK" 2>/dev/null || true
+            log "the server asked to be restarted — starting it again"
+            continue
+        fi
+        exit "$code"
+    done
+}
 
 if [ "$(id -u)" = "0" ]; then
     install_packages "${EXTENSION_PACKAGES:-}"
@@ -13,23 +42,20 @@ if [ "$(id -u)" = "0" ]; then
         install_extension "$name"
     done
     stage_kept_scripts
-    run_extension_scripts
+    queue_extension_scripts
 
-    for dir in /data /data/uploads /data/db /data/queue /data/library /opt/calibre-config "$S2E_STATE_DIR"; do
+    for dir in /data /data/uploads /data/db /data/queue /data/library /data/languages /opt/calibre-config "$S2E_STATE_DIR"; do
         [ -d "$dir" ] || mkdir -p "$dir"
     done
     chown -R "${RUN_AS_UID}:${RUN_AS_GID}" /data /opt/calibre-config 2>/dev/null || true
 
-    # Forked before the privilege drop below, so it keeps uid 0. setpriv replaces
-    # this process image rather than its children, so the agent outlives it and
-    # is the only thing left that can install anything once the server is up.
     S2E_TAG=agent /usr/local/bin/extension-agent &
 
-    exec setpriv --reuid="${RUN_AS_UID}" --regid="${RUN_AS_GID}" --init-groups --inh-caps=-all -- "$@"
+    serve setpriv --reuid="${RUN_AS_UID}" --regid="${RUN_AS_GID}" --init-groups --inh-caps=-all -- "$@"
 fi
 
 if [ -n "${EXTENSIONS:-}${EXTENSION_PACKAGES:-}" ]; then
     log "EXTENSIONS needs the container to start as root; ignoring them"
 fi
 
-exec "$@"
+serve "$@"

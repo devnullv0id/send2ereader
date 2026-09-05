@@ -382,6 +382,76 @@ const OVERRIDES: { was: string; now: string; why: string }[] = [
     now: 'Cancelling deletes the file from the server. If the device already collected it, that copy stays.',
     why: 'asked for: the same pass that cut the configuration screens. What happens, in a sentence, with the reasoning left to the commit',
   },
+  {
+    was: 'Nothing was written. The file looks cut short.',
+    now: 'Nothing was written, followed by whatever the server said went wrong',
+    why: 'not asked for, and the only override here that contradicts the design rather than shortening it: the sentence states a cause the page cannot know, and the common case is not truncation at all — a comic calibre will not read, a DRM-locked file, a format the converter refuses. It now repeats what the server said and puts what the converter itself said in the log below, which is what that <pre> was always for. CONVERSION_OUTPUT_LIMIT already existed to keep that output "for the error message" and it only ever reached the server log',
+  },
+  {
+    was: 'Give it another go',
+    now: 'Try again',
+    why: 'asked for: one button convention everywhere. Send and Convert had the same error panel with two different label pairs, and the shorter pair wins',
+  },
+  {
+    was: 'Try a different file',
+    now: 'Pick another file',
+    why: 'asked for: one button convention everywhere. This is the label the Send page already uses for the same action in the same panel',
+  },
+  {
+    was: 'Good for 15 minutes, one use. Nothing to remember and nothing to leak.',
+    now: 'Good for 15 minutes, one use.',
+    why: 'asked for: one short sentence per note. The facts stay; the sales half goes',
+  },
+  {
+    was: '. Keys change every time the page loads — reload it and read the new one.',
+    now: '. Keys change every load — reload and read the new one.',
+    why: 'asked for: one short sentence per note, same instruction in fewer words',
+  },
+  {
+    was: 'The endpoint exists, but nothing has connected to it. Sync once from the device and it shows up here.',
+    now: 'Sync once from the device and it shows up here.',
+    why: 'asked for: one short sentence per note. The remedy is the message; the preamble restated the panel title',
+  },
+  {
+    was: 'Keys live five minutes, and only while the page is on screen. Reload it on your ereader for a fresh one.',
+    now: 'Keys live five minutes — reload your ereader for a fresh one.',
+    why: 'asked for: one short sentence per note, fact plus remedy in one line',
+  },
+  {
+    was: 'The characters change every time the page loads. Reload it on your ereader and read the new ones.',
+    now: 'Reload the page on your ereader and read the new characters.',
+    why: 'asked for: one short sentence per note. The remedy carries the fact with it',
+  },
+  {
+    was: 'Stored in this browser only. The server keeps no record of what you sent.',
+    now: 'Stored in this browser only; the server keeps no record.',
+    why: 'asked for: one short sentence per note, both facts kept in one clause pair',
+  },
+  {
+    was: 'Books queued at your sync endpoint. Each is deleted the moment your Kobo takes it, or after 24 hours.',
+    now: 'Queued for your Kobo, dropped once taken or after 24 hours.',
+    why: 'asked for: one short sentence per note. The waiting.js template with the live hours changes in the same commit',
+  },
+  {
+    was: 'Combines your requests with requests from the Rakuten Kobo Store, so users can still access purchased books and get recommendations.',
+    now: 'Purchased books and recommendations keep coming from the Kobo Store.',
+    why: 'asked for: one short sentence per note, said from what the user keeps rather than how it works',
+  },
+  {
+    was: 'A name helps you tell them apart later. Your browser asks for the fingerprint or PIN next.',
+    now: 'Your browser asks for the fingerprint or PIN next.',
+    why: 'asked for: one short sentence per note. What happens next is the useful half',
+  },
+  {
+    was: "This account signs in with emailed links, so there's no password yet. Set one if you'd rather type than wait for mail.",
+    now: "Sign-in is by emailed link; set a password if you'd rather type.",
+    why: 'asked for: one short sentence per note, state plus offer in one line',
+  },
+  {
+    was: "Your defaults and Kobo sync stay on the account. This browser's send history is cleared, and anything waiting for your Kobo stays queued on the server.",
+    now: "Everything stays on the account. This browser's send history is cleared.",
+    why: 'asked for: one short sentence per note, with the one consequence line a confirm dialog may keep',
+  },
 ]
 
 function normalise(text: string): string {

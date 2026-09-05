@@ -14,21 +14,7 @@ onPage('setup-wizard', async (page) => {
     canRestart: false,
     runningAddress: '',
     schemeTouched: false,
-  }
-
-  async function send(url, options = {}) {
-    try {
-      const headers = await csrfHeaders(options.headers)
-      const res = await fetch(url, { credentials: 'same-origin', ...options, headers })
-      let data = null
-      try {
-        data = await res.json()
-      } catch {
-      }
-      return { ok: res.ok, status: res.status, data }
-    } catch {
-      return { ok: false, status: 0, data: null }
-    }
+    proxyOn: false,
   }
 
   const asJson = (body) => ({
@@ -53,8 +39,10 @@ onPage('setup-wizard', async (page) => {
 
   const extToggles = [...document.querySelectorAll('[data-ext]')]
   const wanted = new Set()
+  const already = new Map()
   const EXT_ORDER = ['calibre', 'pdfcrop', 'kfx']
-  const EXT_LABEL = { calibre: 'calibre', pdfcrop: 'PDF cropping', kfx: 'KFX' }
+  const EXT_LABEL = { calibre: 'calibre', pdfcrop: t('PDF cropping'), kfx: 'KFX' }
+  const settled = (id) => already.has(id)
 
   const on = (key) => state.values[key] === 'true'
 
@@ -72,27 +60,45 @@ onPage('setup-wizard', async (page) => {
       el.querySelector('.toggle').classList.toggle('is-on', on(el.dataset.key))
     }
     paintExtensions()
+    $('wizProxyToggle').querySelector('.toggle').classList.toggle('is-on', state.proxyOn)
+    $('proxyFields').hidden = !state.proxyOn
     $('mailFields').hidden = !on('SMTP_ENABLED')
     $('ssoFields').hidden = !on('OIDC_ENABLED')
-    $('ssoRedirect').textContent =
-      `The redirect your provider needs on file is ${addressNow()}/auth/sso/callback.`
+    $('ssoRedirect').textContent = t('The redirect your provider needs on file is {url}.', {
+      url: `${addressNow()}/auth/sso/callback`,
+    })
     renderSummaries()
   }
 
-  // Ticking nothing and not having answered look the same, so the step is only
-  // passable once one of them is on — including the one that says "nothing".
   function paintExtensions() {
-    const kfxNeedsCalibre = wanted.has('kfx') && !wanted.has('calibre')
+    const kfxNeedsCalibre = wanted.has('kfx') && !wanted.has('calibre') && !settled('calibre')
     if (kfxNeedsCalibre) wanted.add('calibre')
 
     for (const el of extToggles) {
-      el.querySelector('.toggle').classList.toggle('is-on', wanted.has(el.dataset.ext))
-    }
-    $('wizKfxDesc').textContent = wanted.has('kfx')
-      ? 'The format a modern Kindle prefers. calibre is ticked too, because KFX cannot work without it. Amazon\u2019s Kindle Previewer runs under Wine here. About 3GB and up to twenty minutes.'
-      : 'The format a modern Kindle prefers. Needs calibre, and Amazon\u2019s Kindle Previewer running under Wine. About 3GB and up to twenty minutes.'
+      const id = el.dataset.ext
+      const here = already.get(id)
+      el.querySelector('.toggle').classList.toggle('is-on', wanted.has(id) || Boolean(here))
+      el.disabled = id === 'none' ? already.size > 0 : Boolean(here) || state.agentless
 
-    $('extNext').disabled = wanted.size === 0
+      const mark = el.querySelector('[data-ext-mark]')
+      if (mark) {
+        mark.textContent = here === 'pending' ? t('INSTALLING NOW') : here ? t('INSTALLED') : ''
+        mark.hidden = !here
+      }
+    }
+
+    $('wizNoneDesc').textContent = state.agentless
+      ? t('Only the Docker image can install converters; this server runs without it.')
+      : already.size > 0
+        ? t('Something is installed already; removing is under Admin \u2192 Converters.')
+        : t('EPUB and KEPUB only; install any of these later.')
+
+    $('wizKfxDesc').textContent =
+      wanted.has('kfx') && wanted.has('calibre')
+        ? t('The modern Kindle format. calibre is ticked too \u2014 KFX cannot work without it.')
+        : t('The modern Kindle format. Needs calibre and Amazon\u2019s Previewer; about 3GB.')
+
+    $('extNext').disabled = !state.agentless && wanted.size === 0 && already.size === 0
   }
 
   for (const el of extToggles) {
@@ -115,16 +121,17 @@ onPage('setup-wizard', async (page) => {
     })
   }
 
-  // Asked for, not waited for: calibre alone is minutes, and KFX can be twenty.
-  // The queue keeps them in order and the Converters page shows the progress.
   async function askForExtensions() {
-    const asked = EXT_ORDER.filter((id) => wanted.has(id))
+    const asked = EXT_ORDER.filter((id) => wanted.has(id) && !settled(id))
     if (asked.length === 0) return true
 
     for (const id of asked) {
       const result = await send(`/api/admin/extensions/${id}`, { method: 'POST' })
       if (!result.ok && result.status !== 409) {
-        notice('Not started', result.data?.error || `The server would not fetch ${EXT_LABEL[id]}.`)
+        notice(
+          t('Not started'),
+          result.data?.error || t('The server would not fetch {label}.', { label: EXT_LABEL[id] })
+        )
         return false
       }
     }
@@ -138,12 +145,22 @@ onPage('setup-wizard', async (page) => {
   }
 
   function schemeFor(host) {
-    const bare = host.trim().replace(/^\[|\]$/g, '')
+    const bare = host.trim().replace(/:\d{1,5}$/, '')
     if (!bare) return null
+    if (/^\[.*\]$/.test(bare)) return 'http'
     if (/^\d{1,3}(\.\d{1,3}){3}$/.test(bare)) return 'http'
-    if (bare.includes(':')) return 'http'
     if (!bare.includes('.')) return 'http'
     return 'https'
+  }
+
+  function tidyDomain(typed) {
+    const found = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/(.*)$/.exec(typed.trim())
+    const scheme = found ? found[1].toLowerCase() : null
+    const rest = (found ? found[2] : typed).trim()
+    return {
+      host: rest.split(/[/?#\\]/)[0],
+      scheme: scheme === 'http' || scheme === 'https' ? scheme : null,
+    }
   }
 
   $('wizProtocol').addEventListener('change', () => {
@@ -151,12 +168,50 @@ onPage('setup-wizard', async (page) => {
   })
 
   $('wizDomain').addEventListener('input', () => {
-    if (!state.schemeTouched) {
+    const tidied = tidyDomain($('wizDomain').value)
+    if (tidied.host !== $('wizDomain').value) $('wizDomain').value = tidied.host
+
+    if (tidied.scheme) {
+      $('wizProtocol').value = tidied.scheme
+      state.schemeTouched = true
+    } else if (!state.schemeTouched) {
       const guess = schemeFor($('wizDomain').value)
       if (guess) $('wizProtocol').value = guess
     }
     $('addressHint').textContent = hintForAddress()
   })
+
+  const OFF_WORDS = ['', '0', 'false', 'no', 'off', 'none']
+  const ON_WORDS = ['1', 'true', 'yes', 'on']
+
+  $('wizProxyToggle').addEventListener('click', async () => {
+    if (!state.proxyOn) {
+      state.proxyOn = true
+      paint()
+      $('wizProxyAddr').focus()
+      return
+    }
+
+    state.proxyOn = false
+    $('wizProxyAddr').value = ''
+    paint()
+    if (!OFF_WORDS.includes((state.values.TRUST_PROXY ?? '').toLowerCase())) {
+      await put('TRUST_PROXY', 'false')
+    }
+  })
+
+  async function saveProxy(msg) {
+    const typed = $('wizProxyAddr').value.trim()
+    const value = state.proxyOn ? typed : 'false'
+
+    if (state.proxyOn && typed === '') {
+      msg.classList.add('is-error')
+      msg.textContent = t("Give the proxy's address, or switch it off.")
+      return false
+    }
+    if (value === (state.values.TRUST_PROXY ?? '')) return true
+    return await put('TRUST_PROXY', value)
+  }
 
   $('wizUseCurrent').addEventListener('click', () => {
     $('wizProtocol').value = location.protocol === 'https:' ? 'https' : 'http'
@@ -165,15 +220,25 @@ onPage('setup-wizard', async (page) => {
     $('addressHint').textContent = hintForAddress()
   })
 
+  // The relying party a passkey binds to is the host without the port, so a name with a port still holds one and an IP never does.
   function hintForAddress() {
     const domain = ($('wizDomain').value || '').trim()
     if (!domain) {
-      return 'A name, not an address and not a URL. Leave it empty on a laptop and the server calls itself by its listen address.'
+      return t('A name, not an address. Empty uses the listen address.')
+    }
+
+    const links = t('Links will read {address}.', {
+      address: `${$('wizProtocol').value}://${domain}`,
+    })
+    if (domain.replace(/:\d{1,5}$/, '') === 'localhost') {
+      return t('{links} Passkeys work — a browser trusts localhost without https.', { links })
     }
     if (schemeFor(domain) === 'http') {
-      return 'That is an address, not a name. It works, but no browser will hold a passkey for it, whatever certificate is on it.'
+      return t('{links} An address, not a name — no browser holds a passkey for it.', { links })
     }
-    return `Links will read ${$('wizProtocol').value}://${domain}. Passkeys will work if that is served over https.`
+    return $('wizProtocol').value === 'https'
+      ? t('{links} Passkeys work once that is really served over https.', { links })
+      : t('{links} Passkeys need https and stay unavailable on http.', { links })
   }
 
   const SECURITY_PORT = { starttls: '587', ssl: '465', none: '25' }
@@ -205,7 +270,7 @@ onPage('setup-wizard', async (page) => {
       state.values[key] = value
       return true
     }
-    notice('Not saved', result.data?.error || `The server refused ${key}.`)
+    notice(t('Not saved'), result.data?.error || t('The server refused {key}.', { key }))
     return false
   }
 
@@ -225,11 +290,13 @@ onPage('setup-wizard', async (page) => {
       if (value === (state.values[key] ?? '')) continue
       if (!(await put(key, value))) {
         msg.classList.add('is-error')
-        msg.textContent = 'Nothing past this point was saved.'
+        msg.textContent = t('Nothing past this point was saved.')
         return false
       }
       if (gone()) return false
     }
+
+    if (n === 1) return await saveProxy(msg)
     return true
   }
 
@@ -239,18 +306,18 @@ onPage('setup-wizard', async (page) => {
 
     const msg = $('mailTestMsg')
     msg.className = 'save-row__msg'
-    msg.textContent = 'Sending…'
+    msg.textContent = t('Sending…')
 
     const result = await send('/api/setup/mail/test', { method: 'POST' })
     if (gone()) return
 
     if (!result.ok) {
       msg.classList.add('is-error')
-      msg.textContent = result.data?.error || 'It would not go out.'
+      msg.textContent = result.data?.error || t('It would not go out.')
       return
     }
     msg.classList.add('is-ok')
-    msg.textContent = `Sent to ${result.data.to}. If it arrives, mail works.`
+    msg.textContent = t('Sent to {email}. If it arrives, mail works.', { email: result.data.to })
   })
 
   $('ssoTest').addEventListener('click', async () => {
@@ -259,20 +326,22 @@ onPage('setup-wizard', async (page) => {
 
     const msg = $('ssoTestMsg')
     msg.className = 'save-row__msg'
-    msg.textContent = 'Asking…'
+    msg.textContent = t('Asking…')
 
     const result = await send('/api/setup/sso/test', { method: 'POST' })
     if (gone()) return
 
     if (!result.ok) {
       msg.classList.add('is-error')
-      msg.textContent = result.data?.error || 'It did not answer.'
+      msg.textContent = result.data?.error || t('It did not answer.')
       return
     }
     msg.classList.add('is-ok')
     msg.textContent = result.data.clientIdSet
-      ? `${result.data.issuer} answered. Give it the redirect below and it is done.`
-      : `${result.data.issuer} answered, but there is no client ID here yet.`
+      ? t('{issuer} answered. Give it the redirect below and it is done.', {
+          issuer: result.data.issuer,
+        })
+      : t('{issuer} answered, but there is no client ID here yet.', { issuer: result.data.issuer })
   })
 
   for (const button of document.querySelectorAll('[data-next]')) {
@@ -356,30 +425,36 @@ onPage('setup-wizard', async (page) => {
     })
   }
 
-  function badge(el, done, current, text) {
-    el.className = `step__badge${done ? ' is-complete' : current ? ' is-current' : ''}`
-    el.textContent = done ? '✓' : text
-  }
-
   const VALUES = {
     1: () => {
       const domain = state.values.DOMAIN
-      return domain ? `${state.values.PROTOCOL}://${domain}` : 'The listen address'
+      return domain ? `${state.values.PROTOCOL}://${domain}` : t('The listen address')
     },
     2: () => {
-      if (!on('SMTP_ENABLED')) return 'Off — messages go to the log'
+      if (!on('SMTP_ENABLED')) return t('Off — messages go to the log')
       const host = state.values.SMTP_HOST
-      return host ? `${host}:${state.values.SMTP_PORT}` : 'On, but no server given yet'
+      return host ? `${host}:${state.values.SMTP_PORT}` : t('On, but no server given yet')
     },
-    3: () => (on('OIDC_ENABLED') ? state.values.OIDC_PROVIDER_NAME || 'On' : 'Off'),
+    3: () => (on('OIDC_ENABLED') ? state.values.OIDC_PROVIDER_NAME || t('On') : t('Off')),
     4: () =>
-      `${on('ALLOW_SIGNUP') ? 'Anyone may sign up' : 'Closed'} · at least ${state.values.MIN_PASSWORD_LENGTH} characters`,
+      t('{who} · at least {n} characters', {
+        who: on('ALLOW_SIGNUP') ? t('Anyone may sign up') : t('Closed'),
+        n: state.values.MIN_PASSWORD_LENGTH,
+      }),
     5: () => {
-      const asked = EXT_ORDER.filter((id) => wanted.has(id))
-      if (asked.length > 0) return `Fetching ${asked.map((id) => EXT_LABEL[id]).join(', ')}`
-      return wanted.has('none') ? 'EPUB and KEPUB only' : 'Not answered yet'
+      const here = EXT_ORDER.filter((id) => settled(id)).map((id) => EXT_LABEL[id])
+      const asked = EXT_ORDER.filter((id) => wanted.has(id) && !settled(id)).map(
+        (id) => EXT_LABEL[id]
+      )
+
+      const said = []
+      if (here.length > 0) said.push(t('{list} installed', { list: here.join(', ') }))
+      if (asked.length > 0) said.push(t('fetching {list}', { list: asked.join(', ') }))
+      if (said.length > 0) return said.join(' · ')
+
+      return wanted.has('none') ? t('EPUB and KEPUB only') : t('Not answered yet')
     },
-    6: () => 'Not finished yet',
+    6: () => t('Not finished yet'),
   }
 
   function renderSummaries() {
@@ -410,17 +485,17 @@ onPage('setup-wizard', async (page) => {
     const moved = addressNow() !== state.runningAddress
     $('finishPending').hidden = !moved
     $('finishPendingMeta').textContent = moved
-      ? `STILL ANSWERING AS ${state.runningAddress.toUpperCase()}`
+      ? t('STILL ANSWERING AS {address}', { address: state.runningAddress.toUpperCase() })
       : ''
 
     $('finishText').textContent = state.canRestart
       ? moved
-        ? 'The address is the one thing that cannot change under a running server: the cookie flags and the security headers were settled at boot. Everything else you set is already live. Restarting takes a few seconds and Docker brings it straight back.'
-        : 'Everything you set is already live, and nothing here is waiting on anything. Finishing restarts the server once anyway, so it comes up exactly as it will run from now on.'
-      : 'Everything you set is saved, and all of it is live except the address, which is settled when the server starts.'
+        ? t('The new address needs a restart; everything else is already live.')
+        : t('Everything is live; finishing restarts the server once anyway.')
+      : t('Everything is saved; the address takes effect at the next start.')
 
     $('finishManual').hidden = state.canRestart
-    $('finishGo').textContent = state.canRestart ? 'Restart and finish' : 'Finish'
+    $('finishGo').textContent = state.canRestart ? t('Restart and finish') : t('Finish')
   }
 
   async function waitForTheServer() {
@@ -431,7 +506,14 @@ onPage('setup-wizard', async (page) => {
       try {
         const res = await fetch('/healthz', { cache: 'no-store' })
         if (res.ok) {
-          window.location.href = '/'
+          const chosen = EXT_ORDER.filter((id) => wanted.has(id) && !settled(id))
+          if (chosen.length === 0) {
+            window.location.href = '/'
+            return
+          }
+          $('finishGo').hidden = true
+          $('msg6').textContent = ''
+          void followInstalls(chosen)
           return
         }
       } catch {
@@ -439,7 +521,76 @@ onPage('setup-wizard', async (page) => {
     }
     if (!page.alive) return
     $('msg6').classList.add('is-error')
-    $('msg6').textContent = 'It has not come back. Check the container.'
+    $('msg6').textContent = t('It has not come back. Check the container.')
+  }
+
+  const EXT_ROW = {
+    calibre: 'finishInstallCalibre',
+    pdfcrop: 'finishInstallPdfcrop',
+    kfx: 'finishInstallKfx',
+  }
+
+  const STAGE_WORDS = {
+    packages: t('the libraries it needs'),
+    download: t('downloading'),
+    install: t('unpacking'),
+    plugins: t('the KFX plugins'),
+    prefix: t('the Wine prefix'),
+    previewer: t('installing the Previewer'),
+    wire: t('wiring it to calibre'),
+    verify: t('checking it took'),
+  }
+
+  function installLine(one) {
+    const label = EXT_LABEL[one.id]
+    if (one.installed) return t('{label} — installed', { label })
+    if (!one.pending && one.state === 'failed') {
+      return t('{label} — did not finish; the output says where it stopped', { label })
+    }
+    if (one.pending || one.state === 'running') {
+      const running = (one.stages || []).find((stage) => stage.state === 'running')
+      if (!running) {
+        return t('{label} — {what}', {
+          label,
+          what: one.state === 'idle' ? t('queued behind the one before it') : t('starting'),
+        })
+      }
+      const pct = running.percent === null ? '' : ` · ${running.percent}%`
+      return t('{label} — {what}', { label, what: STAGE_WORDS[running.name] || running.name }) + pct
+    }
+    return t('{label} — queued', { label })
+  }
+
+  async function followInstalls(chosen) {
+    $('finishInstalls').hidden = false
+    for (const id of chosen) $(EXT_ROW[id]).hidden = false
+
+    let failed = 0
+    while (page.alive) {
+      const result = await send('/api/admin/extensions')
+      if (gone()) return
+
+      failed = 0
+      let unsettled = 0
+      for (const id of chosen) {
+        const one = (result.data?.extensions ?? []).find((each) => each.id === id)
+        if (!one) continue
+        $(EXT_ROW[id]).textContent = installLine(one)
+        if (one.installed) continue
+        if (!one.pending && one.state === 'failed') failed += 1
+        else unsettled += 1
+      }
+      if (unsettled === 0) break
+      await new Promise((r) => page.after(2000, r))
+    }
+    if (!page.alive) return
+
+    $('finishDone').hidden = false
+    $('msg6').classList.toggle('is-error', failed > 0)
+    $('msg6').textContent =
+      failed > 0
+        ? t('Not everything made it — the Converters page says where it stopped.')
+        : t('All in. This server is ready.')
   }
 
   $('finishGo').addEventListener('click', async () => {
@@ -449,7 +600,7 @@ onPage('setup-wizard', async (page) => {
     if (gone()) return
     if (!done.ok) {
       $('finishGo').disabled = false
-      notice('Not saved', 'The server would not record that setup is finished. Try again.')
+      notice(t('Not saved'), t('The server would not record that setup is finished. Try again.'))
       return
     }
 
@@ -462,21 +613,31 @@ onPage('setup-wizard', async (page) => {
     if (gone()) return
     if (!result.ok) {
       $('finishGo').disabled = false
-      notice('Not restarted', result.data?.error || 'The server refused.')
+      notice(t('Not restarted'), result.data?.error || t('The server refused.'))
       return
     }
 
-    $('msg6').textContent = 'Restarting…'
+    $('msg6').textContent = t('Restarting…')
     void waitForTheServer()
   })
 
-  const [setup, config] = await Promise.all([send('/api/setup'), send('/api/admin/settings')])
+  const [setup, config, installs] = await Promise.all([
+    send('/api/setup'),
+    send('/api/admin/settings'),
+    send('/api/admin/extensions'),
+  ])
   if (gone()) return
 
   if (!setup.ok || !config.ok) {
-    notice('That did not load', 'The server would not hand over its settings. Try reloading.')
+    notice(t('That did not load'), t('The server would not hand over its settings. Try reloading.'))
     return
   }
+
+  for (const one of installs.data?.extensions ?? []) {
+    if (one.installed) already.set(one.id, 'installed')
+    else if (one.pending) already.set(one.id, 'pending')
+  }
+  state.agentless = installs.ok && installs.data?.agent === false
 
   state.canRestart = setup.data.canRestart === true
   state.runningAddress = setup.data.runningAddress || ''
@@ -486,6 +647,10 @@ onPage('setup-wizard', async (page) => {
   }
 
   state.schemeTouched = Boolean(state.values.DOMAIN)
+
+  const trust = state.values.TRUST_PROXY ?? ''
+  state.proxyOn = !OFF_WORDS.includes(trust.trim().toLowerCase())
+  $('wizProxyAddr').value = ON_WORDS.includes(trust.trim().toLowerCase()) ? '' : trust
 
   paint()
   $('addressHint').textContent = hintForAddress()

@@ -24,14 +24,23 @@ services:
     volumes:
       - data:/data
 
-    # To build from this checkout instead of pulling the image:
+    # To build from this checkout instead of pulling the image. Every argument
+    # has a working default; the URLs override where the two KFX plugins come
+    # from, the THREADs say which MobileRead thread to resolve them from.
     # build:
     #   context: .
     #   dockerfile: ./Dockerfile
     #   args:
-    #     KFX_INPUT_PLUGIN_URL: "${KFX_INPUT_PLUGIN_URL:-}"
+    #     KEPUBIFY_VERSION: "4.0.4"
+    #     EPUB_LAYOUT_FIX_REPO: "devnullv0id/calibre-epub-layout-fix"
+    #     EPUB_LAYOUT_FIX_REF: "v0.2.0"
+    #     EPUB_LAYOUT_FIX_ASSET: "EPUB-Layout-Fix.zip"
     #     EPUB_LAYOUT_FIX_FORGE: "${EPUB_LAYOUT_FIX_FORGE:-}"
     #     EPUB_LAYOUT_FIX_HOST: "${EPUB_LAYOUT_FIX_HOST:-}"
+    #     KFX_INPUT_PLUGIN_URL: "${KFX_INPUT_PLUGIN_URL:-}"
+    #     KFX_OUTPUT_PLUGIN_URL: "${KFX_OUTPUT_PLUGIN_URL:-}"
+    #     KFX_INPUT_THREAD: "291290"
+    #     KFX_OUTPUT_THREAD: "272407"
     # volumes:
     #   - ./static:/usr/src/app/static:ro
     #   - data:/data
@@ -50,6 +59,11 @@ services:
       # PROTOCOL: "http"
       # DOMAIN: "books.example.com"       # a name, not an IP: passkeys need one
       # TRUST_PROXY: "false"              # behind a proxy, name it: 192.168.20.2
+
+      # ── Language ────────────────────────────────────────────────────────
+      # The default until a visitor picks their own; codes come from the
+      # files in languages/ and /data/languages.
+      # LANGUAGE: "en"
 
       # ── Accounts ────────────────────────────────────────────────────────
       # ALLOW_SIGNUP: "false"             # off, only the first account can be made
@@ -80,7 +94,7 @@ services:
       # SMTP_SECURITY: "starttls"         # starttls (587) | ssl (465) | none
       # SMTP_USERNAME: ""
       # SMTP_PASSWORD: ""
-      # SMTP_FROM_EMAIL: ""               # defaults to SMTP_USERNAME
+      # SMTP_FROM_EMAIL: ""               # falls back to SMTP_USERNAME if that is an address
       # SMTP_FROM_NAME: "send2ereader"
       # SMTP_TIMEOUT_SECONDS: "30"
       # MAIL_LOG_SECRETS: "false"         # a link in a log is a live credential
@@ -98,7 +112,7 @@ services:
       # ── Sending ─────────────────────────────────────────────────────────
       # KEY_LENGTH: "4"
       # MAX_FILE_SIZE: "838860800"        # 800 MB
-      # EXPIRE_SECONDS: "300"             # grace once the ereader stops polling
+      # EXPIRE_SECONDS: "300"             # a key lives this plus a short silent-poll allowance
       # MAX_EXPIRE_SECONDS: "600"         # hard ceiling, never extended
       # EREADER_POLL_SECONDS: "2"
 
@@ -129,9 +143,10 @@ services:
       # HTTP_PORT: "3001"                 # the port mapping decides the outside one
 
       # ── Storage, environment only ───────────────────────────────────────
-      # Already absolute in the image. Moving one means moving the mount.
+      # The image sets these under /data; moving one means moving the mount.
+      # STATIC_DIR alone is relative, to where the server was started.
       # DATA_DIR: "/data"
-      # DB_PATH: "/data/db/send2ereader.db"
+      # DB_PATH: "/data/db/send2ereader.db" # outside the image: data/send2ereader.db
       # UPLOAD_DIR: "/data/uploads"
       # LIBRARY_DIR: "/data/library"
       # KOBO_QUEUE_DIR: "/data/queue"
@@ -144,7 +159,7 @@ services:
       # LOG_FORMAT: "text"                # text to read, json for a collector
       # LOG_TIME: "iso"                   # iso|short|rel|none
       # LOG_SCOPE: ""                     # comma separated, -name excludes
-      # LOG_PRETTY: "false"               # legacy, LOG_FORMAT replaces it
+      # LOG_PRETTY: "true"                # the older spelling: off means JSON. LOG_FORMAT wins
       # NO_COLOR: ""                      # set to anything and colour is off
 
       # ── Converters, environment only ────────────────────────────────────
@@ -159,7 +174,8 @@ services:
       # CONVERT_RATE_WINDOW: "1 minute"
 
       # ── Extensions, environment only ────────────────────────────────────
-      # Fetched at container start, because they are too big or not ours to ship.
+      # Too big or not ours to ship, so the image fetches them: queued at start
+      # to a background agent, and the server answers while they download.
       # EXTENSIONS: "calibre|pdfcrop|kfx"
       # EXTENSION_PACKAGES: "fonts-noto-cjk|poppler-utils"
       # KFX_PREVIEWER_PATH: ""            # only if the Previewer came from elsewhere

@@ -32,10 +32,6 @@ link_binaries() {
 
 stage run install
 
-# Everything calibre needs from Debian. Qt comes bundled in the tarball; these
-# are the system libraries underneath it. libnss3 and its neighbours are only
-# reached on the PDF path, which is why a container without them converted
-# everything else and failed PDF alone.
 LIBS='xz-utils
       libegl1 libfontconfig1 libgl1 libgl1-mesa-dri libglx-mesa0 libopengl0
       libxcb-cursor0 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxi6
@@ -45,10 +41,6 @@ LIBS='xz-utils
       libnspr4 libnss3 libopenjp2-7 libopus0 libpng16-16t64 libsnappy1v5
       libtiff6 libwebp7 libwebpdemux2 libwebpmux3'
 
-# Asked every time, not only on a first install: the libraries live in the
-# container layer rather than on the volume, so a recreated container has lost
-# them, and removing another extension can take them out from under a calibre
-# that is still sitting on the data volume.
 have_libraries() {
     for one in libnss3 libegl1 libgl1 libxcomposite1; do
         dpkg-query -W -f='${Status}' "$one" 2>/dev/null | grep -q 'ok installed' || return 1
@@ -148,8 +140,6 @@ else
     fi
     rm -f "$ARCHIVE"
 
-    # The same prunes the image used to do at build time: translations no
-    # conversion reads, and the runtime for a feature this server never calls.
     find "${APP}/resources/localization" -name '*.mo' -delete 2>/dev/null || true
     rm -f "${APP}/resources/localization/locales.zip"
     find "${APP}/translations/qtwebengine_locales" -type f ! -name 'en-US.pak' -delete 2>/dev/null || true
@@ -168,10 +158,6 @@ stage plugins running
 
 mkdir -p "$CONFIG_DIR"
 
-# The two KFX plugins ride in the image but cannot be registered while it is
-# built, because there is no calibre there to register them with. This is the
-# first moment one exists. KFX Input reads a KFX file on its own; KFX Output
-# needs the Kindle Previewer, which is the kfx extension's job.
 REGISTERED=''
 for kind in input output; do
     ZIP="/opt/s2e/kfx-${kind}.zip"

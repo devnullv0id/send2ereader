@@ -170,7 +170,7 @@
 						<p class="panel__kept" id="doneKept" hidden></p>
 						<div class="panel__actions">
 							<a class="btn btn--primary" id="downloadLink" href="#" download>Download</a>
-							<button type="button" class="btn btn--ok-outline" id="sendInstead">Send it to an eReader</button>
+							<button type="button" class="btn btn--quiet" id="sendInstead">Send it to an eReader</button>
 						</div>
 					</div>
 				</div>
@@ -180,8 +180,8 @@
 					<p class="panel__err-text" id="errorText"></p>
 					<pre class="panel__log" id="errorLog" hidden></pre>
 					<div class="panel__err-actions">
-						<button type="button" class="btn btn--primary" id="retry">Give it another go</button>
-						<button type="button" class="btn btn--err-outline" id="tryAnother">Try a different file</button>
+						<button type="button" class="btn btn--primary" id="retry">Try again</button>
+						<button type="button" class="btn btn--quiet" id="tryAnother">Pick another file</button>
 					</div>
 				</div>
 
@@ -198,11 +198,10 @@
 <div class="modal-scrim" id="cancelModal" hidden>
 	<div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
 		<div class="modal__title" id="cancelTitle">Stop the conversion?</div>
-		<p class="modal__text">The upload stops where it is and the converters are left alone. Nothing is written and nothing is kept.</p>
-		<p class="modal__text">You can start it again straight away.</p>
+		<p class="modal__text">Nothing is written and nothing is kept.</p>
 		<div class="modal__actions">
-			<button type="button" class="btn btn--primary" id="cancelKeep" data-modal-default>Keep converting</button>
-			<button type="button" class="btn btn--err" id="cancelConfirm">Stop the conversion</button>
+			<button type="button" data-modal-close class="btn btn--primary" id="cancelKeep" data-modal-default>Keep converting</button>
+			<button type="button" class="btn btn--danger" id="cancelConfirm">Stop the conversion</button>
 		</div>
 	</div>
 </div>

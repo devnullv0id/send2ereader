@@ -23,8 +23,6 @@ stage run remove
 stage install running
 SIZE="$(du -sm "$APP" 2>/dev/null | cut -f1 || echo 0)"
 say "deleting calibre from ${APP}"
-# only what was unpacked, never $PREFIX itself — the progress this page is
-# reading lives beside it, and taking the directory would leave the page waiting.
 rm -rf "$APP" "${PREFIX}/calibre.txz"
 for name in $BINARIES; do
     rm -f "/usr/local/bin/${name}"

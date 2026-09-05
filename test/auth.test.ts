@@ -805,7 +805,7 @@ describe('SSO account linking', () => {
 
 describe('first run', () => {
   it('sends a browser straight to setup before an administrator exists', async () => {
-    for (const url of ['/', '/send', '/login', '/register']) {
+    for (const url of ['/', '/send', '/convert', '/history', '/login', '/register']) {
       const res = await app.inject({ url, headers: { 'user-agent': 'Chrome' } })
       expect(res.statusCode, url).toBe(302)
       expect(res.headers.location, url).toBe('/setup')

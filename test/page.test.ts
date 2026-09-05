@@ -181,6 +181,15 @@ describe('setup page', () => {
     expect(setup).not.toMatch(claimWording)
   })
 
+  it('is headed as what it does, not as the sign-in page it borrows its shell from', () => {
+    const heading = /<h1 class="auth__title">([^<]*)<\/h1>/.exec(setup)?.[1] ?? ''
+    const sub = /<p class="auth__sub">([^<]*)<\/p>/.exec(setup)?.[1] ?? ''
+
+    expect(heading, 'the heading names the administrator account').toMatch(/administrator/i)
+    expect(heading, 'and is not the sign-in page').not.toMatch(/^sign in$/i)
+    expect(sub, 'nothing here is optional').not.toMatch(/works without it/i)
+  })
+
   it('confirms the password, because a typo here is a lockout', () => {
     expect(setup).toContain('id="confirm"')
     const signin = readFileSync(join(staticDir, 'signin.js'), 'utf8')
@@ -487,9 +496,9 @@ describe('asset cache busting', () => {
   const pages = readdirSync(staticDir).filter((f) => f.endsWith('.html'))
   const rendered = new Pages(staticDir, false)
 
-  const ASSET_REF = /(?:href|src)="(\/[\w./-]+\.(?:css|js))([^"]*)"/g
+  const ASSET_REF = /(?:href|src)="((?:\.\/|\/)[\w./-]+\.(?:css|js))([^"]*)"/g
 
-  const stamped = pages.filter((page) => page !== 'download.html')
+  const stamped = pages
 
   it('carries no hand-written version, because nobody bumps one any more', () => {
     for (const page of stamped) {
@@ -732,5 +741,50 @@ describe('what the send request carries', () => {
 
   it('sends the chosen output format alongside the target', () => {
     expect(sendPageJs).toMatch(/body\.append\('format', state\.format\)/)
+  })
+})
+
+describe('the way out of a modal', () => {
+  const shell = readFileSync(join(staticDir, 'shell.js'), 'utf8')
+  const pages = readdirSync(staticDir).filter((name) => name.endsWith('.html'))
+  const modals = pages.flatMap((name) => {
+    const html = readFileSync(join(staticDir, name), 'utf8')
+    return [...html.matchAll(/<div class="modal-scrim"[\s\S]*?\n<\/div>/g)].map((m) => ({
+      page: name,
+      html: m[0],
+    }))
+  })
+
+  it('finds the modals to check', () => {
+    expect(modals.length, 'the markup is matched at all').toBeGreaterThan(8)
+  })
+
+  it('gives Escape a marked exit rather than whichever button Enter would press', () => {
+    expect(shell, 'Escape looks for the exit').toMatch(/querySelector\('\[data-modal-close\]'\)/)
+    expect(
+      shell.replace(/\/\/[^\n]*/g, ''),
+      'and never falls back to the Enter default, which is destructive in several modals'
+    ).not.toMatch(/data-modal-close\],\s*\[data-modal-default/)
+  })
+
+  it('never lets Escape press a destructive button', () => {
+    for (const modal of modals) {
+      const exits = [...modal.html.matchAll(/<button[^>]*data-modal-close[^>]*>/g)].map((m) => m[0])
+      for (const exit of exits) {
+        expect(exit, `${modal.page}: the Escape exit is not a danger button`).not.toMatch(
+          /btn--danger/
+        )
+      }
+      expect(exits.length, `${modal.page}: one way out, not several`).toBeLessThan(2)
+    }
+  })
+
+  it('marks an exit on every modal that has any dismissal at all', () => {
+    const missing = modals
+      .filter((modal) => /class="modal__actions/.test(modal.html))
+      .filter((modal) => !modal.html.includes('data-modal-close'))
+      .map((modal) => `${modal.page}: ${/class="modal__title"[^>]*>([^<]*)/.exec(modal.html)?.[1]}`)
+
+    expect(missing, 'a dialog Escape cannot leave').toEqual([])
   })
 })

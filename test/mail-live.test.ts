@@ -162,12 +162,26 @@ describe('configuring SMTP while the server runs', () => {
   it('will not send while the settings are incomplete, and says why', async () => {
     await put('SMTP_ENABLED', 'true')
 
-    expect(smtpProblem()).toContain('SMTP_HOST is empty')
+    expect(smtpProblem()).toContain('no server to send it through')
     expect(app.mailer.enabled).toBe(false)
 
     await askForAReset()
     await settle()
     expect(sink.taken).toHaveLength(0)
+  })
+
+  it('refuses the test message rather than reporting a send that went to the log', async () => {
+    await put('SMTP_ENABLED', 'true')
+
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/setup/mail/test',
+      headers: { cookie },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(res.json().error).toContain('no server to send it through')
+    expect(sink.taken, 'and nothing was sent anywhere').toHaveLength(0)
   })
 
   it('follows the address it is told to send from', async () => {

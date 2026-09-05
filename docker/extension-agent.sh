@@ -10,6 +10,9 @@ POLL_SECONDS=2
 mkdir -p "$S2E_STATE_DIR"
 chown "${RUN_AS_UID}:${RUN_AS_GID}" "$S2E_STATE_DIR" 2>/dev/null || true
 
+AGENT_MARK="${S2E_STATE_DIR}/agent"
+touch "$AGENT_MARK"
+
 progress_file() { printf '%s/%s/%s.progress' "$PROGRESS_DIR" "$1" "$1"; }
 log_file() { printf '%s/%s/%s.log' "$PROGRESS_DIR" "$1" "$1"; }
 
@@ -45,9 +48,6 @@ forget() {
     chown "${RUN_AS_UID}:${RUN_AS_GID}" "$S2E_ENABLED_FILE" 2>/dev/null || true
 }
 
-# The image carries every installer, so asking for one from the browser does not
-# depend on a registry being reachable or a package being published. A copy kept
-# from an earlier EXTENSIONS run wins, then the baked-in one.
 script_for() {
     name="$1"
     kept="$(kept_script_for "$name" || true)"
@@ -101,14 +101,21 @@ remove_one() {
 SPOOL="${S2E_STATE_DIR}/spool"
 RUNNING="${S2E_STATE_DIR}/running"
 
+for leftover in "$RUNNING" "$SPOOL"; do
+    if [ -s "$leftover" ]; then
+        log "re-queueing what a previous run left behind: $(tr '\n' ' ' < "$leftover")"
+        cat "$leftover" >> "$S2E_REQUEST_FILE"
+    fi
+    rm -f "$leftover"
+done
+rm -f "$SPOOL.reading"
+
 log "watching ${S2E_REQUEST_FILE}"
 
 while true; do
+    touch "$AGENT_MARK"
     if [ -f "$S2E_REQUEST_FILE" ]; then
-        # Moved rather than read in place: the setup assistant asks for all
-        # three at once, and the server may append another line while this is
-        # working. Anything that arrives after the move is picked up next time
-        # round, and nothing is read half-written.
+        # Moved rather than read in place, so a line arriving mid-run is never read half-written.
         mv "$S2E_REQUEST_FILE" "$SPOOL"
         cp "$SPOOL" "$SPOOL.reading"
 
@@ -118,8 +125,7 @@ while true; do
 
             printf '%s\n' "$request" > "$RUNNING"
 
-            # The server reads the spool to know what is still waiting, so it
-            # has to shrink as each one is taken off it.
+            # The server reads the spool to know what is still waiting, so it shrinks as lines are taken.
             tail -n +2 "$SPOOL" > "${SPOOL}.rest" 2>/dev/null || : > "${SPOOL}.rest"
             mv "${SPOOL}.rest" "$SPOOL"
 

@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { i18n } from './i18n.js'
 
-const REFERENCE = /(?:href|src)="(\/[\w./-]+\.(?:css|js))"/g
+const REFERENCE = /(href|src)="((?:\.\/|\/)[\w./-]+\.(?:css|js))(?:\?v=[\w.-]*)?"/g
 
 const STAMP_LENGTH = 10
 
@@ -21,15 +22,16 @@ export class Pages {
 
     let digest = 'missing'
     try {
-      const bytes = readFileSync(join(this.dir, asset.replace(/^\//, '')))
+      const bytes = readFileSync(join(this.dir, asset.replace(/^(?:\.\/|\/)/, '')))
       digest = createHash('sha256').update(bytes).digest('hex').slice(0, STAMP_LENGTH)
     } catch {}
     this.stamps.set(asset, digest)
     return digest
   }
 
-  html(name: string): string | null {
-    const held = this.rendered.get(name)
+  html(name: string, lang = 'en'): string | null {
+    const key = `${lang}|${name}`
+    const held = this.rendered.get(key)
     if (held !== undefined && this.cache) return held
 
     let source: string
@@ -39,12 +41,13 @@ export class Pages {
       return null
     }
 
-    const out = source.replace(REFERENCE, (whole, asset: string) => {
+    const stamped = source.replace(REFERENCE, (whole, attr: string, asset: string) => {
       const digest = this.stamp(asset)
-      return digest === 'missing' ? whole : whole.replace(asset, `${asset}?v=${digest}`)
+      return digest === 'missing' ? whole : `${attr}="${asset}?v=${digest}"`
     })
 
-    this.rendered.set(name, out)
+    const out = i18n.translatePage(stamped, lang)
+    this.rendered.set(key, out)
     return out
   }
 

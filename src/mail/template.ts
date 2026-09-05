@@ -1,3 +1,5 @@
+import { i18n } from '../i18n.js'
+
 export interface EmailContent {
   subject: string
   text: string
@@ -18,6 +20,7 @@ interface Template {
   action?: { label: string; url: string; variant?: 'solid' | 'outline' }
   footnote: string[]
   instance?: string
+  lang?: string
 }
 
 const escapeHtml = (value: string): string =>
@@ -112,9 +115,17 @@ function blockText(block: Block): string {
   }
 }
 
+const HOST_TOKEN = '@@HOST@@'
+
 function render(t: Template): EmailContent {
+  const lang = t.lang ?? 'en'
   const url = t.action ? escapeHtml(t.action.url) : ''
   const outline = t.action?.variant === 'outline'
+
+  const instanceSaid = t.instance
+    ? i18n.translate(lang, 'Sent by your own instance at {host}.', { host: HOST_TOKEN })
+    : ''
+  const [instanceBefore = '', instanceAfter = ''] = instanceSaid.split(HOST_TOKEN)
 
   const button = t.action
     ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:24px 0;">
@@ -125,14 +136,14 @@ function render(t: Template): EmailContent {
 </tr>
 </table>
 
-<p style="margin:0 0 6px;font-family:${SANS};font-size:11.5px;line-height:1.7;color:${FAINT};">Or paste this into a browser:</p>
+<p style="margin:0 0 6px;font-family:${SANS};font-size:11.5px;line-height:1.7;color:${FAINT};">${escapeHtml(i18n.translate(lang, 'Or paste this into a browser:'))}</p>
 <p style="margin:0;font-family:${MONO};font-size:11.5px;line-height:1.7;color:${ACCENT};word-break:break-all;">
 <a href="${url}" style="color:${ACCENT};text-decoration:none;">${url}</a>
 </p>`
     : ''
 
   const html = `<!doctype html>
-<html lang="en">
+<html lang="${escapeHtml(lang)}">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -174,7 +185,7 @@ ${t.footnote
   .join('\n')}
 ${
   t.instance
-    ? `<p style="margin:10px 0 0;font-family:${SANS};font-size:11px;line-height:1.7;color:#9a9182;">Sent by your own instance at <span style="font-family:${MONO};">${escapeHtml(t.instance)}</span>.</p>`
+    ? `<p style="margin:10px 0 0;font-family:${SANS};font-size:11px;line-height:1.7;color:#9a9182;">${escapeHtml(instanceBefore)}<span style="font-family:${MONO};">${escapeHtml(t.instance)}</span>${escapeHtml(instanceAfter)}</p>`
     : ''
 }
 </td></tr>
@@ -196,7 +207,9 @@ ${
     ...(t.action ? ['', t.action.url] : []),
     '',
     ...t.footnote,
-    ...(t.instance ? ['', `Sent by your own instance at ${t.instance}.`] : []),
+    ...(t.instance
+      ? ['', i18n.translate(lang, 'Sent by your own instance at {host}.', { host: t.instance })]
+      : []),
   ].join('\n')
 
   return { subject: t.subject, text, html }
@@ -210,174 +223,181 @@ function instanceOf(link: string): string | undefined {
   }
 }
 
-export function duration(seconds: number): string {
+export function duration(seconds: number, lang = 'en'): string {
   const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'}`
+  if (minutes < 60) {
+    return minutes === 1
+      ? i18n.translate(lang, '1 minute')
+      : i18n.translate(lang, '{n} minutes', { n: minutes })
+  }
   const hours = Math.round(minutes / 60)
-  if (hours < 48) return `${hours} hour${hours === 1 ? '' : 's'}`
+  if (hours < 48) {
+    return hours === 1
+      ? i18n.translate(lang, '1 hour')
+      : i18n.translate(lang, '{n} hours', { n: hours })
+  }
   const days = Math.round(hours / 24)
-  return `${days} days`
+  return i18n.translate(lang, '{n} days', { n: days })
 }
 
-export function verificationEmail(link: string, ttlSeconds: number): EmailContent {
-  const lasts = duration(ttlSeconds)
+export function verificationEmail(link: string, ttlSeconds: number, lang = 'en'): EmailContent {
+  const lasts = duration(ttlSeconds, lang)
+  const tr = (text: string, params?: Record<string, string | number>) =>
+    i18n.translate(lang, text, params)
   return render({
-    subject: 'Confirm your email for Send to eReader',
-    preheader: 'Takes one tap. Nothing changes until you do.',
-    heading: 'Confirm your email',
+    subject: tr('Confirm your email for Send to eReader'),
+    preheader: tr('Takes one tap. Nothing changes until you do.'),
+    heading: tr('Confirm your email'),
     blocks: [
       {
         kind: 'text',
-        lines: [
-          'Someone with this address asked to keep their devices, defaults and send history on this instance. Confirm and it is done.',
-        ],
+        lines: [tr('Confirm and this instance remembers your devices, defaults and history.')],
       },
     ],
-    action: { label: 'Confirm email address', url: link },
+    action: { label: tr('Confirm email address'), url: link },
     instance: instanceOf(link),
-    footnote: [
-      `The link expires in ${lasts}.`,
-      'Not you? Ignore this and nothing on the account changes.',
-    ],
+    footnote: [tr('The link expires in {lasts}.', { lasts })],
+    lang,
   })
 }
 
-export function resetEmail(link: string, ttlSeconds: number): EmailContent {
-  const lasts = duration(ttlSeconds)
+export function resetEmail(link: string, ttlSeconds: number, lang = 'en'): EmailContent {
+  const lasts = duration(ttlSeconds, lang)
+  const tr = (text: string, params?: Record<string, string | number>) =>
+    i18n.translate(lang, text, params)
   return render({
-    subject: 'Reset your password',
-    preheader: `Valid ${lasts}. Nothing has changed yet.`,
-    heading: 'Reset your password',
+    subject: tr('Reset your password'),
+    preheader: tr('Valid {lasts}. Nothing has changed yet.', { lasts }),
+    heading: tr('Reset your password'),
     blocks: [
       {
         kind: 'text',
-        lines: [
-          'Someone asked to reset the password for your account on this instance. If that was you, pick a new one.',
-        ],
+        lines: [tr('Someone asked to reset your password on this instance.')],
       },
     ],
-    action: { label: 'Choose a new password', url: link },
+    action: { label: tr('Choose a new password'), url: link },
     instance: instanceOf(link),
     footnote: [
-      "Didn't ask for this? Nothing has changed.",
-      `Your current password keeps working and this link expires in ${lasts}. It can only be used once.`,
+      tr('Your current password keeps working and this link expires in {lasts}.', { lasts }),
     ],
+    lang,
   })
 }
 
-export function signInLinkEmail(link: string, ttlSeconds: number): EmailContent {
-  const lasts = duration(ttlSeconds)
+export function signInLinkEmail(link: string, ttlSeconds: number, lang = 'en'): EmailContent {
+  const lasts = duration(ttlSeconds, lang)
+  const tr = (text: string, params?: Record<string, string | number>) =>
+    i18n.translate(lang, text, params)
   return render({
-    subject: 'Your sign-in link',
-    preheader: `Good for ${lasts}, one use.`,
-    heading: 'Sign in',
+    subject: tr('Your sign-in link'),
+    preheader: tr('Good for {lasts}, one use.', { lasts }),
+    heading: tr('Sign in'),
     blocks: [
       {
         kind: 'text',
-        lines: ['Someone asked for a sign-in link for this address a moment ago.'],
+        lines: [tr('Someone asked for a sign-in link for this address a moment ago.')],
       },
     ],
-    action: { label: 'Sign in', url: link },
+    action: { label: tr('Sign in'), url: link },
     instance: instanceOf(link),
-    footnote: [
-      `Good for ${lasts} and one use.`,
-      "If you didn't ask, someone typed your address by mistake — the link does nothing until it is opened, and nothing about the account has changed.",
-    ],
+    footnote: [tr('Good for {lasts} and one use.', { lasts })],
+    lang,
   })
 }
 
-export function welcomeEmail(link: string, host: string): EmailContent {
+export function welcomeEmail(link: string, host: string, lang = 'en'): EmailContent {
+  const tr = (text: string, params?: Record<string, string | number>) =>
+    i18n.translate(lang, text, params)
   return render({
-    subject: "You're set. Here's how to get a book onto your eReader.",
-    preheader: 'Three steps, about a minute.',
-    heading: 'Welcome',
+    subject: tr("You're set. Here's how to get a book onto your eReader."),
+    preheader: tr('Three steps, about a minute.'),
+    heading: tr('Welcome'),
     blocks: [
       {
         kind: 'text',
-        lines: [
-          'Sending works the same signed in or not. The account only means this instance remembers your devices and the options you like.',
-        ],
+        lines: [tr('The account means this instance remembers your devices and options.')],
       },
       {
         kind: 'steps',
         steps: [
-          { title: 'Open the browser on your eReader and go to', code: host },
-          { title: 'It shows four characters. Leave that page on screen.' },
-          { title: 'Type them on your computer, pick a file, send.' },
+          { title: tr('Open the browser on your eReader and go to'), code: host },
+          { title: tr('It shows four characters. Leave that page on screen.') },
+          { title: tr('Type them on your computer, pick a file, send.') },
         ],
       },
     ],
-    action: { label: 'Send your first book', url: link },
+    action: { label: tr('Send your first book'), url: link },
     instance: instanceOf(link),
     footnote: [],
+    lang,
   })
 }
 
-export function setupTestEmail(host: string): EmailContent {
+export function setupTestEmail(host: string, lang = 'en'): EmailContent {
+  const tr = (text: string, params?: Record<string, string | number>) =>
+    i18n.translate(lang, text, params)
   return render({
-    subject: 'Mail works',
-    preheader: 'Sent from the setup assistant.',
-    heading: 'Mail works',
+    subject: tr('Mail works'),
+    preheader: tr('Sent from the setup assistant.'),
+    heading: tr('Mail works'),
     blocks: [
       {
         kind: 'text',
-        lines: [
-          'This came from the setup assistant on your own instance. Reading it means the SMTP settings you just entered are right, and every sign-in link, reset link and confirmation will arrive the same way.',
-        ],
+        lines: [tr('Reading this means the SMTP settings you just entered are right.')],
       },
     ],
     instance: instanceOf(host),
-    footnote: ['Nothing on the server changed because of this message.'],
+    footnote: [tr('Nothing on the server changed because of this message.')],
+    lang,
   })
 }
 
-export function emailChangeEmail(link: string, ttlSeconds: number): EmailContent {
-  const lasts = duration(ttlSeconds)
+export function emailChangeEmail(link: string, ttlSeconds: number, lang = 'en'): EmailContent {
+  const lasts = duration(ttlSeconds, lang)
+  const tr = (text: string, params?: Record<string, string | number>) =>
+    i18n.translate(lang, text, params)
   return render({
-    subject: 'Confirm this is your address',
-    preheader: `Valid ${lasts}. The account still answers to the old one until you do.`,
-    heading: 'Confirm your new address',
+    subject: tr('Confirm this is your address'),
+    preheader: tr('Valid {lasts}. The account still answers to the old one until you do.', {
+      lasts,
+    }),
+    heading: tr('Confirm your new address'),
     blocks: [
       {
         kind: 'text',
-        lines: [
-          'An account on this instance asked to move to this address. Confirm it and this becomes the address it signs in with, and the one every message goes to.',
-        ],
+        lines: [tr('Confirm and this becomes the address the account signs in with.')],
       },
     ],
-    action: { label: 'Confirm this address', url: link },
+    action: { label: tr('Confirm this address'), url: link },
     instance: instanceOf(link),
-    footnote: [
-      `The link expires in ${lasts} and can be used once.`,
-      'Not you? Ignore this. Nothing moves until the link is opened, and whoever asked cannot sign in with this address.',
-    ],
+    footnote: [tr('The link expires in {lasts} and can be used once.', { lasts })],
+    lang,
   })
 }
 
-export function emailMovedEmail(host: string, to: string, when: string): EmailContent {
+export function emailMovedEmail(host: string, to: string, when: string, lang = 'en'): EmailContent {
+  const tr = (text: string, params?: Record<string, string | number>) =>
+    i18n.translate(lang, text, params)
   return render({
-    subject: 'This account now uses a different address',
-    preheader: 'If this was you, nothing to do.',
-    heading: 'The address on this account changed',
+    subject: tr('This account now uses a different address'),
+    preheader: tr('If this was you, nothing to do.'),
+    heading: tr('The address on this account changed'),
     blocks: [
       {
         kind: 'text',
-        lines: [
-          'This address no longer signs in to that account and will not receive anything else from it.',
-        ],
+        lines: [tr('This address no longer signs in to that account.')],
       },
       {
         kind: 'facts',
         rows: [
-          ['Now', to],
-          ['When', when],
+          [tr('Now'), to],
+          [tr('When'), when],
         ],
       },
     ],
     instance: instanceOf(host),
-    footnote: [
-      'If it was not you, a password reset will not help: it would go to the new address. Ask whoever runs this server to put the account back.',
-    ],
+    footnote: [tr('Not you? Ask whoever runs this server to put the account back.')],
+    lang,
   })
 }
 
@@ -385,61 +405,66 @@ export function failedSignInsEmail(
   link: string,
   attempts: number,
   when: string,
-  where: string
+  where: string,
+  lang = 'en'
 ): EmailContent {
+  const tr = (text: string, params?: Record<string, string | number>) =>
+    i18n.translate(lang, text, params)
   return render({
-    subject: 'Someone is guessing at your password',
-    preheader: 'Several sign-ins failed on your account.',
-    heading: 'Failed sign-ins on your account',
+    subject: tr('Someone is guessing at your password'),
+    preheader: tr('Several sign-ins failed on your account.'),
+    heading: tr('Failed sign-ins on your account'),
     blocks: [
       {
         kind: 'text',
         lines: [
-          `${attempts} sign-ins in a row were turned away on this account, each with the wrong password.`,
-          'Nobody got in. If that was you misremembering it, there is nothing to do.',
+          tr('Nobody got in — {n} wrong passwords in a row were turned away.', { n: attempts }),
         ],
       },
       {
         kind: 'facts',
         rows: [
-          ['Attempts', String(attempts)],
-          ['Last one', when],
-          ['From', where],
+          [tr('Attempts'), String(attempts)],
+          [tr('Last one'), when],
+          [tr('From'), where],
         ],
       },
     ],
-    action: { label: 'Change your password', url: link, variant: 'solid' },
+    action: { label: tr('Change your password'), url: link, variant: 'solid' },
     instance: instanceOf(link),
-    footnote: [
-      'If it was not you, change the password — whoever it is already knows the address.',
-      'Two-factor, in Settings, means a guessed password is not enough on its own.',
-    ],
+    footnote: [tr('Not you? Change the password — the address is already known.')],
+    lang,
   })
 }
 
-export function passwordChangedEmail(link: string, when: string, where: string): EmailContent {
+export function passwordChangedEmail(
+  link: string,
+  when: string,
+  where: string,
+  lang = 'en'
+): EmailContent {
+  const tr = (text: string, params?: Record<string, string | number>) =>
+    i18n.translate(lang, text, params)
   return render({
-    subject: 'Your password was changed',
-    preheader: 'If this was you, nothing to do.',
-    heading: 'Password changed',
+    subject: tr('Your password was changed'),
+    preheader: tr('If this was you, nothing to do.'),
+    heading: tr('Password changed'),
     blocks: [
       {
         kind: 'text',
-        lines: ['The password on this account changed a few seconds ago.'],
+        lines: [tr('The password on this account changed a few seconds ago.')],
       },
       {
         kind: 'facts',
         rows: [
-          ['When', when],
-          ['Where', where],
+          [tr('When'), when],
+          [tr('Where'), where],
         ],
       },
     ],
-    action: { label: "This wasn't me", url: link, variant: 'outline' },
+    action: { label: tr("This wasn't me"), url: link, variant: 'outline' },
     instance: instanceOf(link),
-    footnote: [
-      'That link takes you straight to a password reset, which is how you lock an account back down.',
-      'Your send history and files are untouched — there are no files to touch.',
-    ],
+    footnote: [tr('That link goes straight to a password reset.')],
+    lang,
   })
 }

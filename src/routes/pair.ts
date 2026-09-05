@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { detectDevice, deviceLabel } from '../device.js'
 import { KeyOverflowError, silentAfterSeconds } from '../keystore.js'
+import { say } from '../language.js'
 import { settings } from '../settings.js'
 
 interface KeyParams {
@@ -49,11 +50,11 @@ export async function pairRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const key = req.params.key.toUpperCase()
       const info = app.keystore.get(key)
-      if (!info) return reply.code(404).send({ error: 'Unknown key' })
+      if (!info) return reply.code(404).send({ error: say(req, 'Unknown key') })
 
       if (info.agent !== (req.headers['user-agent'] ?? '')) {
         req.log.warn({ key }, 'User-agent mismatch on status')
-        return reply.code(404).send({ error: 'Unknown key' })
+        return reply.code(404).send({ error: say(req, 'Unknown key') })
       }
 
       app.keystore.heard(key)
@@ -74,7 +75,7 @@ export async function pairRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const info = app.keystore.get(req.params.key.toUpperCase())
-      if (!info) return reply.code(404).send({ error: 'Unknown key' })
+      if (!info) return reply.code(404).send({ error: say(req, 'Unknown key') })
 
       const idleMs = Date.now() - info.alive.getTime()
       const silentFor = Math.floor(idleMs / 1000)
@@ -97,7 +98,7 @@ export async function pairRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const key = req.params.key.toUpperCase()
-      if (!app.keystore.get(key)) return reply.code(404).send({ error: 'Unknown key' })
+      if (!app.keystore.get(key)) return reply.code(404).send({ error: say(req, 'Unknown key') })
       app.keystore.renew(key)
       return reply.send({ ok: true, expiresInMs: msLeft(app.keystore.expiresAt(key)) })
     }
@@ -109,9 +110,9 @@ export async function pairRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const key = req.params.key.toUpperCase()
       const info = app.keystore.get(key)
-      if (!info) return reply.code(404).send({ error: 'Unknown key' })
+      if (!info) return reply.code(404).send({ error: say(req, 'Unknown key') })
       if (info.agent !== (req.headers['user-agent'] ?? '')) {
-        return reply.code(404).send({ error: 'Unknown key' })
+        return reply.code(404).send({ error: say(req, 'Unknown key') })
       }
       await app.keystore.clearFile(key)
       app.keystore.heard(key)

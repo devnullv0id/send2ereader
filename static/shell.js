@@ -50,15 +50,26 @@ function navHtml(path, state) {
     .map((item) => {
       const current = item.match.includes(path) ? ' aria-current="page"' : ''
       const count = item.countable && state.waiting ? `<span class="nav-count">${state.waiting}</span>` : ''
-      return `<a class="nav-pill" href="${item.href}"${current}>${item.label}${count}</a>`
+      return `<a class="nav-pill" href="${item.href}"${current}>${esc(t(item.label))}${count}</a>`
     })
     .join('')
+}
+
+function installingWords(one) {
+  return t(one.kind === 'remove' ? 'Removing {label}' : 'Installing {label}', { label: one.label })
+}
+
+function installingHtml(state) {
+  const one = state.installing
+  if (!one) return ''
+  const pct = one.percent === null ? '' : `<span class="nav-count" data-installing-pct>${one.percent}%</span>`
+  return `<a class="nav-pill" href="/admin/extensions" data-installing>${esc(installingWords(one))}${pct}</a>`
 }
 
 function accountHtml(state) {
   if (!state.accounts) return ''
   if (!state.user) {
-    return `<a class="account-btn signed-out" href="/login">${icon('user-circle')}Sign in</a>`
+    return `<a class="account-btn signed-out" href="/login">${icon('user-circle')}${esc(t('Sign in'))}</a>`
   }
   return `<button type="button" class="account-btn" data-account-toggle aria-expanded="false">
     ${icon('user-circle')}<span>${esc(state.user.email)}</span>
@@ -70,11 +81,11 @@ function menuHtml(state) {
   return `<div class="menu-anchor" data-account-menu hidden>
     <div class="menu">
       <div class="menu-email">${esc(state.user.email)}</div>
-      <a class="menu-item" href="/settings#profile">Account</a>
-      <a class="menu-item" href="/settings#history">History</a>
-      <a class="menu-item" href="/settings">Settings</a>
-      ${state.user.isAdmin ? '<a class="menu-item" href="/admin">Admin</a>' : ''}
-      <button type="button" class="menu-item menu-item--danger" data-signout>Sign out</button>
+      <a class="menu-item" href="/settings#profile">${esc(t('Account'))}</a>
+      <a class="menu-item" href="/settings#history">${esc(t('History'))}</a>
+      <a class="menu-item" href="/settings">${esc(t('Settings'))}</a>
+      ${state.user.isAdmin ? `<a class="menu-item" href="/admin">${esc(t('Admin'))}</a>` : ''}
+      <button type="button" class="menu-item menu-item--danger" data-signout>${esc(t('Sign out'))}</button>
     </div>
   </div>`
 }
@@ -85,39 +96,49 @@ function drawerHtml(path, state) {
       const current = item.match.includes(path) ? ' aria-current="page"' : ''
       const count =
         item.countable && state.waiting ? `<span class="nav-count">${state.waiting}</span>` : ''
-      return `<a class="drawer__item" href="${item.href}"${current}>${item.label}${count}</a>`
+      return `<a class="drawer__item" href="${item.href}"${current}>${esc(t(item.label))}${count}</a>`
     })
     .join('')
+
+  const installing = state.installing
+    ? `<a class="drawer__item" href="/admin/extensions" data-installing-drawer>${esc(installingWords(state.installing))}${
+        state.installing.percent === null
+          ? ''
+          : `<span class="nav-count">${state.installing.percent}%</span>`
+      }</a>`
+    : ''
 
   let account = ''
   if (state.accounts && state.user) {
     account = `<div class="drawer__rule"></div>
       <div class="drawer__email">${esc(state.user.email)}</div>
-      <a class="drawer__item" href="/settings#profile">Account</a>
-      ${state.user.isAdmin ? '<a class="drawer__item" href="/admin">Admin</a>' : ''}
-      <button type="button" class="drawer__item drawer__item--danger" data-signout>Sign out</button>`
+      <a class="drawer__item" href="/settings#profile">${esc(t('Account'))}</a>
+      ${state.user.isAdmin ? `<a class="drawer__item" href="/admin">${esc(t('Admin'))}</a>` : ''}
+      <button type="button" class="drawer__item drawer__item--danger" data-signout>${esc(t('Sign out'))}</button>`
   } else if (state.accounts) {
     account = `<div class="drawer__rule"></div>
-      <a class="drawer__item" href="/login">Sign in</a>`
+      <a class="drawer__item" href="/login">${esc(t('Sign in'))}</a>`
   }
 
   return `<div class="drawer-scrim" data-drawer-scrim hidden></div>
   <div class="drawer" id="navdrawer" data-drawer hidden>
-    <nav class="drawer__body" aria-label="Main">${links}${account}</nav>
+    <nav class="drawer__body" aria-label="Main">${links}${installing}${account}</nav>
   </div>`
 }
 
 function passkeyNoticeHtml(user) {
   if (!user?.passkeysClearedAt) return ''
-  const from = user.passkeysClearedFrom ? esc(user.passkeysClearedFrom) : 'a different address'
+  const from = user.passkeysClearedFrom
+    ? esc(user.passkeysClearedFrom)
+    : esc(t('a different address'))
   return `<div class="modal-scrim" data-passkey-gone>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="passkeyGoneTitle">
-      <div class="modal__title" id="passkeyGoneTitle">Your passkey was removed</div>
-      <p class="modal__text">This server used to answer as <span class="mono">${from}</span>. A passkey is tied to the address it was created under, so yours stopped being something this address could ever offer you.</p>
-      <p class="modal__text">Nothing else changed. Your password, your two-factor codes and your recovery codes all still work. Add a new passkey in Settings when it suits you.</p>
+      <div class="modal__title" id="passkeyGoneTitle">${esc(t('Your passkey was removed'))}</div>
+      <p class="modal__text">${t('This server no longer answers as {from}, so your passkey stopped working.', { from: `<span class="mono">${from}</span>` })}</p>
+      <p class="modal__text">${esc(t('Nothing else changed; password and codes still work.'))}</p>
       <div class="modal__actions">
-        <a class="btn btn--primary" href="/settings#security">Add a passkey</a>
-        <button type="button" class="btn btn--err" data-passkey-gone-later>Not now</button>
+        <a class="btn btn--primary" href="/settings#security" data-modal-default>${esc(t('Add a passkey'))}</a>
+        <button type="button" data-modal-close class="btn btn--quiet" data-passkey-gone-later>${esc(t('Not now'))}</button>
       </div>
     </div>
   </div>`
@@ -146,28 +167,27 @@ function verifyNudgeHtml(state) {
 
   const left = Number(nudge.remindersLeft) || 0
   const phrase = state.hasRecoveryPhrase
-    ? '<p class="modal__text">This server had no mail when your account was made, so you were given six words to get back in with. A confirmed address does that job better, and those words stop working once it is done.</p>'
+    ? `<p class="modal__text">${esc(t('A confirmed address replaces your six recovery words.'))}</p>`
     : ''
   const later =
     left > 0
-      ? `<button type="button" class="btn btn--faint" data-verify-later>${left === 1 ? 'Not now — last time' : 'Not now'}</button>`
+      ? `<button type="button" data-modal-close class="btn btn--quiet" data-verify-later>${esc(t(left === 1 ? 'Not now — last time' : 'Not now'))}</button>`
       : ''
   const budget =
     left > 0
       ? ''
-      : '<p class="modal__text">There are no more reminders left on this account, so this is the last time it is asked.'
-        + ' Confirming the address, or changing it, are the two ways on.</p>'
+      : `<p class="modal__text">${esc(t('No reminders left — this is the last time it is asked.'))}</p>`
 
   return `<div class="modal-scrim" data-verify-nudge>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="verifyNudgeTitle">
-      <div class="modal__title" id="verifyNudgeTitle">Confirm your email address</div>
-      <p class="modal__text">This server can send mail now, and nothing has confirmed that <span class="mono">${esc(state.user.email)}</span> reaches you. It is how you get back in if you forget your password, so it is worth a minute.</p>
+      <div class="modal__title" id="verifyNudgeTitle">${esc(t('Confirm your email address'))}</div>
+      <p class="modal__text">${t('Nothing has confirmed that {email} reaches you, and resets depend on it.', { email: `<span class="mono">${esc(state.user.email)}</span>` })}</p>
       ${phrase}
       ${budget}
-      <div class="modal__actions modal__actions--apart">
+      <div class="modal__actions">
+        <button type="button" class="btn btn--primary" data-verify-send data-modal-default>${esc(t('Send me the link'))}</button>
+        <a class="btn btn--quiet" href="/settings#profile" data-verify-change>${esc(t('Change email'))}</a>
         ${later}
-        <a class="btn btn--err" href="/settings#profile" data-verify-change>Change email</a>
-        <button type="button" class="btn btn--primary" data-verify-send data-modal-default>Send me the link</button>
       </div>
     </div>
   </div>`
@@ -207,14 +227,16 @@ function wireVerifyNudge(overlays) {
 
     const body = modal.querySelector('.modal')
     const said = result.ok
-      ? 'Open the link in it and this is done. It works in any browser.'
-      : 'That did not go out. Try again in a minute, or change the address if it is wrong.'
+      ? t('Open the link in it and this is done.')
+      : t('That did not go out — try again in a minute.')
 
-    body.querySelector('.modal__title').textContent = result.ok ? 'On its way' : 'It did not send'
+    body.querySelector('.modal__title').textContent = result.ok
+      ? t('On its way')
+      : t('It did not send')
     for (const extra of [...body.querySelectorAll('.modal__text')].slice(1)) extra.remove()
     body.querySelector('.modal__text').textContent = said
     body.querySelector('.modal__actions').innerHTML =
-      '<button type="button" class="btn btn--primary" data-verify-done data-modal-default>Got it</button>'
+      `<button type="button" data-modal-close class="btn btn--primary" data-verify-done data-modal-default>${esc(t('Got it'))}</button>`
     body.querySelector('[data-verify-done]').addEventListener('click', () => modal.remove())
     body.querySelector('[data-verify-done]').focus()
   })
@@ -225,11 +247,11 @@ function overlaysHtml(state) {
   return `${passkeyNoticeHtml(state.user)}${verifyNudgeHtml(state)}<div class="menu-scrim" data-account-scrim hidden></div>
   <div class="modal-scrim" data-signout-modal hidden>
     <div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="signoutTitle">
-      <div class="modal__title" id="signoutTitle">Sign out?</div>
-      <p class="modal__text">Your defaults and Kobo sync stay on the account. This browser's send history is cleared, and anything waiting for your Kobo stays queued on the server.</p>
+      <div class="modal__title" id="signoutTitle">${esc(t('Sign out?'))}</div>
+      <p class="modal__text">${esc(t("Everything stays on the account. This browser's send history is cleared."))}</p>
       <div class="modal__actions">
-        <button type="button" class="btn btn--primary" data-signout-confirm>Sign out</button>
-        <button type="button" class="btn btn--err" data-signout-cancel>Stay signed in</button>
+        <button type="button" class="btn btn--primary" data-signout-confirm data-modal-default>${esc(t('Sign out'))}</button>
+        <button type="button" data-modal-close class="btn btn--quiet" data-signout-cancel>${esc(t('Stay signed in'))}</button>
       </div>
     </div>
   </div>`
@@ -241,6 +263,7 @@ function headerHtml(path, state) {
       ${icon('paper-plane-tilt')}<span>Send to eReader</span>
     </a>
     ${navHtml(path, state)}
+    ${installingHtml(state)}
     ${accountHtml(state)}
     <button type="button" class="nav-toggle" data-drawer-toggle aria-expanded="false"
       aria-controls="navdrawer" aria-label="Menu">${icon('list')}</button>
@@ -248,11 +271,76 @@ function headerHtml(path, state) {
   ${menuHtml(state)}`
 }
 
-const FOOTER_HTML = `<div class="wrap">
-  <span>Maintained by devnullv0id. Inspired by djazz.</span>
-  <span>Fastify, kepubify, and whatever converters this server was given</span>
-  <a href="https://github.com/devnullv0id/send2ereader" rel="noreferrer">Source on GitHub</a>
+const DICT_CACHE_KEY = 's2e_i18n_v1'
+
+function readCachedDict() {
+  try {
+    const raw = sessionStorage.getItem(DICT_CACHE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+async function ensureDictionary() {
+  const lang = (document.documentElement.getAttribute('lang') || 'en').toLowerCase()
+  const cached = readCachedDict()
+  if (cached && cached.language === lang) {
+    Object.assign(I18N, cached)
+    return
+  }
+  try {
+    const res = await fetch(`/i18n/${encodeURIComponent(lang)}`, { credentials: 'same-origin' })
+    if (!res.ok) return
+    const dict = await res.json()
+    I18N.language = dict.language || 'en'
+    I18N.languages = dict.languages || []
+    I18N.strings = dict.strings || {}
+    try {
+      sessionStorage.setItem(
+        DICT_CACHE_KEY,
+        JSON.stringify({ language: I18N.language, languages: I18N.languages, strings: I18N.strings })
+      )
+    } catch {
+    }
+  } catch {
+  }
+}
+
+async function switchLanguage(code) {
+  const secure = window.location.protocol === 'https:' ? '; secure' : ''
+  document.cookie = `s2e_lang=${encodeURIComponent(code)}; path=/; max-age=31536000; samesite=lax${secure}`
+  if (shellState.user) {
+    try {
+      await postJson('/auth/language', { language: code })
+    } catch {
+    }
+  }
+  try {
+    sessionStorage.removeItem('s2e_status_v1')
+    sessionStorage.removeItem(DICT_CACHE_KEY)
+  } catch {
+  }
+  window.location.reload()
+}
+
+function footerHtml() {
+  const picker =
+    I18N.languages.length > 1
+      ? `<select class="field field--inline footer-lang" id="footerLang" data-lang-pick aria-label="${esc(t('Language'))}">${I18N.languages
+          .map(
+            (entry) =>
+              `<option value="${esc(entry.code)}"${entry.code === I18N.language ? ' selected' : ''}>${esc(entry.name)}</option>`
+          )
+          .join('')}</select>`
+      : ''
+  return `<div class="wrap">
+  <span>${esc(t('Maintained by {name}. Inspired by {origin}.', { name: 'devnullv0id', origin: 'djazz' }))}</span>
+  <span>${esc(t('Fastify, kepubify, and whatever converters this server was given'))}</span>
+  ${picker}
+  <a href="https://github.com/devnullv0id/send2ereader" rel="noreferrer">${esc(t('Source on GitHub'))}</a>
 </div>`
+}
 
 const closeMenus = []
 
@@ -372,13 +460,17 @@ const shellState = {
   waiting: 0,
   verifyNudge: null,
   hasRecoveryPhrase: false,
+  installing: null,
 }
 
 let drawn = ''
 
 function shellSignature() {
   const nudge = shellState.verifyNudge?.needed ? '1' : '0'
-  return `${currentPath()}|${shellState.accounts}|${shellState.user?.email ?? ''}|${shellState.waiting}|${nudge}`
+  const installing = shellState.installing
+    ? `${shellState.installing.kind}:${shellState.installing.id}`
+    : ''
+  return `${currentPath()}|${shellState.accounts}|${shellState.user?.email ?? ''}|${shellState.waiting}|${nudge}|${installing}`
 }
 
 function currentPath() {
@@ -406,7 +498,11 @@ function renderShell() {
   wireAccountMenu(header, overlays)
   wireVerifyNudge(overlays)
   const footer = document.querySelector('footer.footer')
-  if (footer) footer.innerHTML = FOOTER_HTML
+  if (footer) {
+    footer.innerHTML = footerHtml()
+    const pick = footer.querySelector('[data-lang-pick]')
+    if (pick) pick.addEventListener('change', () => switchLanguage(pick.value))
+  }
   drawn = shellSignature()
 }
 
@@ -424,20 +520,48 @@ async function refreshShell() {
   shellState.waiting = 0
   shellState.verifyNudge = status.verifyNudge || null
   shellState.hasRecoveryPhrase = status.hasRecoveryPhrase === true
+  shellState.installing = status.installing || null
 
   const canHaveDevices = status.user?.emailVerified === true || status.verificationNeeded === false
 
-  if (shellState.user && canHaveDevices) {
-    try {
-      const res = await fetch('/api/waiting/count', { credentials: 'same-origin' })
-      if (res.ok) shellState.waiting = (await res.json()).count || 0
-    } catch {
-    }
-  }
+  if (shellState.user && canHaveDevices) shellState.waiting = await getWaitingCount()
 
   writeCachedStatus({ ...status, waiting: shellState.waiting })
 
   if (shellSignature() !== drawn) renderShell()
+  watchInstalls()
+}
+
+let installsTimer = null
+
+function watchInstalls() {
+  if (shellState.installing && installsTimer === null) {
+    installsTimer = setInterval(pollInstalls, 3000)
+  } else if (!shellState.installing && installsTimer !== null) {
+    clearInterval(installsTimer)
+    installsTimer = null
+  }
+}
+
+async function pollInstalls() {
+  const status = await getStatus()
+  if (!status) return
+
+  shellState.installing = status.installing || null
+  if (shellSignature() !== drawn) {
+    renderShell()
+  } else if (shellState.installing) {
+    for (const el of document.querySelectorAll('[data-installing], [data-installing-drawer]')) {
+      el.replaceChildren(document.createTextNode(installingWords(shellState.installing)))
+      if (shellState.installing.percent !== null) {
+        const pct = document.createElement('span')
+        pct.className = 'nav-count'
+        pct.textContent = `${shellState.installing.percent}%`
+        el.append(pct)
+      }
+    }
+  }
+  watchInstalls()
 }
 
 function pageScope() {
@@ -641,12 +765,47 @@ function startRouter() {
   })
 }
 
+function keepInTheRail(item) {
+  const rail = item.closest('.settings__rail')
+  if (!rail || rail.scrollWidth <= rail.clientWidth) return
+
+  const railBox = rail.getBoundingClientRect()
+  const box = item.getBoundingClientRect()
+  const pad = 16
+
+  if (box.left < railBox.left + pad) {
+    rail.scrollLeft -= railBox.left + pad - box.left
+  } else if (box.right > railBox.right - pad) {
+    rail.scrollLeft += box.right - (railBox.right - pad)
+  }
+}
+
 async function mountShell() {
   explainUnbacked(document)
 
+  for (const rail of document.querySelectorAll('.settings__rail')) {
+    const mark = () => {
+      const room = rail.scrollWidth - rail.clientWidth
+      rail.dataset.end = String(room <= 1 || rail.scrollLeft >= room - 1)
+    }
+    rail.addEventListener('scroll', mark, { passive: true })
+    new MutationObserver(mark).observe(rail, { childList: true, subtree: true })
+    new ResizeObserver(mark).observe(rail)
+    mark()
+  }
+
+  // Escape only ever reaches a button marked as the way out, so a dangerous Enter default can never be triggered by it.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       for (const close of closeMenus) close()
+
+      const scrims = [...document.querySelectorAll('.modal-scrim:not([hidden])')]
+      const top = scrims[scrims.length - 1]
+      const out = top?.querySelector('[data-modal-close]')
+      if (out && !out.disabled) {
+        e.preventDefault()
+        out.click()
+      }
       return
     }
     if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
@@ -675,7 +834,9 @@ async function mountShell() {
     shellState.waiting = cached.waiting || 0
     shellState.verifyNudge = cached.verifyNudge || null
     shellState.hasRecoveryPhrase = cached.hasRecoveryPhrase === true
+    shellState.installing = cached.installing || null
   }
+  await ensureDictionary()
   renderShell()
 
   startRouter()

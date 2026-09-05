@@ -1,7 +1,10 @@
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { installingNow } from '../admin/extensions.js'
 import { config, safeNext } from '../config.js'
 import type { Passkey, Session, User } from '../db/repositories.js'
+import { i18n } from '../i18n.js'
+import { requestLanguage, say } from '../language.js'
 import { duration } from '../mail/template.js'
 import { settings } from '../settings.js'
 import { passwordRules } from './password.js'
@@ -97,7 +100,7 @@ export async function confirm(req: FastifyRequest, reply: FastifyReply): Promise
 
   await reply.code(403).send({
     ok: false,
-    error: 'Confirm it is you first',
+    error: say(req, 'Confirm it is you first'),
     needs: req.server.auth.reauthenticationNeeds(userId),
   })
   return false
@@ -153,9 +156,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       verificationNeeded: verificationIsPossible(),
       recoveryPhraseInUse: !settings.bool('SMTP_ENABLED'),
       minPasswordLength: settings.int('MIN_PASSWORD_LENGTH'),
-      passwordRules: passwordRules(),
-      signInLinkLasts: duration(settings.int('SIGNIN_LINK_TTL')),
-      emailTokenLasts: duration(settings.int('EMAIL_TOKEN_TTL')),
+      passwordRules: passwordRules(requestLanguage(req)),
+      signInLinkLasts: duration(settings.int('SIGNIN_LINK_TTL'), requestLanguage(req)),
+      emailTokenLasts: duration(settings.int('EMAIL_TOKEN_TTL'), requestLanguage(req)),
       user: user ? publicUser(user) : null,
       csrf: csrfToken(req),
       setupPending:
@@ -167,8 +170,36 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       passkeysPossible: isSecureContext(),
       staySignedIn: settings.bool('ALLOW_STAY_SIGNED_IN'),
       soleAccount: user ? app.repos.users.count() === 1 : null,
+      installing: user !== null && app.repos.users.canAdmin(user.id) ? await installingNow() : null,
+      language: requestLanguage(req),
+      languages: i18n.installed(),
     })
   })
+
+  app.post<{ Body: { language?: string | null } }>(
+    '/auth/language',
+    {
+      preHandler: requireUser,
+      schema: {
+        body: {
+          type: 'object',
+          required: ['language'],
+          properties: {
+            language: { type: ['string', 'null'], maxLength: 16 },
+          },
+        },
+      },
+    },
+    async (req, reply) => {
+      const asked = req.body.language
+      const language = asked === null || asked === undefined ? null : asked.toLowerCase()
+      if (language !== null && !i18n.isInstalled(language)) {
+        return reply.code(400).send({ ok: false, error: say(req, 'Not an installed language') })
+      }
+      app.repos.users.setLanguage(req.user!.id, language)
+      return reply.send({ ok: true, language })
+    }
+  )
 
   app.post<{ Body: Credentials }>(
     '/auth/register',
@@ -177,15 +208,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       if (req.user) {
         return reply.code(409).send({
           ok: false,
-          error: 'Sign out first — creating an account here would sign you into it',
+          error: say(req, 'Sign out first — creating an account here would sign you into it'),
         })
       }
 
       const claiming = auth.unclaimed
-      const user = await auth.register(req.body.email!, req.body.password!, {
-        firstName: req.body.firstName,
-        lastName: req.body.lastName,
-      })
+      const user = await auth.register(
+        req.body.email!,
+        req.body.password!,
+        {
+          firstName: req.body.firstName,
+          lastName: req.body.lastName,
+        },
+        requestLanguage(req)
+      )
       const recoveryPhrase = auth.recoveryPhraseNeeded ? auth.issueRecoveryPhrase(user.id) : null
       app.repos.users.touchLogin(user.id)
       startSession(req, user, req.body.remember !== false)
@@ -280,14 +316,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const pending = pendingSignIn(req)
       if (!pending) {
-        return reply.code(440).send({ ok: false, error: 'That sign-in timed out. Start again.' })
+        return reply
+          .code(440)
+          .send({ ok: false, error: say(req, 'That sign-in timed out. Start again.') })
       }
 
       const used = auth.verifySecondFactor(pending.userId, req.body.code!)
-      if (!used) return reply.code(401).send({ ok: false, error: 'That code did not match' })
+      if (!used) {
+        return reply.code(401).send({ ok: false, error: say(req, 'That code did not match') })
+      }
 
       const user = app.repos.users.byId(pending.userId)
-      if (!user) return reply.code(401).send({ ok: false, error: 'That code did not match' })
+      if (!user) {
+        return reply.code(401).send({ ok: false, error: say(req, 'That code did not match') })
+      }
 
       clearPending(req)
       app.repos.users.touchLogin(user.id)
@@ -315,23 +357,31 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       const challenge = takeChallenge(req)
       const response = req.body?.response
       if (!challenge || !response) {
-        return reply.code(400).send({ ok: false, error: 'Start the sign-in again' })
+        return reply.code(400).send({ ok: false, error: say(req, 'Start the sign-in again') })
       }
 
       const stored = app.repos.passkeys.byId(response.id)
       const handle = userHandleOf(response)
       if (!stored || (handle && handle !== stored.userId)) {
-        return reply.code(401).send({ ok: false, error: 'That passkey is not known here' })
+        return reply
+          .code(401)
+          .send({ ok: false, error: say(req, 'That passkey is not known here') })
       }
 
       const result = await verifyAuthentication(response, challenge, stored)
       if (!result) {
         req.log.warn({ userId: stored.userId }, 'A passkey assertion did not verify')
-        return reply.code(401).send({ ok: false, error: 'That passkey did not check out' })
+        return reply
+          .code(401)
+          .send({ ok: false, error: say(req, 'That passkey did not check out') })
       }
 
       const user = app.repos.users.byId(stored.userId)
-      if (!user) return reply.code(401).send({ ok: false, error: 'That passkey is not known here' })
+      if (!user) {
+        return reply
+          .code(401)
+          .send({ ok: false, error: say(req, 'That passkey is not known here') })
+      }
 
       app.repos.passkeys.recordUse(stored.id, result.counter)
       const remember = req.body?.remember !== false
@@ -371,18 +421,24 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       const challenge = takeChallenge(req)
       const response = req.body?.response
       if (!challenge || !response) {
-        return reply.code(400).send({ ok: false, error: 'Start again — that attempt expired' })
+        return reply
+          .code(400)
+          .send({ ok: false, error: say(req, 'Start again — that attempt expired') })
       }
 
       const credential = await verifyRegistration(response, challenge)
       if (!credential) {
-        return reply.code(400).send({ ok: false, error: 'That passkey did not check out' })
+        return reply
+          .code(400)
+          .send({ ok: false, error: say(req, 'That passkey did not check out') })
       }
       if (app.repos.passkeys.byId(credential.id)) {
-        return reply.code(409).send({ ok: false, error: 'That passkey is already registered' })
+        return reply
+          .code(409)
+          .send({ ok: false, error: say(req, 'That passkey is already registered') })
       }
 
-      const label = (req.body.label ?? '').trim().slice(0, 60) || 'Unnamed passkey'
+      const label = (req.body.label ?? '').trim().slice(0, 60) || say(req, 'Unnamed passkey')
       const saved = app.repos.passkeys.create({ ...credential, userId: req.user!.id, label })
       req.log.info({ userId: req.user!.id }, 'Registered a passkey')
       return reply.send({ ok: true, passkey: publicPasskey(saved) })
@@ -395,7 +451,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const key = app.repos.passkeys.byId(req.params.id)
       if (!key || key.userId !== req.user!.id) {
-        return reply.code(404).send({ ok: false, error: 'Unknown passkey' })
+        return reply.code(404).send({ ok: false, error: say(req, 'Unknown passkey') })
       }
       const confirmed = await confirm(req, reply)
       if (!confirmed) return reply
@@ -455,7 +511,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: requireUser, ...slowLimit },
     async (req, reply) => {
       if (!req.user!.totpEnabled) {
-        return reply.code(409).send({ ok: false, error: 'Two-factor is not on for this account' })
+        return reply
+          .code(409)
+          .send({ ok: false, error: say(req, 'Two-factor is not on for this account') })
       }
       const confirmed = await confirm(req, reply)
       if (!confirmed) return reply
@@ -616,7 +674,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       ...slowLimit,
     },
     async (req, reply) => {
-      const user = await auth.resetPassword(req.body.token!, req.body.password!)
+      const user = await auth.resetPassword(
+        req.body.token!,
+        req.body.password!,
+        requestLanguage(req)
+      )
       const remember = req.body.remember !== false
 
       if (user.totpEnabled) {
@@ -654,7 +716,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       const lastName = (req.body.lastName ?? '').trim()
 
       const problem = nameProblem(firstName, lastName)
-      if (problem) return reply.code(400).send({ ok: false, error: problem })
+      if (problem) return reply.code(400).send({ ok: false, error: say(req, problem) })
 
       app.repos.users.setName(req.user!.id, firstName, lastName)
       return reply.send({ ok: true, user: publicUser(app.repos.users.byId(req.user!.id)!) })
@@ -678,10 +740,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       ...slowLimit,
     },
     async (req, reply) => {
-      await auth.changePassword(req.user!.id, req.body.current ?? '', req.body.password!, {
-        when: new Date().toUTCString(),
-        where: `${req.ip} — ${req.headers['user-agent'] ?? 'an unknown browser'}`,
-      })
+      await auth.changePassword(
+        req.user!.id,
+        req.body.current ?? '',
+        req.body.password!,
+        {
+          when: new Date().toUTCString(),
+          where: `${req.ip} — ${req.headers['user-agent'] ?? 'an unknown browser'}`,
+        },
+        requestLanguage(req)
+      )
 
       const sid = req.session.get('sid')
       const ended = sid ? app.repos.sessions.revokeOthers(req.user!.id, sid) : 0
@@ -705,10 +773,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     async (req, reply) => {
       const session = app.repos.sessions.byId(req.params.id)
       if (!session || session.userId !== req.user!.id) {
-        return reply.code(404).send({ ok: false, error: 'Unknown session' })
+        return reply.code(404).send({ ok: false, error: say(req, 'Unknown session') })
       }
       if (session.id === req.session.get('sid')) {
-        return reply.code(400).send({ ok: false, error: 'Use sign out for this browser' })
+        return reply.code(400).send({ ok: false, error: say(req, 'Use sign out for this browser') })
       }
       app.repos.sessions.revoke(session.id)
       req.log.info({ userId: req.user!.id }, 'Ended another session')
@@ -718,7 +786,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post('/auth/sessions/revoke-others', { preHandler: requireUser }, async (req, reply) => {
     const sid = req.session.get('sid')
-    if (!sid) return reply.code(409).send({ ok: false, error: 'This session has no record' })
+    if (!sid) {
+      return reply.code(409).send({ ok: false, error: say(req, 'This session has no record') })
+    }
     const ended = app.repos.sessions.revokeOthers(req.user!.id, sid)
     req.log.info({ userId: req.user!.id, ended }, 'Signed out everywhere else')
     return reply.send({ ok: true, ended })
@@ -760,7 +830,7 @@ export async function requireVerifiedUser(
 ): Promise<unknown> {
   if (!req.user) return rejectUnauthenticated(req, reply)
   if (!req.user.emailVerified && verificationIsPossible()) {
-    return reply.code(403).send({ ok: false, error: 'Confirm your e-mail address first' })
+    return reply.code(403).send({ ok: false, error: say(req, 'Confirm your e-mail address first') })
   }
   return undefined
 }

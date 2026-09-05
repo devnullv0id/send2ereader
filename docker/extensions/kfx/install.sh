@@ -16,8 +16,6 @@ say() {
     return 0
 }
 
-# The machine-readable half, for the page that watches this run. Nothing here
-# changes what a person reading `docker logs` sees.
 stage() {
     [ -n "${S2E_PROGRESS:-}" ] || return 0
     printf '%s %s %s\n' "$1" "$2" "${3:-}" >> "$S2E_PROGRESS"
@@ -246,5 +244,5 @@ else
     stage verify failed 'this image has no KFX Output plugin'
     stage run failed
     say 'this image has no KFX Output plugin, so KFX stays refused. Images from'
-    say '2.0.1 on carry it; set KFX_OUTPUT_PLUGIN_URL to add it to an older one.'
+    say '2.0.0 on carry it; set KFX_OUTPUT_PLUGIN_URL to add it to an older one.'
 fi

@@ -21,11 +21,11 @@
 	<main class="main">
 		<div class="wrap">
 			<div class="auth">
-				<h1 class="auth__title">Sign in</h1>
-				<p class="auth__sub">Only to remember your devices, defaults and history. Sending works without it, and always will.</p>
+				<h1 class="auth__title">Create the administrator account</h1>
+				<p class="auth__sub">Nobody is in charge yet; the account you make here administers it.</p>
 
 				<div class="auth-warn">
-					<strong>Do this now.</strong> Until an administrator exists, anyone who can reach this server can create one.
+					<strong>Do this now</strong> — anyone who can reach this server can create one.
 				</div>
 
 				<form id="setupform">
@@ -40,7 +40,7 @@
 						<input class="auth__field" type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" spellcheck="false" required/>
 						<span class="auth__status" aria-hidden="true"><i class="ph" aria-hidden="true"></i></span>
 					</div>
-					<p class="auth__note" id="mailnote">Used to confirm the address and to reset the password. It is the only way back in if you forget it.</p>
+					<p class="auth__note" id="mailnote">Confirms the address and resets the password.</p>
 
 					<div class="auth__label">Password</div>
 					<div class="auth__field-wrap">
@@ -74,7 +74,7 @@
 <div class="modal-scrim modal-scrim--codes" id="codesModal" hidden>
 	<div class="modal modal--codes" role="dialog" aria-modal="true" aria-labelledby="codesModalTitle">
 		<div class="modal__title" id="codesModalTitle">Write this down before you go on</div>
-		<p class="modal__text">No mail is configured, so there is no reset link. These six words are your way back in, used in place of the password on the sign-in page.</p>
+		<p class="modal__text">No reset link without mail — these six words are your way back in.</p>
 		<p class="modal__text">Shown once. Keep it somewhere that is not this computer.</p>
 		<div class="codes">
 			<div class="codes__phrase" id="codesPhrase"></div>

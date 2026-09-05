@@ -1,4 +1,6 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { config } from '../config.js'
 
 export interface ContainerCheck {
   inContainer: boolean
@@ -31,7 +33,10 @@ export function detectContainer(probes: ContainerProbes = onThisMachine): Contai
   return { inContainer: false, evidence: '' }
 }
 
-export function requestRestart(): void {
+function requestRestart(): void {
+  try {
+    writeFileSync(join(config.dataDir, 'restart-requested'), `${process.pid}\n`)
+  } catch {}
   process.kill(process.pid, 'SIGTERM')
 }
 

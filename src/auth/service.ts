@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto'
 import { publicUrlFor } from '../config.js'
 import type { Repositories, User } from '../db/repositories.js'
+import { userLanguage } from '../language.js'
 import type { Mailer } from '../mail/index.js'
 import {
   emailChangeEmail,
@@ -71,7 +72,8 @@ export class AuthService {
   async register(
     emailRaw: string,
     password: string,
-    name: { firstName?: string; lastName?: string } = {}
+    name: { firstName?: string; lastName?: string } = {},
+    lang = 'en'
   ): Promise<User> {
     if (!this.registrationOpen) {
       throw new AuthError('Registration is closed on this server', 403)
@@ -79,7 +81,7 @@ export class AuthService {
 
     const email = normaliseEmail(emailRaw)
     if (!EMAIL_RE.test(email)) throw new AuthError('That does not look like an e-mail address')
-    const problem = passwordProblem(password)
+    const problem = passwordProblem(password, lang)
     if (problem) throw new AuthError(problem)
 
     const firstName = (name.firstName ?? '').trim()
@@ -117,7 +119,7 @@ export class AuthService {
     const link = publicUrlFor(`/auth/verify?token=${encodeURIComponent(token)}`)
     await this.mailer.send({
       to: user.email,
-      ...verificationEmail(link, settings.int('EMAIL_TOKEN_TTL')),
+      ...verificationEmail(link, settings.int('EMAIL_TOKEN_TTL'), userLanguage(user)),
     })
   }
 
@@ -170,7 +172,7 @@ export class AuthService {
     const link = publicUrlFor(`/auth/email/confirm?token=${encodeURIComponent(token)}`)
     await this.mailer.send({
       to: email,
-      ...emailChangeEmail(link, settings.int('EMAIL_TOKEN_TTL')),
+      ...emailChangeEmail(link, settings.int('EMAIL_TOKEN_TTL'), userLanguage(user)),
     })
     this.log.info({ userId }, 'Asked a new address to confirm itself')
     return email
@@ -201,15 +203,15 @@ export class AuthService {
     this.dropRecoveryPhrase(user.id)
     this.log.warn({ userId: user.id }, 'The address on an account changed')
 
-    void this.tellTheOldAddress(wasAt, consumed.email)
+    void this.tellTheOldAddress(wasAt, consumed.email, userLanguage(user))
     return this.repos.users.byId(user.id)!
   }
 
-  private async tellTheOldAddress(was: string, now: string): Promise<void> {
+  private async tellTheOldAddress(was: string, now: string, lang: string): Promise<void> {
     try {
       await this.mailer.send({
         to: was,
-        ...emailMovedEmail(publicUrlFor('/'), now, new Date().toUTCString()),
+        ...emailMovedEmail(publicUrlFor('/'), now, new Date().toUTCString(), lang),
       })
     } catch (err) {
       this.log.warn({ err }, 'Could not tell the old address that it had been replaced')
@@ -220,7 +222,7 @@ export class AuthService {
     const link = publicUrlFor('/')
     const host = new URL(link).origin
     try {
-      await this.mailer.send({ to: user.email, ...welcomeEmail(link, host) })
+      await this.mailer.send({ to: user.email, ...welcomeEmail(link, host, userLanguage(user)) })
     } catch {
       this.log.warn({ userId: user.id }, 'Could not send the welcome message')
     }
@@ -269,7 +271,8 @@ export class AuthService {
           publicUrlFor('/auth/forgot'),
           run.count,
           from.when ?? new Date().toUTCString(),
-          from.where ?? 'an unknown address'
+          from.where ?? 'an unknown address',
+          userLanguage(user)
         ),
       })
       this.log.warn(
@@ -298,7 +301,7 @@ export class AuthService {
     try {
       await this.mailer.send({
         to: user.email,
-        ...resetEmail(link, settings.int('EMAIL_TOKEN_TTL')),
+        ...resetEmail(link, settings.int('EMAIL_TOKEN_TTL'), userLanguage(user)),
       })
     } catch (err) {
       this.log.warn({ err, userId: user.id }, 'Could not send the reset message')
@@ -329,7 +332,7 @@ export class AuthService {
     try {
       await this.mailer.send({
         to: user.email,
-        ...signInLinkEmail(link, settings.int('SIGNIN_LINK_TTL')),
+        ...signInLinkEmail(link, settings.int('SIGNIN_LINK_TTL'), userLanguage(user)),
       })
       this.log.info({ userId: user.id }, 'Sent a sign-in link')
     } catch (err) {
@@ -347,8 +350,8 @@ export class AuthService {
     return { user: this.repos.users.byId(consumed.userId)!, persist: consumed.persist }
   }
 
-  async resetPassword(token: string, password: string): Promise<User> {
-    const problem = passwordProblem(password)
+  async resetPassword(token: string, password: string, lang = 'en'): Promise<User> {
+    const problem = passwordProblem(password, lang)
     if (problem) throw new AuthError(problem)
 
     const consumed = this.repos.emailTokens.consume(token, 'reset')
@@ -364,7 +367,8 @@ export class AuthService {
     userId: string,
     current: string,
     next: string,
-    from: RequestOrigin = {}
+    from: RequestOrigin = {},
+    lang = 'en'
   ): Promise<void> {
     const user = this.repos.users.byId(userId)
     if (!user) throw new AuthError('Unknown account', 404)
@@ -377,7 +381,7 @@ export class AuthService {
       }
     }
 
-    const problem = passwordProblem(next)
+    const problem = passwordProblem(next, lang)
     if (problem) throw new AuthError(problem)
 
     this.repos.users.setPassword(userId, await hashPassword(next))
@@ -389,7 +393,8 @@ export class AuthService {
         ...passwordChangedEmail(
           publicUrlFor('/auth/forgot'),
           from.when ?? new Date().toISOString(),
-          from.where ?? 'an unknown address'
+          from.where ?? 'an unknown address',
+          userLanguage(user)
         ),
       })
     } catch {

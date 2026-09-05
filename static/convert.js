@@ -21,18 +21,8 @@ onPage('convert', (page) => {
   let cancelled = false
   page.leave(() => inFlight?.abort())
 
-  function size(bytes) {
-    const mb = bytes / (1024 * 1024)
-    return mb >= 1 ? `${mb.toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
-  }
-
   const show = (el, visible) => {
     if (el) el.hidden = !visible
-  }
-
-  function badge(el, done, current, mark) {
-    el.className = `step__badge${done ? ' is-complete' : current ? ' is-current' : ''}`
-    el.textContent = done ? '✓' : mark
   }
 
   function chosen(id) {
@@ -65,15 +55,15 @@ onPage('convert', (page) => {
     if (!file) return
     if (!SendLogic.isAccepted(file.name)) {
       refuse(
-        `.${SendLogic.extensionOf(file.name)} isn't one we handle`,
-        "These converters can't read it. Turn it into an EPUB first and we'll take it from there."
+        t(".{ext} isn't one we handle", { ext: SendLogic.extensionOf(file.name) }),
+        t("These converters can't read it. Turn it into an EPUB first and we'll take it from there.")
       )
       return
     }
     if (state.maxFileSize && file.size > state.maxFileSize) {
       refuse(
-        `That file is ${size(file.size)}, over this server's limit`,
-        `This server accepts up to ${size(state.maxFileSize)}.`
+        t("That file is {size}, over this server's limit", { size: size(file.size) }),
+        t('This server accepts up to {size}.', { size: size(state.maxFileSize) })
       )
       return
     }
@@ -205,14 +195,14 @@ onPage('convert', (page) => {
   }
 
   const FORMAT_ABOUT = {
-    epub: 'Universal, flexible e-book format.',
-    pdf: 'Fixed-layout documents and books.',
-    mobi: 'Older Kindle e-book format.',
-    azw3: 'Advanced Kindle e-book format.',
-    kfx: 'Modern Kindle e-book format.',
-    kepub: 'Optimized e-book format for Kobo.',
-    txt: 'Plain text with no formatting.',
-    htmlz: 'Packaged HTML e-book format.',
+    epub: t('Universal, flexible e-book format.'),
+    pdf: t('Fixed-layout documents and books.'),
+    mobi: t('Older Kindle e-book format.'),
+    azw3: t('Advanced Kindle e-book format.'),
+    kfx: t('Modern Kindle e-book format.'),
+    kepub: t('Optimized e-book format for Kobo.'),
+    txt: t('Plain text with no formatting.'),
+    htmlz: t('Packaged HTML e-book format.'),
   }
 
   function renderFormats() {
@@ -273,11 +263,11 @@ onPage('convert', (page) => {
   }
 
   function optionsSummary() {
-    if (!ready()) return 'Waiting for a file'
+    if (!ready()) return t('Waiting for a file')
     const on = offeredFixes()
       .filter((fix) => fix.applies && fix.available && chosen(fix.id))
       .map((fix) => fix.label)
-    return on.length ? on.join(', ') : 'Nothing extra'
+    return on.length ? on.join(', ') : t('Nothing extra')
   }
 
   function renderSteps() {
@@ -290,10 +280,10 @@ onPage('convert', (page) => {
 
     $('step1Value').textContent = state.file
       ? `${state.file.name} · ${size(state.file.size)}`
-      : 'No file yet'
-    $('step2Value').textContent = state.target ? TARGET_LABEL[state.target] : 'Pick one'
+      : t('No file yet')
+    $('step2Value').textContent = state.target ? t(TARGET_LABEL[state.target]) : t('Pick one')
     $('step3Value').textContent =
-      formatsFor().find((f) => f.format === state.format)?.label || 'Pick one'
+      formatsFor().find((f) => f.format === state.format)?.label || t('Pick one')
     $('step4Value').textContent = optionsSummary()
 
     for (const n of [1, 2, 3, 4]) badge($(`badge${n}`), false, true, String(n))
@@ -313,7 +303,11 @@ onPage('convert', (page) => {
 
   function optionText(fix, live, enabled) {
     const why =
-      live && !enabled ? (fix.available ? fix.reason : 'Not installed on this server. An administrator can add it under Admin → Converters.') : ''
+      live && !enabled
+        ? fix.available
+          ? fix.reason
+          : t('Not installed — an administrator can add it under Admin → Converters.')
+        : ''
     return [fix.description || '', why].filter(Boolean).join(' ')
   }
 
@@ -400,39 +394,55 @@ onPage('convert', (page) => {
     if (state.running) return
     if (state.result) {
       btn.disabled = false
-      $('runlabel').textContent = 'Convert another book'
+      $('runlabel').textContent = t('Convert another book')
       return
     }
     btn.disabled = !ready()
     $('runlabel').textContent = !state.file
-      ? 'Pick a file to convert'
+      ? t('Pick a file to convert')
       : ready()
-        ? `Convert to ${offered(state.format)?.label || state.format.toUpperCase()}`
+        ? t('Convert to {format}', {
+            format: offered(state.format)?.label || state.format.toUpperCase(),
+          })
         : state.target
-          ? 'Pick a format'
-          : 'Pick what it is for'
+          ? t('Pick a format')
+          : t('Pick what it is for')
   }
 
   const EASE_MS = 700
+  const CONVERT_EASE_MS = 9000
+  const UPLOAD_SHARE = 60
+  const CONVERT_TARGET = 99
   const MAX_RATE = 45
   const FINISH_CAP_MS = 1500
 
   let shownPct = 0
   let targetPct = 0
   let lastFrame = 0
+  let ease = EASE_MS
   let walk = null
 
   function paintProgress() {
-    $('runlabel').textContent = `Converting file · ${Math.round(shownPct)}%`
+    $('runlabel').textContent = t('Converting file · {pct}%', { pct: Math.round(shownPct) })
     $('bar').style.setProperty('--prog', `${shownPct.toFixed(2)}%`)
   }
 
   function progress(ceiling) {
     $('runbtn').disabled = false
-    $('runbtn').title = 'Cancel this conversion'
+    $('runbtn').title = t('Cancel this conversion')
     $('runbtn').classList.add('is-running')
+    ease = EASE_MS
     targetPct = ceiling
     paintProgress()
+  }
+
+  function uploaded(fraction) {
+    targetPct = Math.max(targetPct, Math.min(1, fraction) * UPLOAD_SHARE)
+  }
+
+  function converting() {
+    ease = CONVERT_EASE_MS
+    targetPct = CONVERT_TARGET
   }
 
   page.frame(() => {
@@ -456,7 +466,7 @@ onPage('convert', (page) => {
 
     const gap = targetPct - shownPct
     if (gap < 0.01) return
-    const eased = gap * (1 - Math.exp(-elapsed / EASE_MS))
+    const eased = gap * (1 - Math.exp(-elapsed / ease))
     shownPct += Math.min(eased, (MAX_RATE * elapsed) / 1000)
     paintProgress()
   })
@@ -488,6 +498,7 @@ onPage('convert', (page) => {
     shownPct = 0
     targetPct = 0
     lastFrame = 0
+    ease = EASE_MS
     walk = null
     state.running = true
     show($('runbtn'), true)
@@ -502,22 +513,18 @@ onPage('convert', (page) => {
       body.append(id, on ? 'on' : 'off')
     }
 
-    progress(65)
-    inFlight = new AbortController()
-    let result
-    try {
-      const res = await fetch('/convert', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: await csrfHeaders(),
-        body,
-        signal: inFlight.signal,
-      })
-      progress(92)
-      result = { ok: res.ok, data: await res.json().catch(() => null) }
-    } catch {
-      result = { ok: false, data: null }
-    }
+    progress(0)
+    const call = SendLogic.postWithProgress('/convert', body, {
+      headers: await csrfHeaders(),
+      onUpload: (fraction) => {
+        uploaded(fraction)
+        if (fraction >= 1) converting()
+      },
+    })
+    inFlight = { abort: call.abort }
+
+    const result = await call.done
+
     inFlight = null
     if (!page.alive) return
 
@@ -537,7 +544,7 @@ onPage('convert', (page) => {
     renderAll()
 
     if (!result.ok || !result.data?.ok) {
-      failed(result.data?.error)
+      failed(result.data?.error || result.data?.message, result.data?.detail, result.data?.tool)
       return
     }
     succeeded(result.data)
@@ -557,6 +564,15 @@ onPage('convert', (page) => {
     $('downloadLink').setAttribute('download', data.filename)
     sayKept(data.kept)
 
+    History.add({
+      filename: data.filename,
+      ok: true,
+      destination: 'Converted',
+      format: offered(state.format)?.label || state.format,
+      size: data.size,
+      bookId: data.kept?.kept ? data.kept.id : null,
+    })
+
     renderAll()
   }
 
@@ -567,13 +583,28 @@ onPage('convert', (page) => {
     $('doneKept').textContent = line?.text ?? ''
   }
 
-  function failed(error) {
+  function failed(error, detail, toolName) {
     show($('errorpanel'), true)
-    const tool = offered(state.format)?.via[0] || 'calibre'
-    $('errorTitle').textContent = `${tool} couldn't read this file`
-    $('errorText').textContent = 'Nothing was written. The file looks cut short.'
-    show($('errorLog'), Boolean(error))
-    if (error) $('errorLog').textContent = error
+    const tool = toolName || offered(state.format)?.via[0] || 'calibre'
+    $('errorTitle').textContent = toolName
+      ? t('{tool} could not convert this file', { tool })
+      : t('Not converted')
+    $('errorText').textContent = toolName
+      ? error
+        ? t('Nothing was written. {error}', { error })
+        : t('Nothing was written.')
+      : t('{error}. Nothing was written.', {
+          error: error || t('The server did not accept this file'),
+        })
+
+    show($('errorLog'), Boolean(detail))
+    if (detail) $('errorLog').textContent = detail
+
+    History.add({
+      filename: state.file?.name,
+      ok: false,
+      destination: 'Converted',
+    })
   }
 
   $('fileinput').addEventListener('change', (e) => setFile(e.target.files[0]))
@@ -588,14 +619,14 @@ onPage('convert', (page) => {
     zone.addEventListener(type, (e) => {
       e.preventDefault()
       zone.classList.add('is-dragging')
-      $('dzLabel').textContent = 'Let go to load it'
+      $('dzLabel').textContent = t('Let go to load it')
     })
   }
   for (const type of ['dragleave', 'drop']) {
     zone.addEventListener(type, (e) => {
       e.preventDefault()
       zone.classList.remove('is-dragging')
-      $('dzLabel').textContent = "Or drag and drop like it's hot"
+      $('dzLabel').textContent = t("Or drag and drop like it's hot")
       if (type === 'drop') setFile(e.dataTransfer?.files[0])
     })
   }

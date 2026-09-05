@@ -3,6 +3,7 @@ import { copyFile, rename, stat } from 'node:fs/promises'
 import { extname } from 'node:path'
 import { finished, pipeline } from 'node:stream/promises'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { verificationIsPossible } from '../auth/routes.js'
 import {
   isOutputFormat,
   type OutputFormat,
@@ -34,6 +35,7 @@ import {
   withExtension,
 } from '../files.js'
 import { newBookId } from '../kobo/queue.js'
+import { say } from '../language.js'
 import { type KeepResult, keepACopy, publicKeep } from '../library.js'
 import type { PendingDelivery, QueuedBook } from '../pending.js'
 import { settings } from '../settings.js'
@@ -192,7 +194,9 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
     { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } },
     async (req, reply) => {
       if (!req.isMultipart()) {
-        return reply.code(415).send({ ok: false, error: 'Expected a multipart/form-data body' })
+        return reply
+          .code(415)
+          .send({ ok: false, error: say(req, 'Expected a multipart/form-data body') })
       }
 
       const state: MultipartState = { fields: new Map(), upload: null }
@@ -205,10 +209,10 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
         if (deviceId) return await sendToDevice(app, req, reply, state, deviceId)
 
         const key = fields.get('key')?.trim().toUpperCase()
-        if (!key) throw new UploadError('No key supplied')
+        if (!key) throw new UploadError(say(req, 'No key supplied'))
 
         const info = app.keystore.get(key)
-        if (!info) throw new UploadError(`Unknown key ${key}`)
+        if (!info) throw new UploadError(say(req, 'Unknown key {key}', { key }))
 
         app.keystore.renew(key)
         const options = readOptions(fields)
@@ -216,7 +220,9 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
 
         const url = fields.get('url')?.trim()
         if (url) {
-          if (!/^https?:\/\//i.test(url)) throw new UploadError('Only http(s) urls can be sent')
+          if (!/^https?:\/\//i.test(url)) {
+            throw new UploadError(say(req, 'Only http(s) urls can be sent'))
+          }
           if (!info.urls.includes(url)) info.urls.push(url)
           messages.push(`Added url: ${url}`)
         }
@@ -256,7 +262,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
           messages.push(`Filename: ${result.filename}`)
         }
 
-        if (messages.length === 0) throw new UploadError('No file or url selected')
+        if (messages.length === 0) throw new UploadError(say(req, 'No file or url selected'))
 
         app.keystore.renew(key)
         return await reply.send({
@@ -276,14 +282,19 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
           return reply.code(err.statusCode).send({ ok: false, error: err.message })
         }
         if (err instanceof TooBusyError) {
-          return reply.code(503).send({ ok: false, error: err.message })
+          return reply.code(503).send({ ok: false, error: say(req, err.message) })
         }
         if (err instanceof ConversionError) {
           req.log.error({ err, tool: err.tool, output: err.output }, 'Conversion failed')
-          return reply.code(422).send({ ok: false, error: err.toUserMessage() })
+          return reply.code(422).send({
+            ok: false,
+            error: err.toUserMessage(),
+            detail: err.toUserDetail(),
+            tool: err.tool,
+          })
         }
         if ((err as { code?: string }).code === 'FST_REQ_FILE_TOO_LARGE') {
-          return reply.code(413).send({ ok: false, error: 'File is too large' })
+          return reply.code(413).send({ ok: false, error: say(req, 'File is too large') })
         }
         throw err
       }
@@ -298,15 +309,17 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
       const key = req.body?.key?.trim().toUpperCase() ?? ''
 
       if (deviceId) {
-        if (!req.user) return reply.code(401).send({ ok: false, error: 'Sign in first' })
+        if (!req.user) return reply.code(401).send({ ok: false, error: say(req, 'Sign in first') })
         const device = app.repos.devices.byId(deviceId)
         if (!device || device.userId !== req.user.id) {
-          return reply.code(404).send({ ok: false, error: 'Unknown device' })
+          return reply.code(404).send({ ok: false, error: say(req, 'Unknown device') })
         }
 
         const held = app.pending.claim(token, deviceId)
         if (!held?.queued || held.queued.userId !== req.user.id) {
-          return reply.code(404).send({ ok: false, error: 'Nothing is waiting to be sent' })
+          return reply
+            .code(404)
+            .send({ ok: false, error: say(req, 'Nothing is waiting to be sent') })
         }
 
         const kept = await keepACopy(app, req.user, {
@@ -328,10 +341,14 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const info = app.keystore.get(key)
-      if (!info) return reply.code(404).send({ ok: false, error: `Unknown key ${key}` })
+      if (!info) {
+        return reply.code(404).send({ ok: false, error: say(req, 'Unknown key {key}', { key }) })
+      }
 
       const held = app.pending.claim(token, key)
-      if (!held) return reply.code(404).send({ ok: false, error: 'Nothing is waiting to be sent' })
+      if (!held) {
+        return reply.code(404).send({ ok: false, error: say(req, 'Nothing is waiting to be sent') })
+      }
 
       await deliver(app, key, held)
 
@@ -357,7 +374,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
       if (!held) return reply.send({ ok: true, discarded: false })
 
       if (held.queued && held.queued.userId !== req.user?.id) {
-        return reply.code(404).send({ ok: false, error: 'Nothing is waiting to be sent' })
+        return reply.code(404).send({ ok: false, error: say(req, 'Nothing is waiting to be sent') })
       }
 
       await safeUnlink(held.path)
@@ -375,26 +392,36 @@ async function sendToDevice(
   deviceId: string
 ): Promise<FastifyReply> {
   if (!app.hasDecorator('deliveries')) {
-    throw new UploadError('This server has no registered devices', 404)
+    throw new UploadError(say(req, 'This server has no registered devices'), 404)
   }
-  if (!req.user) throw new UploadError('Sign in to send to a registered eReader', 401)
-  if (!req.user.emailVerified) throw new UploadError('Confirm your e-mail address first', 403)
+  if (!req.user) throw new UploadError(say(req, 'Sign in to send to a registered eReader'), 401)
+  if (!req.user.emailVerified && verificationIsPossible()) {
+    throw new UploadError(say(req, 'Confirm your e-mail address first'), 403)
+  }
 
   const device = app.repos.devices.byId(deviceId)
   if (!device || device.userId !== req.user.id) {
-    throw new UploadError('Unknown device', 404)
+    throw new UploadError(say(req, 'Unknown device'), 404)
   }
-  if (!state.upload) throw new UploadError('No file selected')
+  if (device.lastSeenAt === null) {
+    throw new UploadError(
+      say(req, '{device} has never synced — connect it once first', { device: device.label }),
+      409
+    )
+  }
+  if (!state.upload) throw new UploadError(say(req, 'No file selected'))
 
   const upload = state.upload
-  if (upload.truncated) throw new UploadError('File is too large', 413)
+  if (upload.truncated) throw new UploadError(say(req, 'File is too large'), 413)
 
   const { size } = await stat(upload.path)
-  if (size === 0) throw new UploadError('Invalid file submitted (empty file)')
+  if (size === 0) throw new UploadError(say(req, 'Invalid file submitted (empty file)'))
 
   const detected = await detectFormat(upload.path, upload.originalName)
   if (!detected) {
-    throw new UploadError(`Uploaded file is not a valid ebook: ${upload.originalName}`)
+    throw new UploadError(
+      say(req, 'Uploaded file is not a valid ebook: {name}', { name: upload.originalName })
+    )
   }
 
   const options = readOptions(state.fields)
@@ -531,22 +558,28 @@ async function handleFile(
   path: string
 }> {
   if (upload.truncated) {
-    throw new UploadError('File is too large', 413)
+    throw new UploadError(say(req, 'File is too large'), 413)
   }
 
   const { size } = await stat(upload.path)
-  if (size === 0) throw new UploadError('Invalid file submitted (empty file)')
+  if (size === 0) throw new UploadError(say(req, 'Invalid file submitted (empty file)'))
 
   if (!formatFromName(upload.originalName)) {
     throw new UploadError(
-      `Unsupported file type: ${upload.originalName}. Accepted: ${acceptedExtensions.join(', ')}`
+      say(req, 'Unsupported file type: {name}. Accepted: {accepted}', {
+        name: upload.originalName,
+        accepted: acceptedExtensions.join(', '),
+      })
     )
   }
 
   const detected = await detectFormat(upload.path, upload.originalName)
   if (!detected) {
     throw new UploadError(
-      `Uploaded file is not a valid ${extname(upload.originalName) || 'ebook'} file: ${upload.originalName}`
+      say(req, 'Uploaded file is not a valid {ext} file: {name}', {
+        ext: extname(upload.originalName) || 'ebook',
+        name: upload.originalName,
+      })
     )
   }
 

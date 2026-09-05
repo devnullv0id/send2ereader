@@ -3,6 +3,7 @@ import fastifySecureSession from '@fastify/secure-session'
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
 import { publicUrl, sessionSecret } from '../config.js'
 import type { User } from '../db/repositories.js'
+import { say } from '../language.js'
 import { settings } from '../settings.js'
 
 declare module '@fastify/secure-session' {
@@ -17,7 +18,7 @@ declare module '@fastify/secure-session' {
   }
 }
 
-export const PENDING_TTL_MS = 10 * 60 * 1000
+const PENDING_TTL_MS = 10 * 60 * 1000
 const CHALLENGE_TTL_MS = 5 * 60 * 1000
 
 export async function registerSession(app: FastifyInstance): Promise<void> {
@@ -123,7 +124,7 @@ export function endSession(req: FastifyRequest): void {
 
 export function rejectUnauthenticated(req: FastifyRequest, reply: FastifyReply): FastifyReply {
   const wantsHtml = (req.headers.accept ?? '').includes('text/html')
-  if (!wantsHtml) return reply.code(401).send({ error: 'Not signed in' })
+  if (!wantsHtml) return reply.code(401).send({ ok: false, error: say(req, 'Not signed in') })
   const returnTo = encodeURIComponent(req.url)
   return reply.redirect(`/login?next=${returnTo}`)
 }

@@ -2,8 +2,8 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
-export const PERIOD_SECONDS = 30
-export const DIGITS = 6
+const PERIOD_SECONDS = 30
+const DIGITS = 6
 const SECRET_BYTES = 20
 const DEFAULT_WINDOW = 1
 

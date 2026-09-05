@@ -1,8 +1,9 @@
 import { config, envFile, sessionSecret, sessionSecretOrigin } from './config.js'
 import type { Db } from './db/index.js'
 import { decryptSecret, encryptSecret } from './db/secretbox.js'
+import { i18n } from './i18n.js'
 
-export type SettingKind = 'bool' | 'int' | 'string' | 'secret' | 'choice'
+export type SettingKind = 'bool' | 'int' | 'string' | 'secret' | 'choice' | 'toggled'
 
 export interface SettingSpec {
   key: string
@@ -18,6 +19,7 @@ export interface SettingSpec {
   choices?: { value: string; label: string }[]
   restart?: boolean
   readOnly?: boolean
+  check?: (value: string, lang?: string) => string | null
   env: () => string
 }
 
@@ -33,8 +35,12 @@ export const SETTING_GROUPS: SettingGroup[] = [
   {
     id: 'server',
     title: 'Address',
-    intro:
-      'The address this server calls itself: every link it sends, the passkey it binds, the endpoint each paired Kobo stores. Takes a restart.',
+    intro: 'The address this server calls itself. Takes a restart.',
+  },
+  {
+    id: 'language',
+    title: 'Language',
+    intro: 'What this server speaks until a visitor picks their own.',
   },
   {
     id: 'accounts',
@@ -44,25 +50,22 @@ export const SETTING_GROUPS: SettingGroup[] = [
   {
     id: 'passwords',
     title: 'Passwords',
-    intro: 'Length does more than any composition rule, which is why the rest start off.',
+    intro: 'Length does more than any composition rule.',
   },
   {
     id: 'guessing',
     title: 'Failed sign-ins',
-    intro:
-      'Nothing here locks an account. A run of wrong passwords writes to the address it was aimed at.',
+    intro: 'Nothing locks an account; the address gets a notice instead.',
   },
   {
     id: 'mail',
     title: 'Mail',
-    intro:
-      'Without mail there is no verification, reset or sign-in link. The password is stored encrypted.',
+    intro: 'Without mail there is no verification, reset or sign-in link.',
   },
   {
     id: 'sso',
     title: 'Single sign-on',
-    intro:
-      'An OpenID Connect provider, so an existing directory does the signing in. The secret is stored encrypted.',
+    intro: 'An OpenID Connect provider does the signing in.',
   },
   {
     id: 'sending',
@@ -77,49 +80,70 @@ export const SETTING_GROUPS: SettingGroup[] = [
   {
     id: 'library',
     title: 'Library',
-    intro: 'How much may be kept, and for how long, when an account keeps its books.',
+    intro: 'How much may be kept, and for how long.',
   },
   {
     id: 'kobo',
     title: 'Kobo sync',
-    intro:
-      'A Kobo talks to this server instead of to Kobo, and the rest is passed through. Only change these if you know why.',
+    intro: 'A Kobo talks to this server; the rest is passed through.',
   },
   {
     id: 'listen',
     title: 'Server',
-    intro:
-      'Where the process listens, which never appears in a link. Set in the environment file; takes a restart.',
+    intro: 'Where the process listens. Set in the environment; takes a restart.',
   },
   {
     id: 'storage',
     title: 'Storage',
-    intro:
-      'Where everything is kept, and held open while the server runs. Set in the environment file; takes a restart.',
+    intro: 'Where everything is kept. Set in the environment; takes a restart.',
   },
   {
     id: 'logging',
     title: 'Logging',
-    intro: 'How much this server writes down. Set in the environment file; takes a restart.',
+    intro: 'How much this server writes down. Set in the environment; takes a restart.',
   },
   {
     id: 'converters',
-    title: 'Converters',
-    intro: 'Which executable each conversion runs. Set in the environment file; takes a restart.',
+    title: 'Converter paths',
+    intro: 'Which executable each conversion runs. Set in the environment; takes a restart.',
   },
   {
     id: 'extensions',
     title: 'Extensions',
-    intro:
-      'Things this image deliberately does not carry, installed at container start. Read before the server exists, so they live in the environment file.',
+    intro: 'Fetched in the background at start; set in the environment.',
   },
   {
     id: 'security',
     title: 'Security',
-    intro:
-      'The parts nothing else works without. Set in the environment file, so a browser cannot weaken them.',
+    intro: 'Set in the environment, so a browser cannot weaken them.',
   },
 ]
+
+const TRUTHY_WORDS = ['1', 'true', 'yes', 'on']
+
+const HOSTNAME =
+  /^(?:\[[0-9a-fA-F:]+\]|[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?)*)(?::\d{1,5})?$/
+
+function domainProblem(value: string, lang = 'en'): string | null {
+  const host = value.trim()
+  if (host === '') return null
+
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(host)) {
+    return i18n.translate(
+      lang,
+      'Just the name, without the https:// in front — the scheme is the field beside it'
+    )
+  }
+  if (/[/?#\\]/.test(host)) {
+    return i18n.translate(lang, 'Just the name and a port if you need one, with no path after it')
+  }
+  if (/\s/.test(host)) return i18n.translate(lang, 'A hostname has no spaces in it')
+  if (!HOSTNAME.test(host)) return i18n.translate(lang, '{host} is not a hostname', { host })
+
+  const port = /:(\d{1,5})$/.exec(host)
+  if (port && Number(port[1]) > 65535) return i18n.translate(lang, 'That is not a port')
+  return null
+}
 
 const yesNo = (value: boolean) => (value ? 'true' : 'false')
 
@@ -148,6 +172,7 @@ export const SETTING_SPECS: SettingSpec[] = [
     note: 'A name, not an IP — no browser holds a passkey for an address.',
     kind: 'string',
     restart: true,
+    check: domainProblem,
     env: () => config.domain,
   },
   {
@@ -155,10 +180,19 @@ export const SETTING_SPECS: SettingSpec[] = [
     group: 'server',
     label: 'This server sits behind a reverse proxy',
     placeholder: '192.168.20.2',
-    note: "The proxy's own address, so X-Forwarded-For is believed only from it. true believes anyone who reaches this port.",
-    kind: 'string',
+    note: "The proxy's address, a CIDR range or loopback — believed from nowhere else.",
+    kind: 'toggled',
     restart: true,
     env: () => trustEnv(config.trustProxy),
+  },
+  {
+    key: 'LANGUAGE',
+    group: 'language',
+    label: 'Default language',
+    note: 'Anyone can pick another; new files in the languages folder appear after a restart.',
+    kind: 'choice',
+    choices: i18n.installed().map((entry) => ({ value: entry.code, label: entry.name })),
+    env: () => config.language,
   },
   {
     key: 'ALLOW_SIGNUP',
@@ -444,7 +478,7 @@ export const SETTING_SPECS: SettingSpec[] = [
     key: 'MAIL_LOG_SECRETS',
     group: 'mail',
     label: 'Write sign-in links to the log in full',
-    note: 'A link in a log is a live credential. For a fresh server, not for leaving on.',
+    note: 'A link in a log is a live credential.',
     kind: 'bool',
     env: () => yesNo(config.mail.logSecrets),
   },
@@ -660,7 +694,7 @@ export const SETTING_SPECS: SettingSpec[] = [
     key: 'HTTP_ADDR',
     group: 'listen',
     label: 'Listen address',
-    note: 'The interface to bind. 0.0.0.0 is all of them, which is what a container wants.',
+    note: 'The interface to bind; 0.0.0.0 is all of them.',
     kind: 'string',
     readOnly: true,
     env: () => config.httpAddr,
@@ -766,7 +800,7 @@ export const SETTING_SPECS: SettingSpec[] = [
     key: 'LOG_PRETTY',
     group: 'logging',
     label: 'Readable logs instead of JSON',
-    note: 'Development only. Needs pino-pretty, which the image does not carry.',
+    note: 'The older spelling: off means JSON. LOG_FORMAT replaces it and wins.',
     kind: 'bool',
     readOnly: true,
     env: () => yesNo(config.logPretty),
@@ -820,7 +854,7 @@ export const SETTING_SPECS: SettingSpec[] = [
     group: 'extensions',
     label: 'Extensions to install at start',
     placeholder: 'ghcr.io/devnullv0id/s2e-mod-kfx:latest',
-    note: 'Image names, pipe separated, unpacked at every start.',
+    note: 'Ids or image names, pipe separated; queued at every start.',
     kind: 'string',
     readOnly: true,
     env: () => config.extensions,
@@ -915,7 +949,7 @@ export const SETTING_SPECS: SettingSpec[] = [
     key: 'ACCOUNTS',
     group: 'security',
     label: 'Accounts exist on this server',
-    note: 'Off removes sign-in, the library and this page, so only the environment file can bring them back.',
+    note: 'Off removes sign-in, the library and this page.',
     kind: 'bool',
     readOnly: true,
     env: () => yesNo(config.auth.accounts),
@@ -933,7 +967,7 @@ export const SETTING_SPECS: SettingSpec[] = [
     key: 'SCRYPT_N',
     group: 'security',
     label: 'Password hashing cost',
-    note: 'Higher is slower to attack and slower to sign in. Stored passwords keep their own cost.',
+    note: 'Higher is slower to attack and slower to sign in.',
     kind: 'int',
     min: 2 ** 12,
     max: 2 ** 22,
@@ -958,7 +992,7 @@ export function specFor(key: string): SettingSpec | undefined {
   return BY_KEY.get(key)
 }
 
-export const lockedKeys: ReadonlySet<string> = new Set(
+const lockedKeys: ReadonlySet<string> = new Set(
   (process.env.LOCKED_SETTINGS ?? '')
     .split(/[\s,]+/)
     .map((name) => name.trim().toUpperCase())
@@ -994,22 +1028,43 @@ export function boundsFor(spec: SettingSpec): { min: number | null; max: number 
   }
 }
 
-export function problemWith(spec: SettingSpec, value: string): string | null {
+export function problemWith(spec: SettingSpec, value: string, lang = 'en'): string | null {
+  const own = spec.check?.(value, lang)
+  if (own) return own
+
   if (spec.kind === 'bool') {
-    return ['true', 'false'].includes(value) ? null : 'Expected true or false'
+    return ['true', 'false'].includes(value) ? null : i18n.translate(lang, 'Expected true or false')
   }
   if (spec.kind === 'int') {
-    if (!/^-?\d+$/.test(value)) return 'Expected a whole number'
+    if (!/^-?\d+$/.test(value)) return i18n.translate(lang, 'Expected a whole number')
     const parsed = Number.parseInt(value, 10)
     const bounds = boundsFor(spec)
-    if (bounds.min !== null && parsed < bounds.min) return `Must be at least ${bounds.min}`
-    if (bounds.max !== null && parsed > bounds.max) return `Must be at most ${bounds.max}`
+    if (bounds.min !== null && parsed < bounds.min) {
+      return i18n.translate(lang, 'Must be at least {n}', { n: bounds.min })
+    }
+    if (bounds.max !== null && parsed > bounds.max) {
+      return i18n.translate(lang, 'Must be at most {n}', { n: bounds.max })
+    }
     return null
   }
   if (spec.kind === 'choice') {
-    return spec.choices?.some((c) => c.value === value) ? null : 'Not one of the choices'
+    return spec.choices?.some((c) => c.value === value)
+      ? null
+      : i18n.translate(lang, 'Not one of the choices')
   }
-  if (value.length > 4096) return 'Too long'
+  if (spec.kind === 'toggled') {
+    const lowered = value.trim().toLowerCase()
+    if (lowered === '') return i18n.translate(lang, 'Give an address, or switch it off')
+    if (TRUTHY_WORDS.includes(lowered)) {
+      return i18n.translate(
+        lang,
+        '{value} would believe anyone who reaches this port — give the address it should believe instead',
+        { value }
+      )
+    }
+    return null
+  }
+  if (value.length > 4096) return i18n.translate(lang, 'Too long')
   return null
 }
 

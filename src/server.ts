@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import closeWithGrace from 'close-with-grace'
+import { applyPendingRestore } from './admin/restore.js'
 import { buildApp } from './app.js'
 import { WEAK_SECRET_LENGTH } from './auth/secret.js'
 import {
@@ -23,14 +24,30 @@ function ownVersion(): string {
 
 const version = ownVersion()
 
+function bootLogger() {
+  const say = (level: string) => (fields: object, message: string) => {
+    console.error(`${new Date().toISOString()} ${level.toUpperCase()} restore ${message}`, fields)
+  }
+  return { info: say('info'), error: say('error') }
+}
+
 async function main(): Promise<void> {
   await prepareUploadDir(config.cleanUploadDirOnBoot)
   await DeliveryQueue.prepare()
   await Library.prepare()
 
+  const restored = await applyPendingRestore(bootLogger())
+
   const secret = provisionSessionSecret()
 
   const app = await buildApp()
+
+  if (restored) {
+    const said = restored.ok
+      ? `a backup was restored at boot — ${restored.books} books came with it`
+      : `a restore was asked for and failed: ${restored.error}`
+    app.log[restored.ok ? 'warn' : 'error']({ scope: 'server' }, said)
+  }
 
   app.log.info({ scope: 'server', version, env: process.env.NODE_ENV ?? 'development' }, 'starting')
 

@@ -22,7 +22,7 @@
 		<div class="wrap">
 			<div class="page-head">
 				<h1 class="page-title">Converters</h1>
-				<p class="sub">EPUB and KEPUB work on their own. Kindle formats, PDF and KFX are fetched when you ask, and can be removed again. <a href="/admin#kfx">Back to admin</a></p>
+				<p class="sub">EPUB and KEPUB work on their own; the rest is fetched on request. <a href="/admin#kfx">Back to admin</a></p>
 			</div>
 
 			<div class="step-card install-card">
@@ -31,6 +31,16 @@
 				<div class="ext-run" id="run" hidden>
 					<div class="step-rail" id="rail" role="tablist" aria-label="Stages"></div>
 					<div class="step-stack" id="stack"></div>
+
+					<button type="button" class="step step--summary" id="outSummary" hidden>
+						<span class="step__badge" id="outSummaryBadge"></span>
+						<span class="step__summary-body">
+							<span class="step__summary-title">Output</span>
+							<span class="step__summary-value">The converter's own words</span>
+						</span>
+						<span class="step__summary-action"></span>
+					</button>
+					<div class="step__rule" id="outRule" hidden></div>
 
 					<div class="install-out" id="outWrap" hidden>
 						<div class="install-out__head">
@@ -61,8 +71,8 @@
 			<p class="cost__note" id="costNote"></p>
 		</div>
 		<div class="modal__actions">
-			<button type="button" class="btn btn--sm btn--primary" id="costGo" data-modal-default>Install it</button>
-			<button type="button" class="btn btn--err" id="costCancel">Cancel</button>
+			<button type="button" class="btn btn--primary" id="costGo" data-modal-default>Install it</button>
+			<button type="button" data-modal-close class="btn btn--quiet" id="costCancel">Cancel</button>
 		</div>
 	</div>
 </div>
@@ -73,8 +83,8 @@
 		<p class="modal__text" id="confirmText"></p>
 		<p class="modal__text" id="confirmCost"></p>
 		<div class="modal__actions">
-			<button type="button" class="btn btn--sm btn--danger" id="confirmGo" data-modal-default>Yes, remove it</button>
-			<button type="button" class="btn btn--err" id="confirmCancel">Keep it</button>
+			<button type="button" class="btn btn--danger" id="confirmGo" data-modal-default>Yes, remove it</button>
+			<button type="button" data-modal-close class="btn btn--quiet" id="confirmCancel">Keep it</button>
 		</div>
 	</div>
 </div>
@@ -84,7 +94,7 @@
 		<div class="modal__title" id="removedTitle">Removed</div>
 		<p class="modal__text" id="removedText"></p>
 		<div class="modal__actions">
-			<button type="button" class="btn btn--sm btn--primary" id="removedOk" data-modal-default>OK</button>
+			<button type="button" data-modal-close class="btn btn--primary" id="removedOk" data-modal-default>Got it</button>
 		</div>
 	</div>
 </div>
@@ -94,7 +104,7 @@
 		<div class="modal__title" id="noticeTitle">Not done</div>
 		<p class="modal__text" id="noticeText"></p>
 		<div class="modal__actions">
-			<button type="button" class="btn btn--sm btn--primary" id="noticeOk" data-modal-default>Close</button>
+			<button type="button" data-modal-close class="btn btn--primary" id="noticeOk" data-modal-default>Got it</button>
 		</div>
 	</div>
 </div>

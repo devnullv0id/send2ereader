@@ -36,6 +36,7 @@
 							<span class="rail__dot" id="koboRailDot"></span>
 						</button>
 						<div class="rail__divider"></div>
+						<a class="rail__item rail__item--away" id="adminRail" href="/admin" hidden>Admin<span class="rail__away" aria-hidden="true">↗</span></a>
 						<button type="button" class="rail__item rail__item--danger" data-tab="danger">Delete account</button>
 					</nav>
 
@@ -43,7 +44,7 @@
 
 						<section id="panel-defaults" data-panel="defaults">
 							<div class="settings__section">Send defaults</div>
-							<p class="settings__intro">Send picks these for you as soon as it knows the device. You can still change any of them for a single book.</p>
+							<p class="settings__intro">Send picks these once it knows the device; change any per book.</p>
 
 							<div class="settings__rule"></div>
 							<div class="settings__section">Kindle format</div>
@@ -63,7 +64,7 @@
 									<option value="epub">EPUB</option>
 								</select>
 							</div>
-							<p class="field-note field-note--wide">KEPUB is Kobo's own format, with its page turns and reading statistics. EPUB is read by everything.</p>
+							<p class="field-note field-note--wide">KEPUB is Kobo's own format; EPUB is read by everything.</p>
 
 							<div class="settings__rule"></div>
 							<div class="settings__section">Options start as</div>
@@ -71,14 +72,14 @@
 								<button type="button" class="pref" data-pref="layoutFix">
 									<span class="pref__text">
 										<span class="pref__label">Fix layout</span>
-										<span class="pref__desc">Repairs full-page images that get clipped and covers that get stretched. Offered for EPUB, KEPUB and AZW3.</span>
+										<span class="pref__desc">Repairs clipped full-page images and stretched covers.</span>
 									</span>
 									<span class="toggle"><span class="toggle__knob"></span></span>
 								</button>
 								<button type="button" class="pref" data-pref="transliteration">
 									<span class="pref__text">
 										<span class="pref__label">Transliterate filename</span>
-										<span class="pref__desc">Rewrite accented and non-Latin characters as ASCII. Offered when the filename has something to rewrite.</span>
+										<span class="pref__desc">Rewrites accented and non-Latin filename characters as ASCII.</span>
 									</span>
 									<span class="toggle"><span class="toggle__knob"></span></span>
 								</button>
@@ -92,7 +93,7 @@
 								<button type="button" class="pref" data-pref="lfFixImages">
 									<span class="pref__text">
 										<span class="pref__label">Rewrite full-page images so they fit the page</span>
-										<span class="pref__desc">The repair this exists for. Off leaves the pages alone and only the cover work below can run.</span>
+										<span class="pref__desc">The repair this exists for; off leaves pages alone.</span>
 									</span>
 									<span class="toggle"><span class="toggle__knob"></span></span>
 								</button>
@@ -113,7 +114,7 @@
 								<button type="button" class="pref" data-pref="lfFixMultiImage">
 									<span class="pref__text">
 										<span class="pref__label">Also fix pages holding several images</span>
-										<span class="pref__desc">Off by default: on a page of several images there is no single one to fit.</span>
+										<span class="pref__desc">Off by default — no single image to fit.</span>
 									</span>
 									<span class="toggle"><span class="toggle__knob"></span></span>
 								</button>
@@ -127,7 +128,7 @@
 								<button type="button" class="pref" data-pref="lfDarkCover">
 									<span class="pref__text">
 										<span class="pref__label">Dark letterbox bands around the cover</span>
-										<span class="pref__desc">Fills the space a fitted cover leaves. Content pages never get a dark background — the reader draws its header and footer on them in black.</span>
+										<span class="pref__desc">Fills the space a fitted cover leaves; content pages stay light.</span>
 									</span>
 									<span class="toggle"><span class="toggle__knob"></span></span>
 								</button>
@@ -146,18 +147,18 @@
 
 						<section id="panel-history" data-panel="history" hidden>
 							<div class="settings__section">History</div>
-							<p class="settings__intro">Without a library, History is this browser's own. With one, the books are kept here until their deadline.</p>
+							<p class="settings__intro">Without a library, History is this browser's own.</p>
 
 							<div id="libraryPanel" hidden>
 								<div class="settings__rule"></div>
 								<div class="settings__section">Keeping books</div>
-								<p class="settings__intro" id="libraryIntro">Off, a book is deleted the moment it is delivered. On, it stays here so you can fetch it again.</p>
+								<p class="settings__intro" id="libraryIntro">Off, a book is deleted the moment it is delivered.</p>
 
 								<div class="pref-list">
 									<button type="button" class="pref" id="libraryToggle" role="checkbox" aria-checked="false">
 										<span class="pref__text">
 											<span class="pref__label">Keep my books on this server</span>
-											<span class="pref__desc" id="libraryToggleDesc">Each book is deleted on its own deadline, whatever you change here afterwards.</span>
+											<span class="pref__desc" id="libraryToggleDesc">Each book keeps the deadline it arrived with.</span>
 										</span>
 										<span class="toggle"><span class="toggle__knob"></span></span>
 									</button>
@@ -171,7 +172,7 @@
 											<option value="60">hours</option>
 											<option value="1440">days</option>
 										</select>
-										<button type="button" class="outline-action" id="retainSave">Save</button>
+										<button type="button" class="btn btn--save" id="retainSave">Save</button>
 									</div>
 									<p class="field-note field-note--wide" id="retainNote"></p>
 									<p class="settings__line" id="libraryUsage"></p>
@@ -187,10 +188,10 @@
 							</div>
 
 							<div id="koboOff">
-								<p class="settings__intro">Point your Kobo here and a sent book arrives the way a bought one does: title, author and cover, in the device's own library. The queue holds it only until the device collects it. Whether a copy outlives that is decided under History.</p>
+								<p class="settings__intro">Point your Kobo here and a sent book arrives like a bought one.</p>
 								<div class="field-row">
 									<button type="button" class="btn btn--save" id="koboGenerate">Generate sync endpoint</button>
-									<span class="save-row__msg">Nothing changes on the device until you paste it there.</span>
+									<span class="save-row__msg">Nothing changes on the device until you paste it.</span>
 								</div>
 							</div>
 
@@ -217,7 +218,7 @@
 									<button type="button" class="outline-action outline-action--danger" id="koboRevoke">Turn off Kobo sync</button>
 								</div>
 
-								<p class="kobo-actions__note">A new token breaks the old URL. Turning sync off deletes the endpoint and anything waiting at it.</p>
+								<p class="kobo-actions__note">A new token breaks the old URL; turning sync off deletes everything waiting.</p>
 
 								<button type="button" class="outline-action" id="manualOpen">Show how to set up the Kobo</button>
 
@@ -245,15 +246,15 @@
 													<button type="button" class="manual__line-copy" id="manualCopy">Copy</button>
 												</div>
 												<p class="manual__aside">Built from this server's public address, so it is already right.</p>
-												<p class="manual__caution">Copy the original line into a comment first — you'll want it back if you ever return to the Kobo store.</p>
+												<p class="manual__caution">Copy the original line into a comment first.</p>
 											</div>
 										</div>
 										<div class="manual__step">
 											<div class="manual__num">4</div>
-											<p class="manual__text">Save, eject, unplug. Tap Sync on the device — the first one takes a minute.</p>
+											<p class="manual__text">Save, eject, unplug, then tap Sync on the device.</p>
 										</div>
 									</div>
-									<div class="manual__undo">Put the original line back to undo it — nothing on the device is modified beyond that one line.</div>
+									<div class="manual__undo">Put the original line back to undo it.</div>
 
 									<div class="manual__line">
 										<div class="manual__line-text" id="manualOriginal"></div>
@@ -261,28 +262,28 @@
 									</div>
 
 									<div class="modal__actions">
-										<button type="button" class="btn btn--primary" id="manualClose">Done</button>
+										<button type="button" data-modal-close class="btn btn--primary" id="manualClose" data-modal-default>Got it</button>
 									</div>
 									</div>
 								</div>
 
 								<dl class="danger__list">
-									<dt>&plus;</dt><dd>A book sent over sync arrives as a library entry, with its title, author and cover — never as a sideloaded file</dd>
-									<dt>&plus;</dt><dd>It waits at the endpoint until the device collects it, however long that takes, instead of expiring with a key</dd>
-									<dt class="is-muted">&minus;</dt><dd class="is-muted">Nothing here can wake a Kobo. It is reachable only when it decides to sync, so a send is ready for it rather than pushed at it</dd>
+									<dt>&plus;</dt><dd>A book arrives as a library entry with title, author and cover</dd>
+									<dt>&plus;</dt><dd>It waits at the endpoint until the device collects it</dd>
+									<dt class="is-muted">&minus;</dt><dd class="is-muted">Nothing here can wake a Kobo; it collects when it syncs</dd>
 								</dl>
 
 								<div class="pref-list pref-list--kobo">
 									<button type="button" class="pref" data-device-pref="proxyStore">
 										<span class="pref__text">
 											<span class="pref__label">Forward to Rakuten Kobo Store</span>
-											<span class="pref__desc">Combines your requests with requests from the Rakuten Kobo Store, so users can still access purchased books and get recommendations.</span>
+											<span class="pref__desc">Purchased books and recommendations keep coming from the Kobo Store.</span>
 										</span>
 										<span class="toggle"><span class="toggle__knob"></span></span>
 									</button>
 								</div>
 
-								<p class="settings__note">The endpoint answers only requests carrying this token, and anyone holding the URL can push a book to your device or collect one waiting. Treat it like a password.</p>
+								<p class="settings__note">Anyone holding the URL can reach your device — treat it like a password.</p>
 							</div>
 						</section>
 
@@ -310,8 +311,16 @@
 
 							<div class="settings__rule"></div>
 
+							<div class="settings__section">Language</div>
+							<div class="field-row">
+								<select class="field field--inline" id="prefLanguage"></select>
+							</div>
+							<p class="field-note field-note--wide">Pages, emails and errors. New language files appear after a restart.</p>
+
+							<div class="settings__rule"></div>
+
 							<div class="settings__section">Name</div>
-							<p class="settings__intro" id="nameIntro">Shown to whoever administers this server, so they can tell accounts apart without reading addresses.</p>
+							<p class="settings__intro" id="nameIntro">Shown to the administrator, so accounts can be told apart.</p>
 							<form class="field-stack" id="nameform">
 								<div class="auth__pair">
 									<input class="field" type="text" id="nameFirst" placeholder="First name" autocomplete="given-name" maxlength="100"/>
@@ -331,7 +340,7 @@
 								<span class="bang bang--md bang--warn">!</span>
 								<div class="pending-box__body">
 									<div class="pending-box__title">Confirm this address to finish setting up</div>
-									<p class="pending-box__text">Kobo sync needs a confirmed address, because the device is handed a token that can collect your books. Everything else already works.</p>
+									<p class="pending-box__text">Kobo sync needs a confirmed address; everything else already works.</p>
 									<div class="pending-box__actions">
 										<button type="button" class="btn btn--sm btn--accent" id="resendVerify">Send the link again</button>
 										<span class="save-row__msg" id="resendMsg"></span>
@@ -351,10 +360,10 @@
 								<p class="settings__line">Sign-in links and notices go to <span class="mono" id="emailNow"></span>.</p>
 								<div class="field-row">
 									<input class="field field--inline" id="newEmail" placeholder="new@address.com" spellcheck="false" autocomplete="email"/>
-									<button type="button" class="outline-action outline-action--go" id="emailGo" disabled>Send confirmation</button>
+									<button type="button" class="btn btn--save" id="emailGo" disabled>Send confirmation</button>
 								</div>
 								<p class="field-error" id="emailTaken" hidden>Another account on this server already uses that address.</p>
-								<p class="field-note field-note--wide">It changes only once you open the link sent to the new address. The old one gets a notice either way.</p>
+								<p class="field-note field-note--wide">It changes once you open the link sent to the new address.</p>
 							</div>
 
 							<div class="pending-box" id="emailPending" hidden>
@@ -393,7 +402,7 @@
 							<div class="key-list" id="passkeyList" hidden></div>
 							<div class="key-empty" id="passkeyEmpty">No passkeys yet. Your password keeps working either way.</div>
 							<button type="button" class="outline-action" id="addPasskey">Add a passkey</button>
-							<p class="field-note field-note--wide" id="passkeyUnsupported" hidden>This browser has no passkey support, or the site is not on https. Passkeys need one or the other.</p>
+							<p class="field-note field-note--wide" id="passkeyUnsupported" hidden>Passkeys need browser support and https; one of them is missing.</p>
 
 							<div class="settings__rule"></div>
 
@@ -403,9 +412,9 @@
 							</div>
 
 							<div id="tfaOff">
-								<p class="settings__intro">A six-digit code from an authenticator app, after the password. Only signing in asks for it.</p>
+								<p class="settings__intro">A six-digit code from an authenticator app, after the password.</p>
 								<button type="button" class="outline-action" id="tfaBegin">Set up two-factor</button>
-								<p class="field-note field-note--wide" id="tfaNeedsEmail" hidden>Confirm your email address first — the box on the Account page will send the link again.</p>
+								<p class="field-note field-note--wide" id="tfaNeedsEmail" hidden>Confirm your email address first, on the Account page.</p>
 							</div>
 
 							<div id="tfaOn" hidden>
@@ -440,7 +449,7 @@
 									<dt>&minus;</dt><dd>Your send defaults and Kobo sync settings</dd>
 									<dt>&minus;</dt><dd id="delKoboLine">Any Kobo sync endpoint</dd>
 								</dl>
-								<p class="danger__note">Any books this server is still keeping for you go with it. Books already on your eReader stay there. Anonymous sending keeps working.</p>
+								<p class="danger__note">Kept books go with it. Books already on your eReader stay.</p>
 
 								<div class="danger__prompt">Type DELETE to confirm</div>
 								<div class="danger__row">
@@ -450,12 +459,12 @@
 
 								<div class="danger__confirm" id="delConfirm" hidden>
 									<div class="danger__confirm-title">Delete the account for <span id="delEmail"></span>?</div>
-									<p class="danger__confirm-text">This can't be undone. You'll be signed out and this browser goes back to anonymous sending.</p>
-									<p class="danger__confirm-text" id="delLastWarning" hidden>The only account on this server. Deleting it puts the server back to its first-run state.</p>
+									<p class="danger__confirm-text">This can't be undone. This browser goes back to anonymous sending.</p>
+									<p class="danger__confirm-text" id="delLastWarning" hidden>The only account — the server goes back to first-run.</p>
 									<p class="field-error" id="delNote" hidden></p>
 									<div class="danger__actions">
-										<button type="button" class="btn btn--sm btn--danger" id="delYes">Yes, delete it</button>
-										<button type="button" class="btn btn--err" id="delNo">Keep my account</button>
+										<button type="button" class="btn btn--danger" id="delYes">Yes, delete it</button>
+										<button type="button" class="btn btn--quiet" id="delNo">Keep my account</button>
 									</div>
 								</div>
 							</div>
@@ -503,7 +512,7 @@
 		<p class="field-error" id="confirmError" hidden>That didn't match. Try again.</p>
 		<div class="modal__actions">
 			<button type="button" class="btn btn--primary" id="confirmGo" data-modal-default>Confirm</button>
-			<button type="button" class="btn btn--err" id="confirmCancel">Cancel</button>
+			<button type="button" data-modal-close class="btn btn--quiet" id="confirmCancel">Cancel</button>
 		</div>
 	</div>
 </div>
@@ -511,12 +520,12 @@
 <div class="modal-scrim" id="passkeyModal" hidden>
 	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="passkeyModalTitle">
 		<div class="modal__title" id="passkeyModalTitle">Name this passkey</div>
-		<p class="modal__text">A name helps you tell them apart later. Your browser asks for the fingerprint or PIN next.</p>
+		<p class="modal__text">Your browser asks for the fingerprint or PIN next.</p>
 		<input class="modal__field" id="passkeyName" placeholder="This computer" spellcheck="false"/>
 		<p class="field-error" id="passkeyError" hidden></p>
 		<div class="modal__actions">
 			<button type="button" class="btn btn--primary" id="passkeyCreate" data-modal-default>Create passkey</button>
-			<button type="button" class="btn btn--err" id="passkeyCancel">Cancel</button>
+			<button type="button" data-modal-close class="btn btn--quiet" id="passkeyCancel">Cancel</button>
 		</div>
 	</div>
 </div>
@@ -539,8 +548,8 @@
 			</div>
 		</div>
 		<div class="modal__actions">
-			<button type="button" class="btn btn--save" id="tfaConfirm" data-modal-default disabled>Turn it on</button>
-			<button type="button" class="btn btn--err" id="tfaCancel">Cancel</button>
+			<button type="button" class="btn btn--primary" id="tfaConfirm" data-modal-default disabled>Turn it on</button>
+			<button type="button" data-modal-close class="btn btn--quiet" id="tfaCancel">Cancel</button>
 		</div>
 	</div>
 </div>
@@ -548,7 +557,7 @@
 <div class="modal-scrim modal-scrim--codes" id="codesModal" hidden>
 	<div class="modal modal--codes" role="dialog" aria-modal="true" aria-labelledby="codesModalTitle">
 		<div class="modal__title" id="codesModalTitle">Save your recovery codes</div>
-		<p class="modal__text">Shown once. Each works once, and they're the way back in if you lose the authenticator.</p>
+		<p class="modal__text">Shown once; each works once if you lose the authenticator.</p>
 		<div class="codes">
 			<div class="codes__grid" id="codesGrid"></div>
 		</div>
@@ -561,7 +570,7 @@
 			<span class="codes__ack-box"></span>
 			<span class="codes__ack-label">I've saved them somewhere safe</span>
 		</button>
-		<button type="button" class="codes__done" id="codesDone" data-modal-default>Done</button>
+		<button type="button" class="codes__done" id="codesDone" data-modal-default disabled>Done</button>
 	</div>
 </div>
 </body>

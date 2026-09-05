@@ -151,10 +151,34 @@ export async function detectFormat(
   return { format: claimed, sniffedMime }
 }
 
+const NAME_BYTES = 255
+
+function keepTheExtension(wanted: string, cleaned: string): string {
+  if (!wanted) return cleaned
+
+  if (cleaned.toLowerCase() === wanted.toLowerCase()) return `book${wanted}`
+  if (cleaned.toLowerCase().endsWith(wanted.toLowerCase())) return cleaned
+
+  const room = NAME_BYTES - Buffer.byteLength(wanted, 'utf8')
+  let stem = cleaned.replace(/\.+$/, '')
+  while (Buffer.byteLength(stem, 'utf8') > room) stem = stem.slice(0, -1)
+
+  return stem === '' || stem === '.' ? `book${wanted}` : `${stem}${wanted}`
+}
+
+// sanitize-filename can take the extension with it, and the extension is what everything downstream reads, so it survives. Longest match first: .epub would turn a .kepub.epub into a plain one.
 export function decodeOriginalName(raw: string): string {
   const decoded = Buffer.from(raw, 'latin1').toString('utf8')
   const name = Buffer.from(decoded, 'utf8').toString('latin1') === raw ? decoded : raw
-  return sanitize(name).trim()
+
+  const clean = sanitize(name).trim()
+  const lowered = name.toLowerCase()
+
+  const wanted =
+    [...acceptedExtensions]
+      .sort((a, b) => b.length - a.length)
+      .find((ext) => lowered.endsWith(ext)) ?? ''
+  return keepTheExtension(wanted, clean)
 }
 
 export function transliterateName(filename: string): string {

@@ -74,6 +74,7 @@ export const config = {
   protocol: str('PROTOCOL', 'http'),
   domain: str('DOMAIN', ''),
   trustProxy: proxyTrust(raw('TRUST_PROXY'), false),
+  language: str('LANGUAGE', 'en'),
 
   dataDir: dir('DATA_DIR', 'data'),
   uploadDir: dir('UPLOAD_DIR', 'uploads'),

@@ -310,7 +310,7 @@ describe('the read-only tier', () => {
       expect(['environment', 'default', 'generated'], field.key).toContain(field.origin)
     }
     expect(shown.find((field) => field.key === 'SCRYPT_N')?.origin).toBe('environment')
-    expect(shown.find((field) => field.key === 'KEPUBIFY_BIN')?.origin).toBe('default')
+    expect(shown.find((field) => field.key === 'EBOOK_CONVERT_BIN')?.origin).toBe('default')
   })
 
   it('never shows the session secret, only that there is one', async () => {

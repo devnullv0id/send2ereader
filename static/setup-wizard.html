@@ -22,7 +22,7 @@
 		<div class="wrap">
 			<div class="page-head">
 				<h1 class="page-title">Set up this server</h1>
-				<p class="sub">Five things to decide. The rest of the server waits until they are answered.</p>
+				<p class="sub">Five decisions, then the server is yours.</p>
 			</div>
 
 			<div class="step-card setup-card">
@@ -41,7 +41,7 @@
 					<div class="step__badge is-current" id="badge1">1</div>
 					<div class="step__body">
 						<div class="step__title">The address people reach this server on</div>
-						<p class="field-note field-note--wide">Every link, every paired Kobo and every passkey is bound to it. Not how the server listens — that lives in the environment file.</p>
+						<p class="field-note field-note--wide">Every link, paired Kobo and passkey binds to it.</p>
 
 						<div class="field-row">
 							<select class="field field--inline field--choice" id="wizProtocol" data-key="PROTOCOL">
@@ -51,7 +51,22 @@
 							<input class="field field--inline" id="wizDomain" data-key="DOMAIN" placeholder="books.example.com" spellcheck="false"/>
 							<button type="button" class="outline-action" id="wizUseCurrent"><span>Use this address</span></button>
 						</div>
-						<p class="field-note field-note--wide" id="addressHint">A name, not an address. Empty on a laptop uses the listen address.</p>
+						<p class="field-note field-note--wide" id="addressHint">A name, not an address. Empty uses the listen address.</p>
+
+						<div class="pref-list">
+							<button type="button" class="pref" id="wizProxyToggle">
+								<span class="pref__text">
+									<span class="pref__label">This server sits behind a reverse proxy</span>
+									<span class="pref__desc">Off, everyone shares the proxy's one rate limit.</span>
+								</span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+						</div>
+
+						<div id="proxyFields" hidden>
+							<input class="field" id="wizProxyAddr" placeholder="192.168.20.2" spellcheck="false"/>
+							<p class="field-note field-note--wide">The proxy's address, a CIDR range or loopback — believed from nowhere else.</p>
+						</div>
 
 						<div class="save-row">
 							<button type="button" class="btn btn--primary" data-next="1">Continue</button>
@@ -75,7 +90,7 @@
 					<div class="step__badge" id="badge2">2</div>
 					<div class="step__body">
 						<div class="step__title">Mail</div>
-						<p class="field-note field-note--wide">Without it there is no confirmation, reset or sign-in link — the messages go to the log instead. Fine for one person, wrong for anybody else.</p>
+						<p class="field-note field-note--wide">Off, every link goes to the log instead of an inbox.</p>
 
 						<div class="pref-list">
 							<button type="button" class="pref" data-key="SMTP_ENABLED" data-toggle>
@@ -100,7 +115,7 @@
 									<option value="none">None</option>
 								</select>
 							</div>
-							<p class="field-note field-note--wide">STARTTLS on 587, SSL on 465. None sends your password in the clear.</p>
+							<p class="field-note field-note--wide">STARTTLS on 587, SSL on 465. None sends your password unencrypted.</p>
 
 							<p class="settings__line">Sign in to it</p>
 							<div class="field-pair">
@@ -142,7 +157,7 @@
 					<div class="step__badge" id="badge3">3</div>
 					<div class="step__body">
 						<div class="step__title">Single sign-on</div>
-						<p class="field-note field-note--wide">Lets an OpenID Connect provider do the signing in. Passwords keep working alongside it.</p>
+						<p class="field-note field-note--wide">An OpenID Connect provider signs people in; passwords keep working.</p>
 
 						<div class="pref-list">
 							<button type="button" class="pref" data-key="OIDC_ENABLED" data-toggle>
@@ -216,7 +231,7 @@
 							<input class="field field--inline field--amount" id="wizMinLength" data-key="MIN_PASSWORD_LENGTH" type="number" min="8" max="128"/>
 							<span class="save-row__msg">characters</span>
 						</div>
-						<p class="field-note field-note--wide">Length does more than any composition rule, which is why the rest start off.</p>
+						<p class="field-note field-note--wide">Length does more than any composition rule.</p>
 
 						<div class="pref-list">
 							<button type="button" class="pref" data-key="PASSWORD_REQUIRE_UPPER" data-toggle>
@@ -259,27 +274,36 @@
 					<div class="step__badge" id="badge5">5</div>
 					<div class="step__body">
 						<div class="step__title">Converters</div>
-						<p class="field-note field-note--wide">EPUB to KEPUB works already, which covers Kobo, Tolino and PocketBook. Kindle formats, PDF and KFX are most of a gigabyte, so they are fetched only if you ask.</p>
+						<p class="field-note field-note--wide">EPUB and KEPUB work already; the rest is fetched on request.</p>
 
 						<div class="pref-list pref-list--ext">
 							<button type="button" class="pref" data-ext="calibre" data-toggle>
 								<span class="pref__text">
-									<span class="pref__label">calibre</span>
-									<span class="pref__desc">MOBI, AZW3, PDF, TXT and HTMLZ, and reading a KFX. The converter everything else here is built on. About 600MB and a few minutes.</span>
+									<span class="admin-key__head">
+										<span class="pref__label">calibre</span>
+										<span class="admin-key__chip" data-ext-mark="calibre" hidden></span>
+									</span>
+									<span class="pref__desc">MOBI, AZW3, PDF, TXT, HTMLZ and reading KFX. About 600MB.</span>
 								</span>
 								<span class="toggle"><span class="toggle__knob"></span></span>
 							</button>
 							<button type="button" class="pref" data-ext="pdfcrop" data-toggle>
 								<span class="pref__text">
-									<span class="pref__label">PDF margin cropping</span>
-									<span class="pref__desc">Trims the white border off a PDF so more of the page is text on a small screen. About 90MB. Stands on its own.</span>
+									<span class="admin-key__head">
+										<span class="pref__label">PDF margin cropping</span>
+										<span class="admin-key__chip" data-ext-mark="pdfcrop" hidden></span>
+									</span>
+									<span class="pref__desc">Trims the white border off a PDF. About 90MB.</span>
 								</span>
 								<span class="toggle"><span class="toggle__knob"></span></span>
 							</button>
 							<button type="button" class="pref" data-ext="kfx" data-toggle>
 								<span class="pref__text">
-									<span class="pref__label">KFX</span>
-									<span class="pref__desc" id="wizKfxDesc">The format a modern Kindle prefers. Needs calibre, and Amazon’s Kindle Previewer running under Wine. About 3GB and up to twenty minutes.</span>
+									<span class="admin-key__head">
+										<span class="pref__label">KFX</span>
+										<span class="admin-key__chip" data-ext-mark="kfx" hidden></span>
+									</span>
+									<span class="pref__desc" id="wizKfxDesc">The modern Kindle format. Needs calibre and Amazon’s Previewer; about 3GB.</span>
 								</span>
 								<span class="toggle"><span class="toggle__knob"></span></span>
 							</button>
@@ -289,13 +313,13 @@
 							<button type="button" class="pref" data-ext="none" data-toggle>
 								<span class="pref__text">
 									<span class="pref__label">Nothing for now</span>
-									<span class="pref__desc">EPUB and KEPUB only. Any of these can be installed later under Admin → Converters.</span>
+									<span class="pref__desc" id="wizNoneDesc">EPUB and KEPUB only; install any of these later.</span>
 								</span>
 								<span class="toggle"><span class="toggle__knob"></span></span>
 							</button>
 						</div>
 
-						<p class="field-note field-note--wide">Fetched in the background while you carry on. Progress is on the Converters page.</p>
+						<p class="field-note field-note--wide">Fetched in the background; progress is on the Converters page.</p>
 
 						<div class="save-row">
 							<button type="button" class="btn btn--primary" data-next="5" id="extNext" disabled>Continue</button>
@@ -329,10 +353,22 @@
 							</div>
 						</div>
 
-						<p class="field-note field-note--wide" id="finishManual" hidden>Not in a container, so nothing would restart it. Everything is saved; restart it yourself for the address to take effect.</p>
+						<p class="field-note field-note--wide" id="finishManual" hidden>Not in a container — restart it yourself for the address to take effect.</p>
+
+						<div class="status-box" id="finishInstalls" hidden>
+							<span class="status-box__dot"></span>
+							<div class="status-box__body">
+								<div class="status-box__title">Fetching the converters you asked for</div>
+								<div class="status-box__meta" id="finishInstallCalibre" hidden></div>
+								<div class="status-box__meta" id="finishInstallPdfcrop" hidden></div>
+								<div class="status-box__meta" id="finishInstallKfx" hidden></div>
+								<div class="status-box__meta"><a href="/admin/extensions">Every stage and its output, on the Converters page</a></div>
+							</div>
+						</div>
 
 						<div class="save-row">
 							<button type="button" class="btn btn--primary" id="finishGo">Restart and finish</button>
+							<a class="btn btn--primary" id="finishDone" href="/" hidden>Start sending</a>
 							<span class="save-row__msg" id="msg6"></span>
 						</div>
 					</div>
@@ -360,7 +396,7 @@
 		<div class="modal__title" id="noticeTitle"></div>
 		<p class="modal__text" id="noticeText"></p>
 		<div class="modal__actions">
-			<button type="button" class="btn btn--primary" id="noticeOk" data-modal-default>Got it</button>
+			<button type="button" data-modal-close class="btn btn--primary" id="noticeOk" data-modal-default>Got it</button>
 		</div>
 	</div>
 </div>

@@ -24,8 +24,10 @@
 				<div class="list-page__head">
 					<div>
 						<h1 class="page-title">History</h1>
-						<p class="list-page__sub" id="subLocal">Stored in this browser only. The server keeps no record of what you sent.</p>
-						<p class="list-page__sub" id="subKept" hidden>Books this server is keeping for you. Each goes when its time runs out, or when you delete it.</p>
+						<p class="list-page__sub" id="subLocal">Stored in this browser only; the server keeps no record.</p>
+						<p class="list-page__sub" id="subLocalUser" hidden>Keeping is off for your account; this list is your browser's own.</p>
+						<p class="list-page__sub" id="subLocalAdmin" hidden>Keeping is off on this server; this list is your browser's own.</p>
+						<p class="list-page__sub" id="subKept" hidden>Books this server keeps for you until their time runs out.</p>
 					</div>
 					<button type="button" class="list-page__clear" id="clearbtn" hidden>Clear all</button>
 					<div class="auth-modes auth-modes--view" id="views" data-seg="0" hidden>
@@ -43,15 +45,17 @@
 
 				<div class="empty" id="emptyKept" hidden>
 					<div class="empty__title">Nothing kept yet</div>
-					<p class="empty__text">Books you send or convert while signed in are kept here until their time runs out.</p>
+					<p class="empty__text">Books you send or convert while signed in are kept here.</p>
 					<a class="empty__action" href="/">Send a book</a>
 				</div>
 
 				<div id="rows" hidden>
 					<div class="list" id="list"></div>
 					<div class="tiles" id="tiles" hidden></div>
-					<p class="list-note" id="noteLocal">Kept in this browser's storage, so clearing site data clears them. "Send again" returns to step 2 to pick the file again.</p>
-					<p class="list-note" id="noteKept" hidden>Each book keeps the deadline it arrived with, so a change in Settings applies to the next one. Download leaves the book here; Delete removes it now.</p>
+					<p class="list-note" id="noteLocal">Kept in this browser's storage, so clearing site data clears them. Download needs a copy on the server — sign in and turn keeping on, and the next sends can be fetched again.</p>
+					<p class="list-note" id="noteLocalUser" hidden>Turn keeping on under <a href="/settings#history">Settings → History</a> and the server holds each book.</p>
+					<p class="list-note" id="noteLocalAdmin" hidden>The administrator turned off keeping books — there is no copy to download.</p>
+					<p class="list-note" id="noteKept" hidden>Download leaves a book here; Delete removes it.</p>
 				</div>
 			</div>
 		</div>
@@ -74,8 +78,8 @@
 			</div>
 		</div>
 		<div class="list__actions">
+			<button type="button" class="list__cancel list__cancel--outline">Delete</button>
 			<a class="list__collect" download>Download</a>
-			<button type="button" class="list__cancel">Delete</button>
 		</div>
 	</div>
 </template>
@@ -94,7 +98,10 @@
 			<div class="list__name"></div>
 			<div class="list__meta"></div>
 		</div>
-		<a class="list__again" href="/">Send again</a>
+		<div class="list__actions">
+			<button type="button" class="list__cancel list__cancel--outline">Delete</button>
+			<a class="list__collect is-off" aria-disabled="true">Download</a>
+		</div>
 	</div>
 </template>
 </body>

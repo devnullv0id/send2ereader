@@ -17,6 +17,7 @@ export interface User {
   passkeysClearedAt: string | null
   passkeysClearedFrom: string | null
   verifyRemindersLeft: number | null
+  language: string | null
 }
 
 export type TokenPurpose = 'verify' | 'reset' | 'signin' | 'email_change'
@@ -68,6 +69,7 @@ interface UserRow {
   passkeys_cleared_at: string | null
   passkeys_cleared_from: string | null
   verify_reminders_left: number | null
+  language: string | null
 }
 
 interface DeviceRow {
@@ -121,6 +123,7 @@ function toUser(row: UserRow): User {
     passkeysClearedAt: row.passkeys_cleared_at,
     passkeysClearedFrom: row.passkeys_cleared_from,
     verifyRemindersLeft: row.verify_reminders_left,
+    language: row.language,
   }
 }
 
@@ -143,13 +146,13 @@ export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
-export function generateToken(): string {
+function generateToken(): string {
   return randomBytes(32).toString('base64url')
 }
 
 const now = () => new Date().toISOString()
 
-export class Users {
+class Users {
   constructor(private readonly db: Db) {}
 
   count(): number {
@@ -310,6 +313,10 @@ export class Users {
     this.db.prepare('UPDATE users SET retain_minutes = ? WHERE id = ?').run(minutes, id)
   }
 
+  setLanguage(id: string, language: string | null): void {
+    this.db.prepare('UPDATE users SET language = ? WHERE id = ?').run(language, id)
+  }
+
   touchLogin(id: string): void {
     this.db.prepare('UPDATE users SET last_login_at = ? WHERE id = ?').run(now(), id)
   }
@@ -338,7 +345,7 @@ export class Users {
   }
 }
 
-export class Identities {
+class Identities {
   constructor(private readonly db: Db) {}
 
   findUserId(issuer: string, subject: string): string | null {
@@ -358,7 +365,7 @@ export class Identities {
   }
 }
 
-export class EmailTokens {
+class EmailTokens {
   constructor(private readonly db: Db) {}
 
   issue(
@@ -442,7 +449,7 @@ export class EmailTokens {
   }
 }
 
-export class Devices {
+class Devices {
   constructor(private readonly db: Db) {}
 
   create(userId: string, label: string, proxyStore: boolean): { device: Device; token: string } {
@@ -519,7 +526,7 @@ export class Devices {
   }
 }
 
-export class Sessions {
+class Sessions {
   constructor(private readonly db: Db) {}
 
   create(userId: string, ttlSeconds: number, userAgent: string, ip: string): Session {
@@ -880,7 +887,7 @@ export class Passkeys {
 
 export type CodePurpose = 'second_factor' | 'account'
 
-export class RecoveryCodes {
+class RecoveryCodes {
   constructor(private readonly db: Db) {}
 
   replaceAll(userId: string, codes: string[], purpose: CodePurpose = 'second_factor'): void {
@@ -948,11 +955,11 @@ export class RecoveryCodes {
   }
 }
 
-export function normaliseCode(code: string): string {
+function normaliseCode(code: string): string {
   return code.replace(/[\s-]/g, '').toLowerCase()
 }
 
-export class Meta {
+class Meta {
   constructor(private readonly db: Db) {}
 
   get(key: string): string | null {

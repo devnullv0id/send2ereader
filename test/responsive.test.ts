@@ -38,10 +38,21 @@ describe('the card is sized by the viewport, not by a number', () => {
 })
 
 describe('one set of breakpoints', () => {
-  const widths = [...sheets.matchAll(/\(\s*(?:max|min)-width:\s*(\d+)px\s*\)/g)].map((m) => m[1])
+  const preludes = [...sheets.matchAll(/@media[^{]*/g)].map((m) => m[0]).join('\n')
+  const widths = [...preludes.matchAll(/\(\s*(?:max|min)-width:\s*(\d+)px\s*\)/g)].map((m) => m[1])
 
   it('uses one width, everywhere', () => {
     expect(new Set(widths)).toEqual(new Set(['640']))
+  })
+
+  it('measures the viewport with @media and a component with @container', () => {
+    const container = [...sheets.matchAll(/@container[^{]*/g)].map((m) => m[0])
+    expect(container.length, 'the copy button sizes itself against its own field').toBeGreaterThan(
+      0
+    )
+    for (const query of container) {
+      expect(query, 'a container query is not a viewport breakpoint').not.toMatch(/@media/)
+    }
   })
 
   it('still has some, which is the whole point', () => {
