@@ -76,7 +76,7 @@ jobs:
             exit 0
           fi
 
-          if git diff --quiet "$PREV" HEAD -- docker/extensions .github/workflows/extensions.yml; then
+          if git diff --quiet "$PREV" HEAD -- docker/extensions; then
             echo "Nothing under docker/extensions changed since ${PREV}"
             echo 'build=false' >> "$GITHUB_OUTPUT"
           else
@@ -131,7 +131,7 @@ jobs:
           echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
           echo "Publishing ${TAGS}"
 
-      - name: Build and push ${{ matrix.name }}
+      - name: Build and push the extension
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
