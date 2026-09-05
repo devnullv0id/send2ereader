@@ -1,12 +1,7 @@
 services:
   send2ereader:
-    build:
-      context: .
-      dockerfile: ./Dockerfile
+    image: ghcr.io/devnullv0id/send2ereader:legacy
     container_name: send2ereader
-    # Restart means, Automatic re-start the container after a shutdown unless manual stop container
     restart: unless-stopped
-    # Ports means, Bind external and internal docker ports, only change the external port, not the internal port
-    # Format: <External Port>:<Internal Port>
     ports:
       - 3001:3001

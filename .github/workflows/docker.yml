@@ -1,0 +1,265 @@
+name: Docker
+
+# Builds the image from the Dockerfile at the repo root, pushes it to GHCR, and
+# moves the version forward on its own.
+#
+# The version is read off the existing git tags. With no tags at all, the first
+# build is 1.0.0 -- which this repository skips: its first release is 1.1.0, the
+# number this code already carried, published by pushing that tag rather than by
+# letting the workflow invent one.
+#
+#   push to master        ->  next patch, e.g. v1.1.0 -> v1.1.1
+#   push with [minor]     ->  next minor, e.g. v1.1.0 -> v1.2.0
+#   push with [major]     ->  next major, e.g. v1.1.0 -> v2.0.0
+#   push tag v1.1.0       ->  that exact version, nothing is invented
+#
+# [minor] and [major] are read from the commit message of the pushed commit, so
+# the bump travels with the change that justifies it:
+#
+#   git commit -m "Support one more reader [minor]"
+#   git push origin master     ->  builds and releases the next minor
+#
+# Every build publishes :<version>, :<major>.<minor> and :legacy, creates the
+# git tag, and cuts the matching GitHub Release.
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump for this build'
+        required: false
+        default: auto
+        type: choice
+        options:
+          - auto
+          - patch
+          - minor
+          - major
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+concurrency:
+  # Keyed on the commit, not the ref: pushing master and its version tag
+  # together would otherwise start two runs that build the same version and
+  # orphan each other's manifest in the registry.
+  group: docker-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  # Decide the version before anything is built, so the image tags, the git tag
+  # and the release all quote the same number.
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.next.outputs.tag }}
+      version: ${{ steps.next.outputs.version }}
+      major_minor: ${{ steps.next.outputs.major_minor }}
+      stable: ${{ steps.next.outputs.stable }}
+      create_tag: ${{ steps.next.outputs.create_tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          # The whole history: the next version is read off the existing tags,
+          # and a shallow clone has none of them.
+          fetch-depth: 0
+
+      - name: Work out the next version
+        id: next
+        env:
+          # Empty on a push event, which falls through to 'auto' below.
+          INPUT_BUMP: ${{ inputs.bump }}
+        run: |
+          set -eu
+
+          # A tag already on this commit wins. Pushing a commit and its tag
+          # together fires this workflow twice -- once for the branch, once for
+          # the tag -- and without this the branch run would invent a bump while
+          # the tag run builds the version you actually asked for.
+          EXISTING=$(git tag --points-at HEAD --list 'v*' --sort=-v:refname | head -n1 || true)
+
+          if [ -n "$EXISTING" ]; then
+            TAG="$EXISTING"
+            CREATE=false
+            echo "Commit is already tagged ${TAG}, using it as-is"
+          else
+            BUMP="${INPUT_BUMP:-auto}"
+            if [ "$BUMP" = 'auto' ]; then
+              # The bump travels with the commit that justifies it, so a plain
+              # `git push` is all that is ever needed -- no second tag push, and
+              # no chance of the two disagreeing.
+              MSG=$(git log -1 --pretty=%B HEAD)
+              case "$MSG" in
+                *'[major]'*) BUMP=major ;;
+                *'[minor]'*) BUMP=minor ;;
+                *)           BUMP=patch ;;
+              esac
+            fi
+            echo "Bump: ${BUMP}"
+
+            # Pre-releases are skipped when looking for the previous version:
+            # v1.1.0-rc.1 must not make the next patch v1.1.0-rc.2.
+            LAST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -v -- '-' | head -n1 || true)
+
+            if [ -z "$LAST" ]; then
+              # Nothing has ever been tagged: this is the first release, and it
+              # is 1.0.0 whatever the bump says. There is no 0.x to grow out of.
+              TAG="v1.0.0"
+              echo "No previous version tag, starting at ${TAG}"
+            else
+              V="${LAST#v}"
+              MAJOR="${V%%.*}"
+              REST="${V#*.}"
+              MINOR="${REST%%.*}"
+              PATCH="${REST#*.}"
+              case "$BUMP" in
+                major) TAG="v$((MAJOR + 1)).0.0" ;;
+                minor) TAG="v${MAJOR}.$((MINOR + 1)).0" ;;
+                *)     TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))" ;;
+              esac
+              echo "Previous version ${LAST}, next is ${TAG}"
+            fi
+            CREATE=true
+          fi
+
+          VERSION="${TAG#v}"
+
+          # A hyphen is semver's own pre-release marker. A pre-release must not
+          # move the floating tags, so :1.1 and :legacy are switched off for it.
+          case "$VERSION" in
+            *-*) STABLE=false; MAJOR_MINOR="$VERSION" ;;
+            *)   STABLE=true;  MAJOR_MINOR="${VERSION%.*}" ;;
+          esac
+
+          {
+            echo "tag=${TAG}"
+            echo "version=${VERSION}"
+            echo "major_minor=${MAJOR_MINOR}"
+            echo "stable=${STABLE}"
+            echo "create_tag=${CREATE}"
+          } >> "$GITHUB_OUTPUT"
+
+  build-and-push:
+    needs: version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      # amd64 only, and not by preference: the Dockerfile fetches
+      # kepubify-linux-64bit (x86-64) and kindlegen i386 (32-bit x86). On arm64
+      # those binaries cannot run, so an arm64 image would build and then fail
+      # at the first conversion. No QEMU step for the same reason.
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # type=raw throughout: the version was computed above rather than
+          # read off the ref, so type=semver has nothing to parse. latest=false
+          # because this repository is the app as it was before the rewrite --
+          # the floating tag people pull it by is :legacy.
+          flavor: |
+            latest=false
+          tags: |
+            type=raw,value=${{ needs.version.outputs.version }}
+            type=raw,value=${{ needs.version.outputs.major_minor }},enable=${{ needs.version.outputs.stable == 'true' }}
+            type=raw,value=legacy,enable=${{ needs.version.outputs.stable == 'true' }}
+          labels: |
+            org.opencontainers.image.title=send2ereader
+            org.opencontainers.image.description=Send ebooks to Kobo/Kindle ereaders easily
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Without this the push is a manifest list wrapping an attestation,
+          # which makes the GHCR package page show "unknown/unknown" alongside
+          # the real platform.
+          provenance: false
+
+  # After the build, never before: a tag created up front would survive a failed
+  # build and permanently burn that version number on an image that does not
+  # exist.
+  tag:
+    needs: [version, build-and-push]
+    if: needs.version.outputs.create_tag == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Create the version tag
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          set -eu
+
+          # A re-run of a workflow that already tagged would otherwise fail here.
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "${TAG} already exists on the remote, nothing to do"
+            exit 0
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag "$TAG"
+          # Pushed with GITHUB_TOKEN, and that is what stops this from looping:
+          # GitHub does not start a workflow run for an event raised by
+          # GITHUB_TOKEN, so this tag push does not re-trigger this workflow.
+          git push origin "$TAG"
+
+  # release.yml is called rather than triggered. A tag pushed by the step above
+  # raises no event, so a `on: push: tags` release workflow would never fire for
+  # an automatic version.
+  release:
+    needs: [version, build-and-push, tag]
+    # The tag job is skipped when the commit was already tagged, and a skipped
+    # dependency would otherwise skip this one too -- hence the explicit result
+    # checks. !cancelled() rather than always(): cancel-in-progress is on, and a
+    # cancelled run must not still cut a release.
+    if: ${{ !cancelled() && needs.build-and-push.result == 'success' && needs.tag.result != 'failure' }}
+    uses: ./.github/workflows/release.yml
+    permissions:
+      contents: write
+    with:
+      tag: ${{ needs.version.outputs.tag }}
+      version: ${{ needs.version.outputs.version }}
+      prerelease: ${{ needs.version.outputs.stable != 'true' }}

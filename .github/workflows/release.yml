@@ -1,0 +1,70 @@
+name: Release
+
+# Creates the GitHub Release for a version that has already been built and
+# tagged. Called by docker.yml -- it has no trigger of its own on purpose:
+#
+#   - the version tag is created by CI with GITHUB_TOKEN, and GitHub raises no
+#     event for that, so `on: push: tags` would never fire for it
+#   - being called means the image is already in the registry, so there is
+#     nothing to wait for and the docker pull line in the notes always works
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: 'Git tag the release is cut from, e.g. v1.0.1'
+        required: true
+        type: string
+      version:
+        description: 'Image tag, i.e. the git tag without the v, e.g. 1.0.1'
+        required: true
+        type: string
+      prerelease:
+        description: 'Keep this off the "Latest release" badge'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # No checkout: --generate-notes is resolved server-side, so the repo only
+      # has to be named, not cloned.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          TAG: ${{ inputs.tag }}
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          set -eu
+
+          # Pushing a commit and its tag together fires docker.yml twice, so
+          # both runs can reach this point for the same version. Whichever gets
+          # here second finds the release already made.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists, nothing to do"
+            exit 0
+          fi
+
+          args=(--title "$TAG" --generate-notes)
+          [ "$PRERELEASE" = 'true' ] && args+=(--prerelease)
+
+          # printf rather than a quoted literal: this block is indented inside
+          # the YAML, and that indentation would end up in the release body and
+          # break the code fence.
+          NOTES=$(printf '```sh\ndocker pull %s:%s\n```' "$IMAGE" "$VERSION")
+
+          # --notes alongside --generate-notes puts this above the generated
+          # changelog rather than replacing it.
+          gh release create "$TAG" "${args[@]}" --notes "$NOTES"
