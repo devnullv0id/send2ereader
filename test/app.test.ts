@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { FastifyInstance } from 'fastify'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -244,9 +244,9 @@ describe('pairing', () => {
   })
 
   it('polls the eReader page at the interval the server assumes', () => {
-    const page = readFileSync(join(config.staticDir, 'download.html'), 'utf8')
+    const page = readFileSync(join(config.staticDir, 'receive.js'), 'utf8')
     const interval = /setInterval\(pollFile, (\d+) \* 1000\)/.exec(page)?.[1]
-    expect(interval, 'download.html no longer sets its poll interval this way').toBeDefined()
+    expect(interval, 'receive.js no longer sets its poll interval this way').toBeDefined()
     expect(Number(interval)).toBe(config.ereaderPollSeconds)
   })
 
@@ -679,6 +679,26 @@ describe('the headers every response carries', () => {
     expect(csp).toContain("object-src 'none'")
     expect(csp, 'nothing here needs it').not.toContain('unsafe-inline')
     expect(csp, 'nor this').not.toContain('unsafe-eval')
+  })
+
+  it('serves no page the policy would refuse to run', () => {
+    const pages = readdirSync(config.staticDir).filter((name) => name.endsWith('.html'))
+    expect(pages.length, 'there are pages to check').toBeGreaterThan(5)
+
+    const offenders: string[] = []
+    for (const page of pages) {
+      const html = readFileSync(join(config.staticDir, page), 'utf8')
+      if (/<script(?![^>]*\ssrc=)[^>]*>/i.test(html)) offenders.push(`${page}: an inline script`)
+      if (/<style[^>]*>/i.test(html)) offenders.push(`${page}: an inline style block`)
+      if (/\son(?:click|load|change|submit|input|error|keydown)\s*=/i.test(html)) {
+        offenders.push(`${page}: an inline event handler`)
+      }
+      if (/\sstyle="/i.test(html)) offenders.push(`${page}: a style attribute`)
+    }
+
+    expect(offenders, 'script-src and style-src are self, so none of these would ever run').toEqual(
+      []
+    )
   })
 
   it('refuses to be framed, sniffed or over-referred', async () => {
