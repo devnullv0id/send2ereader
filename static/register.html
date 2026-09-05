@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Create account · Send to eReader</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='15'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E"/>
+	<link rel="stylesheet" href="/fonts/fonts.css"/>
+	<link rel="stylesheet" href="/fonts/phosphor.css"/>
+	<link rel="stylesheet" href="/app.css"/>
+	<link rel="stylesheet" href="/screens.css"/>
+	<script src="/auth.js" defer></script>
+	<script src="/shell.js" defer></script>
+	<script src="/history.js" defer></script>
+	<script src="/signin.js" defer></script>
+</head>
+<body data-page="register">
+<div class="shell">
+	<header class="header"></header>
+
+	<main class="main">
+		<div class="wrap">
+			<div class="auth">
+				<h1 class="auth__title">Create account</h1>
+				<p class="auth__sub">An account remembers your devices, defaults and history. Sending works without one, and always will.</p>
+
+				<form id="registerform">
+					<div class="auth__label auth__label--first">Name</div>
+					<div class="auth__pair">
+						<input class="auth__field" type="text" id="firstName" name="firstName" placeholder="First name" autocomplete="given-name" maxlength="100" required/>
+						<input class="auth__field" type="text" id="lastName" name="lastName" placeholder="Last name" autocomplete="family-name" maxlength="100" required/>
+					</div>
+
+					<div class="auth__label">Email</div>
+					<div class="auth__field-wrap">
+						<input class="auth__field" type="email" id="email" name="email" placeholder="you@example.com" autocomplete="email" spellcheck="false" required/>
+						<span class="auth__status" aria-hidden="true"><i class="ph" aria-hidden="true"></i></span>
+					</div>
+
+					<div class="auth__label">Password</div>
+					<div class="auth__field-wrap">
+						<input class="auth__field" type="password" id="password" name="password" placeholder="At least eight characters" autocomplete="new-password" required data-password-note/>
+						<button type="button" class="auth__reveal" data-reveal aria-pressed="false" aria-label="Show the passwords"><i class="ph ph-eye" aria-hidden="true"></i></button>
+					</div>
+					<div class="pw-rules" data-pw-rules="password" aria-hidden="true"></div>
+					<div class="auth__field-wrap">
+						<input class="auth__field" type="password" id="confirm" placeholder="Repeat password" autocomplete="new-password" required/>
+						<span class="auth__status" aria-hidden="true"><i class="ph" aria-hidden="true"></i></span>
+					</div>
+
+					<button type="submit" class="auth__submit" id="submitbtn" disabled>Create account</button>
+					<p class="auth__error" id="note" hidden></p>
+				</form>
+
+				<a class="auth-back" href="/login">Back to sign in</a>
+			</div>
+		</div>
+	</main>
+
+	<footer class="footer"></footer>
+</div>
+
+<div class="modal-scrim modal-scrim--codes" id="codesModal" hidden>
+	<div class="modal modal--codes" role="dialog" aria-modal="true" aria-labelledby="codesModalTitle">
+		<div class="modal__title" id="codesModalTitle">Write this down before you go on</div>
+		<p class="modal__text">This server has no mail configured, so it cannot send you a reset link. This line of six words is your way back in if you forget the password. It works in place of it, on the sign-in page.</p>
+		<p class="modal__text">Shown once. Keep it somewhere that is not this computer.</p>
+		<div class="codes">
+			<div class="codes__phrase" id="codesPhrase"></div>
+		</div>
+		<div class="codes__actions">
+			<button type="button" class="outline-action" id="codesCopy"><i class="ph ph-copy" aria-hidden="true"></i><span>Copy all</span></button>
+			<button type="button" class="outline-action" id="codesDownload"><i class="ph ph-download-simple" aria-hidden="true"></i><span>Download .txt</span></button>
+		</div>
+		<div class="modal__rule"></div>
+		<button type="button" class="codes__ack" id="codesAck" role="checkbox" aria-checked="false">
+			<span class="codes__ack-box"></span>
+			<span class="codes__ack-label">I have written it down</span>
+		</button>
+		<button type="button" class="codes__done" id="codesDone" data-modal-default disabled>Done</button>
+	</div>
+</div>
+</body>
+</html>

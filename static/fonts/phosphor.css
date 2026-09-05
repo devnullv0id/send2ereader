@@ -1,0 +1,71 @@
+@font-face {
+  font-family: 'Phosphor';
+  src: url('/fonts/phosphor-regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.ph {
+  font-family: 'Phosphor' !important;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  speak: never;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ph.ph-caret-down::before {
+  content: '\e136';
+}
+
+.ph.ph-check::before {
+  content: '\e182';
+}
+
+.ph.ph-check-circle::before {
+  content: '\e184';
+}
+
+.ph.ph-x-circle::before {
+  content: '\e4f8';
+}
+
+.ph.ph-copy::before {
+  content: '\e1ca';
+}
+
+.ph.ph-download-simple::before {
+  content: '\e20c';
+}
+
+.ph.ph-eye::before {
+  content: '\e220';
+}
+
+.ph.ph-eye-slash::before {
+  content: '\e224';
+}
+
+.ph.ph-fingerprint::before {
+  content: '\e23e';
+}
+
+.ph.ph-list::before {
+  content: '\e2f0';
+}
+
+.ph.ph-paper-plane-tilt::before {
+  content: '\e398';
+}
+
+.ph.ph-qr-code::before {
+  content: '\e3e6';
+}
+
+.ph.ph-user-circle::before {
+  content: '\e4c4';
+}

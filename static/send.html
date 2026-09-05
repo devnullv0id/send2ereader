@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Send to eReader</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='15'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E"/>
+	<link rel="stylesheet" href="/fonts/fonts.css"/>
+	<link rel="stylesheet" href="/fonts/phosphor.css"/>
+	<link rel="stylesheet" href="/app.css"/>
+	<link rel="stylesheet" href="/screens.css"/>
+	<script src="/auth.js" defer></script>
+	<script src="/shell.js" defer></script>
+	<script src="/history.js" defer></script>
+	<script src="/send.js" defer></script>
+	<script src="/cells.js" defer></script>
+	<script src="/send-page.js" defer></script>
+</head>
+<body data-page="send">
+<div class="shell">
+	<header class="header"></header>
+
+	<main class="main">
+		<div class="wrap">
+			<div class="page-head">
+				<h1 class="page-title">Send a book to your eReader</h1>
+				<p class="sub">Pick how it gets there, add the book, send.</p>
+			</div>
+
+			<div class="step-card">
+				<div class="step-rail" id="rail" role="tablist" aria-label="Steps">
+					<button type="button" class="step-rail__dot" data-step="1" role="tab" aria-label="Step 1, delivery method"></button>
+					<button type="button" class="step-rail__dot" data-step="2" role="tab" aria-label="Step 2, the book"></button>
+					<button type="button" class="step-rail__dot" data-step="3" role="tab" aria-label="Step 3, convert for"></button>
+					<button type="button" class="step-rail__dot" data-step="4" role="tab" aria-label="Step 4, format"></button>
+					<button type="button" class="step-rail__dot" data-step="5" role="tab" aria-label="Step 5, options"></button>
+				</div>
+
+				<div class="step-stack" id="stack">
+
+				<div class="step step--delivery" id="step1">
+					<div class="step__badge is-current" id="badge1">1</div>
+					<div class="step__body">
+						<div class="step__title" id="step1Title">Delivery method</div>
+
+						<div class="method-grid">
+							<button type="button" class="method is-selected" data-method="key">
+								<span class="method__title">Key from the device</span>
+								<span class="method__note">Any eReader with a browser. It has to be awake.</span>
+							</button>
+							<button type="button" class="method" data-method="sync">
+								<span class="method__title">Deliver to Kobo directly</span>
+								<span class="method__note" id="syncNote">Needs an account. Sign in to set it up →</span>
+							</button>
+						</div>
+
+						<div class="delivery-branch">
+
+							<div class="key-entry" id="keyBranch">
+								<p class="key-hint">
+									<span>Visit</span>
+									<button type="button" class="key-hint__host" id="hostChip" title="Copy this address">
+										<span class="key-hint__label" id="hostLabel"></span>
+										<span class="key-hint__copied">Copied</span>
+									</button>
+									<span>on your eReader</span>
+								</p>
+
+								<div class="key-cells" id="cells"></div>
+
+								<div class="key-status">
+									<p class="key-status__idle" id="keyIdle">Type the four characters it shows.</p>
+									<p class="key-status__checking" id="keyChecking" hidden>LOOKING FOR THAT EREADER…</p>
+									<div class="key-status__bad" id="keyBadInline" hidden>
+										<span class="bang bang--sm">!</span>
+										<p class="key-status__bad-text">No eReader is showing <span class="mono" id="badKeyInline"></span>. Keys change every time the page loads — reload it and read the new one.</p>
+									</div>
+								</div>
+							</div>
+
+							<div id="pairedBranch" hidden>
+								<div class="status-box paired-row is-ok">
+									<span class="status-box__dot"></span>
+									<div class="status-box__body">
+										<div class="status-box__title" id="pairedTitle"></div>
+										<div class="status-box__meta" id="pairedMeta"></div>
+									</div>
+									<button type="button" class="row-action" id="extendKey">Extend</button>
+									<button type="button" class="row-action row-action--bare" id="changeKey">Change</button>
+								</div>
+								<div class="status-box live-row status-box--well" id="linkRow">
+									<span class="status-box__dot live-row__dot is-live" id="linkDot"></span>
+									<div class="status-box__body">
+										<div class="status-box__title" id="linkTitle">Still connected</div>
+										<div class="status-box__meta" id="linkMeta"></div>
+									</div>
+									<button type="button" class="row-action row-action--retry" id="linkRetry" hidden>Retry</button>
+								</div>
+							</div>
+
+							<div id="syncBranch" hidden>
+								<div class="sync-select" id="syncSelect">
+									<button type="button" class="status-box sync-select__trigger" id="syncTrigger" aria-haspopup="listbox" aria-expanded="false">
+										<span class="status-box__dot"></span>
+										<span class="status-box__body">
+											<span class="status-box__title" id="syncLabel"></span>
+											<span class="status-box__meta" id="syncMeta"></span>
+										</span>
+										<i class="ph ph-caret-down sync-select__caret" aria-hidden="true"></i>
+									</button>
+									<div class="sync-menu" id="syncMenu" role="listbox" aria-label="Which Kobo" hidden></div>
+								</div>
+
+								<div class="sync-none" id="syncNone" hidden>
+									<span class="bang bang--md bang--warn">!</span>
+									<div>
+										<div class="sync-none__title">No device has synced yet</div>
+										<p class="sync-none__text">The endpoint exists, but nothing has connected to it. Sync once from the device and it shows up here.</p>
+									</div>
+								</div>
+
+								<p class="sync-note">The device collects it the next time it syncs — asleep, off wifi or in a bag is fine. After a day, or the moment it downloads, the server drops the file.</p>
+							</div>
+
+							<div class="branch-overlay" id="overlay" hidden>
+								<div class="branch-overlay__box" id="overlayBox">
+									<span class="bang bang--md" id="overlayBang">!</span>
+									<div class="branch-overlay__body">
+										<div class="branch-overlay__title" id="overlayTitle"></div>
+										<p class="branch-overlay__text" id="overlayText"></p>
+									</div>
+									<button type="button" class="btn btn--sm btn--danger" id="overlayAction"></button>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step1Summary" hidden>
+					<span class="step__badge" id="badge1Summary">1</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Delivery method</span>
+						<span class="step__summary-value" id="step1Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				<div class="step__rule"></div>
+
+				<div class="step" id="step2">
+					<div class="step__badge" id="badge2">2</div>
+					<div class="step__body">
+						<div class="step__title">The book</div>
+
+						<div class="dropzone" id="dropzone">
+							<label class="dropzone__button">
+								Choose a file
+								<input type="file" id="fileinput" hidden/>
+							</label>
+							<p class="dropzone__formats"><span id="dzLabel">Or drag and drop like it's hot</span> —<br/>EPUB, PDF, MOBI, AZW3, KFX, KEPUB, CBZ, CBR, TXT or HTMLZ.</p>
+						</div>
+
+						<div class="file-row" id="filerow" hidden>
+							<span class="file-row__spine"></span>
+							<div class="file-row__text">
+								<div class="file-row__name" id="filename"></div>
+								<div class="file-row__meta" id="filemeta"></div>
+							</div>
+							<button type="button" class="file-row__clear" id="clearfile" aria-label="Remove this file">&times;</button>
+						</div>
+
+						<div class="refusal" id="refusal" hidden>
+							<div class="refusal__box">
+								<div class="refusal__title" id="refusalTitle"></div>
+								<p class="refusal__text" id="refusalText">Convert it to EPUB first, or paste a link and we&#39;ll build one for you.</p>
+								<button type="button" class="refusal__action" id="dismissRefusal">Pick something else</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step2Summary" hidden>
+					<span class="step__badge" id="badge2Summary">2</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">The book</span>
+						<span class="step__summary-value" id="step2Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				<div class="step__rule"></div>
+
+				<div class="step" id="step3">
+					<div class="step__badge" id="badge3">3</div>
+					<div class="step__body">
+						<div class="step__title">Convert for</div>
+
+						<div class="pick">
+							<div class="format-grid" id="targets">
+								<button type="button" class="format" data-target="kobo"><span class="format__label">Kobo</span></button>
+								<button type="button" class="format" data-target="kindle"><span class="format__label">Kindle</span></button>
+								<button type="button" class="format" data-target="other"><span class="format__label">Other devices</span></button>
+								<button type="button" class="format is-selected" data-target="none"><span class="format__label">Don't convert</span></button>
+							</div>
+						</div>
+
+						<p class="pipeline">
+							<span class="pipeline__from" id="pipeFrom"></span>
+							<span class="pipeline__arrow" id="pipeArrow">&#8594;</span>
+							<span class="pipeline__to" id="pipeTo"></span>
+							<span class="pipeline__tool" id="pipeTool"></span>
+						</p>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step3Summary" hidden>
+					<span class="step__badge" id="badge3Summary">3</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Convert for</span>
+						<span class="step__summary-value" id="step3Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				<div class="step__rule"></div>
+
+				<div class="step" id="step4">
+					<div class="step__badge" id="badge4">4</div>
+					<div class="step__body">
+						<div class="step__title">Format</div>
+
+						<div class="pick">
+							<div class="format-grid" id="formats"></div>
+							<p class="format-warn" id="formatWarn" hidden></p>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step4Summary" hidden>
+					<span class="step__badge" id="badge4Summary">4</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Format</span>
+						<span class="step__summary-value" id="step4Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				<div class="step__rule"></div>
+
+				<div class="step" id="step5">
+					<div class="step__badge" id="badge5">5</div>
+					<div class="step__body">
+						<div class="step__title">Options</div>
+
+						<div class="options-slot" id="optionsSlot">
+							<div class="options" id="optionsLive"></div>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step5Summary" hidden>
+					<span class="step__badge" id="badge5Summary">5</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Options</span>
+						<span class="step__summary-value" id="step5Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				</div>
+
+				<button type="button" class="btn--cta" id="submitbtn" disabled>
+					<span class="btn--cta__fill" id="bar"></span>
+					<span class="btn--cta__label" id="submitlabel">Enter a key to begin</span>
+					<span class="btn--cta__abort">Cancel</span>
+				</button>
+
+				<div class="panel panel--ok" id="donepanel" hidden>
+					<span class="panel__check">&#10003;</span>
+					<div class="panel__body">
+						<div class="panel__title" id="doneTitle"></div>
+						<p class="panel__text" id="doneText"></p>
+						<p class="panel__kept" id="doneKept" hidden></p>
+						<div class="panel__actions">
+							<button type="button" class="btn btn--primary" id="sendAnother">Send another</button>
+							<a class="btn btn--ok" href="/history">View history</a>
+						</div>
+					</div>
+				</div>
+
+				<div class="panel panel--err" id="errorpanel" hidden>
+					<div class="panel__row">
+						<span class="bang">!</span>
+						<div class="panel__body">
+							<div class="panel__err-title" id="errorTitle"></div>
+							<p class="panel__err-text" id="errorText"></p>
+							<pre class="panel__log" id="errorLog" hidden></pre>
+							<div class="panel__err-actions">
+								<button type="button" class="btn btn--primary" id="retry">Try again</button>
+								<button type="button" class="btn btn--err" id="sendRaw" hidden>Send unconverted</button>
+								<button type="button" class="btn btn--faint" id="pickAnother">Pick another file</button>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div class="retention">
+					<p class="retention__text">Held only while your eReader shows the key, or until a paired Kobo collects it.<br/>Deleted about <span id="ttl">5 minutes</span> after you close the key page.</p>
+				</div>
+			</div>
+		</div>
+	</main>
+
+	<footer class="footer"></footer>
+</div>
+
+<template id="syncRowTpl">
+	<button type="button" class="status-box sync-menu__item" role="option">
+		<span class="status-box__dot"></span>
+		<span class="status-box__body">
+			<span class="status-box__title"></span>
+			<span class="status-box__meta"></span>
+		</span>
+		<i class="ph ph-check sync-menu__tick" aria-hidden="true"></i>
+	</button>
+</template>
+
+<div class="modal-scrim" id="cancelModal" hidden>
+	<div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="cancelTitle">
+		<div class="modal__title" id="cancelTitle">Stop the send?</div>
+		<p class="modal__text">The upload and the conversion finish either way — they are already under way. What waits is the last step: the book is not handed to your eReader until you answer.</p>
+		<p class="modal__text">Stop it and the converted file is deleted here. Nothing reaches the device.</p>
+		<div class="modal__actions">
+			<button type="button" class="btn btn--primary" id="cancelKeep" data-modal-default>Keep sending</button>
+			<button type="button" class="btn btn--err" id="cancelConfirm">Stop the send</button>
+		</div>
+	</div>
+</div>
+
+<div class="modal-scrim" id="caveatModal" hidden>
+	<div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="caveatTitle">
+		<div class="modal__title" id="caveatTitle">Send as AZW3?</div>
+		<div id="caveatText"></div>
+		<div class="modal__actions">
+			<button type="button" class="btn btn--primary" id="caveatCancel" data-modal-default>Keep MOBI</button>
+			<button type="button" class="btn btn--err" id="caveatConfirm">Send as AZW3</button>
+		</div>
+	</div>
+</div>
+
+<template id="optionTpl">
+	<div class="option" role="checkbox" aria-checked="false" tabindex="0">
+		<span class="checkbox"></span>
+		<span class="option__text">
+			<span class="option__label"></span>
+			<span class="option__desc"></span>
+			<span class="option__why"></span>
+		</span>
+		<button type="button" class="option__caret" tabindex="-1" aria-expanded="false" aria-label="What this does">
+			<i class="ph ph-caret-down" aria-hidden="true"></i>
+		</button>
+	</div>
+</template>
+
+</body>
+</html>

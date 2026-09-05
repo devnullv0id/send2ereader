@@ -1,27 +1,5 @@
 name: Docker
 
-# Builds the image from the Dockerfile at the repo root, pushes it to GHCR, and
-# moves the version forward on its own.
-#
-# The version is read off the existing git tags. With no tags at all, the first
-# build is 1.0.0 -- which this repository skips: its first release is 1.1.0, the
-# number this code already carried, published by pushing that tag rather than by
-# letting the workflow invent one.
-#
-#   push to master        ->  next patch, e.g. v1.1.0 -> v1.1.1
-#   push with [minor]     ->  next minor, e.g. v1.1.0 -> v1.2.0
-#   push with [major]     ->  next major, e.g. v1.1.0 -> v2.0.0
-#   push tag v1.1.0       ->  that exact version, nothing is invented
-#
-# [minor] and [major] are read from the commit message of the pushed commit, so
-# the bump travels with the change that justifies it:
-#
-#   git commit -m "Support one more reader [minor]"
-#   git push origin master     ->  builds and releases the next minor
-#
-# Every build publishes :<version>, :<major>.<minor> and :legacy, creates the
-# git tag, and cuts the matching GitHub Release.
-
 on:
   push:
     branches:
@@ -45,17 +23,54 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
+# Keyed on the commit rather than the ref, so pushing master and its version
+# tag together does not build the same tree twice and leave the index each run
+# published orphaned by the next.
 concurrency:
-  # Keyed on the commit, not the ref: pushing master and its version tag
-  # together would otherwise start two runs that build the same version and
-  # orphan each other's manifest in the registry.
   group: docker-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
-  # Decide the version before anything is built, so the image tags, the git tag
-  # and the release all quote the same number.
+  # Nothing gets published past a red suite. Every push to master used to tag,
+  # push :latest and cut a release without running the tests once.
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # A local hook can be skipped with --no-verify, and the leak this exists
+      # for was pushed a day after it was committed, when the working tree was
+      # already clean. This looks at the whole history, from CI, where nobody
+      # can wave it through. It needs no dependencies, so it runs before install
+      # and fails in seconds.
+      - name: Look for credentials in the history
+        run: node scripts/scan-for-credentials.mjs --all
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
   version:
+    needs: check
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -70,22 +85,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # The whole history: the next version is read off the existing tags,
-          # and a shallow clone has none of them.
           fetch-depth: 0
 
       - name: Work out the next version
         id: next
         env:
-          # Empty on a push event, which falls through to 'auto' below.
           INPUT_BUMP: ${{ inputs.bump }}
         run: |
           set -eu
 
-          # A tag already on this commit wins. Pushing a commit and its tag
-          # together fires this workflow twice -- once for the branch, once for
-          # the tag -- and without this the branch run would invent a bump while
-          # the tag run builds the version you actually asked for.
           EXISTING=$(git tag --points-at HEAD --list 'v*' --sort=-v:refname | head -n1 || true)
 
           if [ -n "$EXISTING" ]; then
@@ -95,9 +103,6 @@ jobs:
           else
             BUMP="${INPUT_BUMP:-auto}"
             if [ "$BUMP" = 'auto' ]; then
-              # The bump travels with the commit that justifies it, so a plain
-              # `git push` is all that is ever needed -- no second tag push, and
-              # no chance of the two disagreeing.
               MSG=$(git log -1 --pretty=%B HEAD)
               case "$MSG" in
                 *'[major]'*) BUMP=major ;;
@@ -107,13 +112,9 @@ jobs:
             fi
             echo "Bump: ${BUMP}"
 
-            # Pre-releases are skipped when looking for the previous version:
-            # v1.1.0-rc.1 must not make the next patch v1.1.0-rc.2.
             LAST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -v -- '-' | head -n1 || true)
 
             if [ -z "$LAST" ]; then
-              # Nothing has ever been tagged: this is the first release, and it
-              # is 1.0.0 whatever the bump says. There is no 0.x to grow out of.
               TAG="v1.0.0"
               echo "No previous version tag, starting at ${TAG}"
             else
@@ -134,8 +135,6 @@ jobs:
 
           VERSION="${TAG#v}"
 
-          # A hyphen is semver's own pre-release marker. A pre-release must not
-          # move the floating tags, so :1.1 and :legacy are switched off for it.
           case "$VERSION" in
             *-*) STABLE=false; MAJOR_MINOR="$VERSION" ;;
             *)   STABLE=true;  MAJOR_MINOR="${VERSION%.*}" ;;
@@ -160,10 +159,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      # amd64 only, and not by preference: the Dockerfile fetches
-      # kepubify-linux-64bit (x86-64) and kindlegen i386 (32-bit x86). On arm64
-      # those binaries cannot run, so an arm64 image would build and then fail
-      # at the first conversion. No QEMU step for the same reason.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -179,40 +177,103 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          # type=raw throughout: the version was computed above rather than
-          # read off the ref, so type=semver has nothing to parse. latest=false
-          # because this repository is the app as it was before the rewrite --
-          # the floating tag people pull it by is :legacy.
           flavor: |
             latest=false
           tags: |
             type=raw,value=${{ needs.version.outputs.version }}
             type=raw,value=${{ needs.version.outputs.major_minor }},enable=${{ needs.version.outputs.stable == 'true' }}
-            type=raw,value=legacy,enable=${{ needs.version.outputs.stable == 'true' }}
+            type=raw,value=latest,enable=${{ needs.version.outputs.stable == 'true' }}
           labels: |
             org.opencontainers.image.title=send2ereader
             org.opencontainers.image.description=Send ebooks to Kobo/Kindle ereaders easily
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.version=${{ needs.version.outputs.version }}
 
-      - name: Build and push
+      # One architecture at a time, each pushed under its own tag. Building both
+      # at once makes buildx push an index whose per-architecture children have
+      # no tags of their own: in the packages list they read as debris, and
+      # deleting them empties every tag that points at them — which is how every
+      # published tag of this image was broken once. Built this way, the children
+      # are tagged and the index below is stitched from those tags.
+      - name: Build and push amd64
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            KFX_INPUT_PLUGIN_URL=${{ vars.KFX_INPUT_PLUGIN_URL }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}-amd64
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          # Without this the push is a manifest list wrapping an attestation,
-          # which makes the GHCR package page show "unknown/unknown" alongside
-          # the real platform.
+          cache-from: type=gha,scope=amd64
+          cache-to: type=gha,mode=max,scope=amd64
+          # Both of these would add manifests of their own, and they arrive
+          # untagged.
           provenance: false
+          sbom: false
 
-  # After the build, never before: a tag created up front would survive a failed
-  # build and permanently burn that version number on an image that does not
-  # exist.
+      - name: Build and push arm64
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: true
+          build-args: |
+            KFX_INPUT_PLUGIN_URL=${{ vars.KFX_INPUT_PLUGIN_URL }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}-arm64
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=arm64
+          cache-to: type=gha,mode=max,scope=arm64
+          provenance: false
+          sbom: false
+
+      - name: Stitch the multi-arch index from those two tags
+        run: |
+          set -eu
+          REPO="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          VERSION="${{ needs.version.outputs.version }}"
+
+          ARGS="$(printf '%s\n' '${{ steps.meta.outputs.tags }}' | sed '/^[[:space:]]*$/d; s/^/--tag /' | tr '\n' ' ')"
+
+          # shellcheck disable=SC2086
+          docker buildx imagetools create $ARGS \
+            "${REPO}:${VERSION}-amd64" "${REPO}:${VERSION}-arm64"
+
+      - name: Prove every published tag can actually be pulled
+        run: |
+          set -eu
+          printf '%s\n' '${{ steps.meta.outputs.tags }}' | while IFS= read -r TAG; do
+            [ -n "$TAG" ] || continue
+            docker buildx imagetools inspect "$TAG" >/dev/null
+            echo "ok  ${TAG}"
+          done
+
+      # The unit suite stubs every converter off, which is how epub-to-pdf was
+      # broken in every image ever built and stayed green. This runs the image
+      # that was just pushed and converts a real book into every format it
+      # offers, so a missing library is caught here rather than by a reader.
+      - name: Convert a real book in the image that was just built
+        run: |
+          IMAGE="$(printf '%s' '${{ steps.meta.outputs.tags }}' | head -1)"
+          echo "Smoke testing ${IMAGE}"
+          docker run -d --name smoke -p 3001:3001 -e ACCOUNTS=false "${IMAGE}"
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3001/healthz >/dev/null 2>&1; then break; fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:3001/healthz
+
+          node scripts/smoke-convert.mjs http://127.0.0.1:3001
+
+      - name: What the container said, if it did not
+        if: failure()
+        run: docker logs smoke || true
+
+      - name: Stop the smoke container
+        if: always()
+        run: docker rm -f smoke || true
+
   tag:
     needs: [version, build-and-push]
     if: needs.version.outputs.create_tag == 'true'
@@ -232,7 +293,6 @@ jobs:
         run: |
           set -eu
 
-          # A re-run of a workflow that already tagged would otherwise fail here.
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "${TAG} already exists on the remote, nothing to do"
             exit 0
@@ -241,20 +301,10 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git tag "$TAG"
-          # Pushed with GITHUB_TOKEN, and that is what stops this from looping:
-          # GitHub does not start a workflow run for an event raised by
-          # GITHUB_TOKEN, so this tag push does not re-trigger this workflow.
           git push origin "$TAG"
 
-  # release.yml is called rather than triggered. A tag pushed by the step above
-  # raises no event, so a `on: push: tags` release workflow would never fire for
-  # an automatic version.
   release:
     needs: [version, build-and-push, tag]
-    # The tag job is skipped when the commit was already tagged, and a skipped
-    # dependency would otherwise skip this one too -- hence the explicit result
-    # checks. !cancelled() rather than always(): cancel-in-progress is on, and a
-    # cancelled run must not still cut a release.
     if: ${{ !cancelled() && needs.build-and-push.result == 'success' && needs.tag.result != 'failure' }}
     uses: ./.github/workflows/release.yml
     permissions:

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Waiting · Send to eReader</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='15'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E"/>
+	<link rel="stylesheet" href="/fonts/fonts.css"/>
+	<link rel="stylesheet" href="/fonts/phosphor.css"/>
+	<link rel="stylesheet" href="/app.css"/>
+	<link rel="stylesheet" href="/screens.css"/>
+	<script src="/auth.js" defer></script>
+	<script src="/shell.js" defer></script>
+	<script src="/history.js" defer></script>
+	<script src="/waiting.js" defer></script>
+</head>
+<body data-page="waiting">
+<div class="shell">
+	<header class="header"></header>
+
+	<main class="main">
+		<div class="wrap">
+			<div class="list-page">
+				<div class="list-page__head">
+					<div>
+						<h1 class="page-title">Waiting to be collected</h1>
+						<p class="list-page__sub" id="sub">Books queued at your sync endpoint. Each is deleted the moment your Kobo takes it, or after 24 hours.</p>
+					</div>
+					<button type="button" class="list-page__clear" id="cancelall" hidden>Cancel all</button>
+				</div>
+
+				<div class="empty" id="empty" hidden>
+					<div class="empty__title">Nothing waiting</div>
+					<p class="empty__text">Anything you deliver over Kobo sync shows up here until the device collects it.</p>
+					<a class="empty__action" href="/">Send a book</a>
+				</div>
+
+				<div id="rows" hidden>
+					<div class="list list--waiting" id="list"></div>
+					<p class="list-note list-note--waiting">Cancelling deletes the file from the server straight away. If the device already collected it, the copy on the device stays — there's no way to reach back into it.</p>
+				</div>
+			</div>
+		</div>
+	</main>
+
+	<footer class="footer"></footer>
+</div>
+
+<template id="rowTpl">
+	<div class="list__row">
+		<span class="list__spine"></span>
+		<div class="list__body">
+			<div class="list__name"></div>
+			<div class="list__meta"></div>
+			<div class="expiry">
+				<div class="expiry__track"><div class="expiry__bar"></div></div>
+				<div class="expiry__label"></div>
+			</div>
+		</div>
+		<div class="list__actions">
+			<a class="list__collect" download>Download now</a>
+			<button type="button" class="list__cancel">Cancel</button>
+		</div>
+	</div>
+</template>
+</body>
+</html>

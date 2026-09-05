@@ -1,0 +1,3 @@
+#!/bin/sh
+# Nothing that looks like a credential gets into a commit.
+exec node "$(git rev-parse --show-toplevel)/scripts/scan-for-credentials.mjs" --staged

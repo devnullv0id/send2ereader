@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Set up this server · Send to eReader</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='15'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E"/>
+	<link rel="stylesheet" href="/fonts/fonts.css"/>
+	<link rel="stylesheet" href="/fonts/phosphor.css"/>
+	<link rel="stylesheet" href="/app.css"/>
+	<link rel="stylesheet" href="/screens.css"/>
+	<script src="/auth.js" defer></script>
+	<script src="/shell.js" defer></script>
+	<script src="/history.js" defer></script>
+	<script src="/setup-wizard.js" defer></script>
+</head>
+<body data-page="setup-wizard">
+<div class="shell">
+	<header class="header"></header>
+
+	<main class="main">
+		<div class="wrap">
+			<div class="page-head">
+				<h1 class="page-title">Set up this server</h1>
+				<p class="sub">Four things to decide, then it restarts once and is yours. The rest of the server waits here until they are answered.</p>
+			</div>
+
+			<div class="step-card setup-card">
+				<div class="step-rail" id="rail" role="tablist" aria-label="Steps">
+					<button type="button" class="step-rail__dot" data-step="1" role="tab" aria-label="Step 1, the address"></button>
+					<button type="button" class="step-rail__dot" data-step="2" role="tab" aria-label="Step 2, mail"></button>
+					<button type="button" class="step-rail__dot" data-step="3" role="tab" aria-label="Step 3, single sign-on"></button>
+					<button type="button" class="step-rail__dot" data-step="4" role="tab" aria-label="Step 4, accounts and passwords"></button>
+					<button type="button" class="step-rail__dot" data-step="5" role="tab" aria-label="Step 5, finish"></button>
+				</div>
+
+				<div class="step-stack" id="stack">
+
+				<div class="step" id="step1">
+					<div class="step__badge is-current" id="badge1">1</div>
+					<div class="step__body">
+						<div class="step__title">The address people reach this server on</div>
+						<p class="field-note field-note--wide">Every link this server sends is built from it, every paired Kobo stores it, and a passkey is bound to it. It is not how the server listens — that is set in the environment file and shown on the admin page.</p>
+
+						<div class="field-row">
+							<select class="field field--inline field--choice" id="wizProtocol" data-key="PROTOCOL">
+								<option value="https">https</option>
+								<option value="http">http</option>
+							</select>
+							<input class="field field--inline" id="wizDomain" data-key="DOMAIN" placeholder="books.example.com" spellcheck="false"/>
+						</div>
+						<p class="field-note field-note--wide" id="addressHint">A name, not an address and not a URL. Leave it empty on a laptop and the server calls itself by its listen address.</p>
+
+						<div class="save-row">
+							<button type="button" class="btn btn--primary" data-next="1">Continue</button>
+							<span class="save-row__msg" id="msg1"></span>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step1Summary" hidden>
+					<span class="step__badge" id="badge1Summary">1</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Address</span>
+						<span class="step__summary-value" id="step1Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				<div class="step__rule"></div>
+
+				<div class="step" id="step2" hidden>
+					<div class="step__badge" id="badge2">2</div>
+					<div class="step__body">
+						<div class="step__title">Mail</div>
+						<p class="field-note field-note--wide">Without it there is no confirmation link, no password reset and no emailed sign-in. The server still works — the messages go to its log instead, which is enough for one person and wrong for anybody else.</p>
+
+						<div class="pref-list">
+							<button type="button" class="pref" data-key="SMTP_ENABLED" data-toggle>
+								<span class="pref__text">
+									<span class="pref__label">Send mail</span>
+									<span class="pref__desc">Off writes each message to the log instead.</span>
+								</span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+						</div>
+
+						<div id="mailFields" hidden>
+							<p class="settings__line">Server</p>
+							<input class="field" id="wizSmtpHost" data-key="SMTP_HOST" placeholder="smtp.example.com" spellcheck="false"/>
+
+							<p class="settings__line">Port and encryption</p>
+							<div class="field-row">
+								<input class="field field--inline field--amount" id="wizSmtpPort" data-key="SMTP_PORT" type="number" min="1" max="65535"/>
+								<select class="field field--inline field--choice" id="wizSmtpSecurity" data-key="SMTP_SECURITY">
+									<option value="starttls">STARTTLS</option>
+									<option value="ssl">SSL/TLS</option>
+									<option value="none">None</option>
+								</select>
+							</div>
+							<p class="field-note field-note--wide">STARTTLS opens in the clear on 587 and upgrades. SSL is encrypted from the first byte, which is what 465 expects. None sends your password in the clear.</p>
+
+							<p class="settings__line">Sign in to it</p>
+							<div class="field-pair">
+								<input class="field" id="wizSmtpUser" data-key="SMTP_USERNAME" placeholder="you@example.com" spellcheck="false" autocomplete="off"/>
+								<input class="field" id="wizSmtpPass" data-key="SMTP_PASSWORD" type="password" placeholder="Password" autocomplete="new-password"/>
+							</div>
+
+							<p class="settings__line">Messages come from</p>
+							<div class="field-row">
+								<input class="field field--inline" id="wizFromEmail" data-key="SMTP_FROM_EMAIL" placeholder="books@example.com" spellcheck="false"/>
+								<input class="field field--inline" id="wizFromName" data-key="SMTP_FROM_NAME" placeholder="Send to eReader"/>
+							</div>
+
+							<div class="save-row">
+								<button type="button" class="btn btn--accent" id="mailTest">Send a test message</button>
+								<span class="save-row__msg" id="mailTestMsg"></span>
+							</div>
+						</div>
+
+						<div class="save-row">
+							<button type="button" class="btn btn--primary" data-next="2">Continue</button>
+							<span class="save-row__msg" id="msg2"></span>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step2Summary" hidden>
+					<span class="step__badge" id="badge2Summary">2</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Mail</span>
+						<span class="step__summary-value" id="step2Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				<div class="step__rule"></div>
+
+				<div class="step" id="step3" hidden>
+					<div class="step__badge" id="badge3">3</div>
+					<div class="step__body">
+						<div class="step__title">Single sign-on</div>
+						<p class="field-note field-note--wide">Optional, and off unless you already run a directory. It lets an OpenID Connect provider do the signing in; passwords here keep working alongside it.</p>
+
+						<div class="pref-list">
+							<button type="button" class="pref" data-key="OIDC_ENABLED" data-toggle>
+								<span class="pref__text">
+									<span class="pref__label">Offer single sign-on</span>
+									<span class="pref__desc">Adds a Continue with… button to the sign-in page.</span>
+								</span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+						</div>
+
+						<div id="ssoFields" hidden>
+							<p class="settings__line">Discovery document</p>
+							<input class="field" id="wizOidcUrl" data-key="OIDC_CONFIG_URL" placeholder="https://id.example.com/.well-known/openid-configuration" spellcheck="false"/>
+
+							<p class="settings__line">Client</p>
+							<div class="field-pair">
+								<input class="field" id="wizOidcId" data-key="OIDC_CLIENT_ID" placeholder="send2ereader" spellcheck="false" autocomplete="off"/>
+								<input class="field" id="wizOidcSecret" data-key="OIDC_CLIENT_SECRET" type="password" placeholder="Client secret" autocomplete="new-password"/>
+							</div>
+
+							<p class="settings__line">What the button says, and who gets admin</p>
+							<div class="field-row">
+								<input class="field field--inline" id="wizOidcName" data-key="OIDC_PROVIDER_NAME" placeholder="Authentik"/>
+								<input class="field field--inline" id="wizOidcGroup" data-key="OIDC_ADMIN_GROUP" placeholder="ereader-admins" spellcheck="false"/>
+							</div>
+							<p class="field-note field-note--wide" id="ssoRedirect"></p>
+
+							<div class="save-row">
+								<button type="button" class="btn btn--accent" id="ssoTest">Test the connection</button>
+								<span class="save-row__msg" id="ssoTestMsg"></span>
+							</div>
+						</div>
+
+						<div class="save-row">
+							<button type="button" class="btn btn--primary" data-next="3">Continue</button>
+							<span class="save-row__msg" id="msg3"></span>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step3Summary" hidden>
+					<span class="step__badge" id="badge3Summary">3</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Single sign-on</span>
+						<span class="step__summary-value" id="step3Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				<div class="step__rule"></div>
+
+				<div class="step" id="step4" hidden>
+					<div class="step__badge" id="badge4">4</div>
+					<div class="step__body">
+						<div class="step__title">Accounts and passwords</div>
+						<p class="field-note field-note--wide">Sending a book never needs an account. These decide who else may make one here, and what their password has to look like.</p>
+
+						<div class="pref-list">
+							<button type="button" class="pref" data-key="ALLOW_SIGNUP" data-toggle>
+								<span class="pref__text">
+									<span class="pref__label">Anyone may create an account</span>
+									<span class="pref__desc">Off means the create page refuses everyone but you.</span>
+								</span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+						</div>
+
+						<p class="settings__line">A password must be at least</p>
+						<div class="field-row">
+							<input class="field field--inline field--amount" id="wizMinLength" data-key="MIN_PASSWORD_LENGTH" type="number" min="8" max="128"/>
+							<span class="save-row__msg">characters</span>
+						</div>
+						<p class="field-note field-note--wide">Length does more for a password than any composition rule, which is why the rest start off.</p>
+
+						<div class="pref-list">
+							<button type="button" class="pref" data-key="PASSWORD_REQUIRE_UPPER" data-toggle>
+								<span class="pref__text"><span class="pref__label">Require a capital letter</span></span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+							<button type="button" class="pref" data-key="PASSWORD_REQUIRE_LOWER" data-toggle>
+								<span class="pref__text"><span class="pref__label">Require a lower-case letter</span></span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+							<button type="button" class="pref" data-key="PASSWORD_REQUIRE_DIGIT" data-toggle>
+								<span class="pref__text"><span class="pref__label">Require a digit</span></span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+							<button type="button" class="pref" data-key="PASSWORD_REQUIRE_SYMBOL" data-toggle>
+								<span class="pref__text"><span class="pref__label">Require a symbol</span></span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+						</div>
+
+						<div class="save-row">
+							<button type="button" class="btn btn--primary" data-next="4">Continue</button>
+							<span class="save-row__msg" id="msg4"></span>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step4Summary" hidden>
+					<span class="step__badge" id="badge4Summary">4</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Accounts and passwords</span>
+						<span class="step__summary-value" id="step4Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				<div class="step__rule"></div>
+
+				<div class="step" id="step5" hidden>
+					<div class="step__badge" id="badge5">5</div>
+					<div class="step__body">
+						<div class="step__title">One restart and it is done</div>
+						<p class="field-note field-note--wide" id="finishText"></p>
+
+						<div class="status-box" id="finishPending" hidden>
+							<span class="status-box__dot"></span>
+							<div class="status-box__body">
+								<div class="status-box__title">Waiting on a restart</div>
+								<div class="status-box__meta" id="finishPendingMeta"></div>
+							</div>
+						</div>
+
+						<p class="field-note field-note--wide" id="finishManual" hidden>This server is not running in a container, so nothing would start it again if it exited. Everything is saved. Restart the process yourself and the address above takes effect; the rest is already live.</p>
+
+						<div class="save-row">
+							<button type="button" class="btn btn--primary" id="finishGo">Restart and finish</button>
+							<span class="save-row__msg" id="msg5"></span>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step5Summary" hidden>
+					<span class="step__badge" id="badge5Summary">5</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Finish</span>
+						<span class="step__summary-value" id="step5Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				</div>
+			</div>
+		</div>
+	</main>
+
+	<footer class="footer"></footer>
+</div>
+
+<div class="modal-scrim" id="noticeModal" hidden>
+	<div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+		<div class="modal__title" id="noticeTitle"></div>
+		<p class="modal__text" id="noticeText"></p>
+		<div class="modal__actions">
+			<button type="button" class="btn btn--primary" id="noticeOk" data-modal-default>Got it</button>
+		</div>
+	</div>
+</div>
+</body>
+</html>

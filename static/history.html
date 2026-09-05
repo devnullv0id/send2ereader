@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>History · Send to eReader</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='15'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E"/>
+	<link rel="stylesheet" href="/fonts/fonts.css"/>
+	<link rel="stylesheet" href="/fonts/phosphor.css"/>
+	<link rel="stylesheet" href="/app.css"/>
+	<link rel="stylesheet" href="/screens.css"/>
+	<script src="/auth.js" defer></script>
+	<script src="/shell.js" defer></script>
+	<script src="/history.js" defer></script>
+	<script src="/history-page.js" defer></script>
+</head>
+<body data-page="history">
+<div class="shell">
+	<header class="header"></header>
+
+	<main class="main">
+		<div class="wrap">
+			<div class="list-page">
+				<div class="list-page__head">
+					<div>
+						<h1 class="page-title">History</h1>
+						<p class="list-page__sub" id="subLocal">Stored in this browser only. The server keeps no record of what you sent.</p>
+						<p class="list-page__sub" id="subKept" hidden>Books this server is keeping for you. Each goes when its time runs out, or when you delete it.</p>
+					</div>
+					<button type="button" class="list-page__clear" id="clearbtn" hidden>Clear all</button>
+					<div class="auth-modes auth-modes--view" id="views" data-seg="0" hidden>
+						<span class="auth-modes__thumb"></span>
+						<button type="button" class="auth-modes__option is-selected" data-view="list">List</button>
+						<button type="button" class="auth-modes__option" data-view="tiles">Tiles</button>
+					</div>
+				</div>
+
+				<div class="empty" id="empty" hidden>
+					<div class="empty__title">Nothing sent yet</div>
+					<p class="empty__text">Sends you make in this session show up here.</p>
+					<a class="empty__action" href="/">Send a book</a>
+				</div>
+
+				<div class="empty" id="emptyKept" hidden>
+					<div class="empty__title">Nothing kept yet</div>
+					<p class="empty__text">Books you send or convert while signed in are kept here until their time runs out.</p>
+					<a class="empty__action" href="/">Send a book</a>
+				</div>
+
+				<div id="rows" hidden>
+					<div class="list" id="list"></div>
+					<div class="tiles" id="tiles" hidden></div>
+					<p class="list-note" id="noteLocal">Names, sizes and destinations live in this browser's storage — clearing site data clears them, and another browser shows nothing. "Send again" takes you back to step 2 to pick the file once more; no copy was kept anywhere.</p>
+					<p class="list-note" id="noteKept" hidden>Each book keeps the deadline it was given when it arrived, so changing how long books are kept in Settings applies to the next one and not to these. Downloading takes a copy and leaves the book here; Delete removes the file from the server straight away.</p>
+				</div>
+			</div>
+		</div>
+	</main>
+
+	<footer class="footer"></footer>
+</div>
+
+<template id="keptTpl">
+	<div class="list__row">
+		<span class="list__spine"></span>
+		<img class="list__cover" alt="" hidden/>
+		<div class="list__body">
+			<div class="list__name"></div>
+			<div class="list__by"></div>
+			<div class="list__meta"></div>
+			<div class="expiry">
+				<div class="expiry__track"><div class="expiry__bar"></div></div>
+				<div class="expiry__label"></div>
+			</div>
+		</div>
+		<div class="list__actions">
+			<a class="list__collect" download>Download</a>
+			<button type="button" class="list__cancel">Delete</button>
+		</div>
+	</div>
+</template>
+
+<template id="tileTpl">
+	<a class="tile" download>
+		<img class="tile__cover" alt="" hidden/>
+		<span class="tile__spine" hidden><span class="tile__title"></span></span>
+	</a>
+</template>
+
+<template id="rowTpl">
+	<div class="list__row">
+		<span class="list__dot"></span>
+		<div class="list__body">
+			<div class="list__name"></div>
+			<div class="list__meta"></div>
+		</div>
+		<a class="list__again" href="/">Send again</a>
+	</div>
+</template>
+</body>
+</html>

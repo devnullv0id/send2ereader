@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Sign in · Send to eReader</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='15'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E"/>
+	<link rel="stylesheet" href="/fonts/fonts.css"/>
+	<link rel="stylesheet" href="/fonts/phosphor.css"/>
+	<link rel="stylesheet" href="/app.css"/>
+	<link rel="stylesheet" href="/screens.css"/>
+	<script src="/auth.js" defer></script>
+	<script src="/shell.js" defer></script>
+	<script src="/history.js" defer></script>
+	<script src="/signin.js" defer></script>
+</head>
+<body data-page="forgot">
+<div class="shell">
+	<header class="header"></header>
+
+	<main class="main">
+		<div class="wrap">
+			<div class="auth">
+				<h1 class="auth__title">Sign in</h1>
+				<p class="auth__sub">Only to remember your devices, defaults and history. Sending works without it, and always will.</p>
+
+				<form id="forgotform">
+					<div class="auth__label auth__label--first">Email</div>
+					<div class="auth__field-wrap">
+						<input class="auth__field" type="email" id="email" name="email" placeholder="you@example.com" autocomplete="username" spellcheck="false" required/>
+						<span class="auth__status" aria-hidden="true"><i class="ph" aria-hidden="true"></i></span>
+					</div>
+					<button type="submit" class="auth__submit" id="submitbtn" disabled>Send a reset link</button>
+				</form>
+
+				<div class="auth-said" id="sent" hidden>
+					<div class="auth-said__title">If that address has an account, a link is on its way</div>
+					<p class="auth-said__text" id="sentText" data-link-ttl="email">We don't say which addresses exist. Valid for 30 minutes, one use.</p>
+				</div>
+
+				<a class="auth-back" href="/login">Back to sign in</a>
+			</div>
+		</div>
+	</main>
+
+	<footer class="footer"></footer>
+</div>
+</body>
+</html>

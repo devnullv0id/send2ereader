@@ -1,2 +1,29 @@
 node_modules
 uploads
+dist
+*.tsbuildinfo
+uploads-test
+data
+data-dev
+
+.env
+.env.*
+!.env.example
+
+Kobo Config/
+
+UI/
+
+library
+
+.tools/
+queue-test
+queue
+
+.claude/settings.local.json
+.mcp.json
+
+TMP/
+
+# Throwaway instances used while testing by hand.
+.tmp-*/

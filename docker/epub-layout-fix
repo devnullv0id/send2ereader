@@ -1,0 +1,150 @@
+#!/usr/bin/env python3
+"""Headless front end for the EPUB Layout Fix engine.
+
+https://github.com/devnullv0id/calibre-epub-layout-fix ships as a calibre GUI
+plugin, but its engine (``fixer.py``) is deliberately free of calibre and Qt
+imports, so it runs under a plain interpreter. The Docker build extracts that
+one module out of the release zip and drops this script beside it — no calibre
+plugin registration, no GUI, nothing to initialise.
+
+Usage:
+    epub-layout-fix [options] <input.epub> <output.epub>
+    epub-layout-fix --version
+
+Options mirror the engine's own settings, and any left out keep the engine's
+default:
+    --[no-]fix-images          rewrite full-page images so they fit the page
+    --min-width-percent N      treat an image as full-page from this width
+    --[no-]preserve-anchors    keep anchor ids on rewritten pages
+    --[no-]fix-captioned       also fix pages with a short caption
+    --[no-]fix-multi-image     also fix pages holding several images
+    --[no-]fix-covers          repair stretched covers
+    --[no-]dark-cover          dark letterbox bands around the cover
+    --cover-color HEX          letterbox colour, e.g. #000000
+
+The input is copied to the output first and repaired in place, so the caller
+always gets a complete file at the output path even when nothing needed fixing.
+A JSON summary goes to stdout.
+
+Exit codes:
+    0  output written (whether or not anything changed)
+    1  the file could not be processed; the caller should fall back to the
+       unmodified book rather than failing the upload
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import sys
+
+LIB_DIR = os.environ.get('EPUB_LAYOUT_FIX_LIB', '/opt/epub-layout-fix')
+VERSION_FILE = os.path.join(LIB_DIR, 'VERSION')
+
+def _version():
+    try:
+        with open(VERSION_FILE, 'r', encoding='utf-8') as fh:
+            return fh.read().strip() or 'unknown'
+    except OSError:
+        return 'unknown'
+
+FLAGS = {
+    'fix-images': 'fix_images',
+    'preserve-anchors': 'preserve_anchors',
+    'fix-captioned': 'fix_captioned',
+    'fix-multi-image': 'fix_multi_image',
+    'fix-covers': 'fix_covers',
+    'dark-cover': 'dark_cover',
+}
+
+VALUES = {
+    '--min-width-percent': ('min_width_percent', float),
+    '--cover-color': ('cover_color', str),
+}
+
+
+def parse_args(argv):
+    settings = {}
+    paths = []
+    rest = list(argv)
+
+    while rest:
+        arg = rest.pop(0)
+        if not arg.startswith('--'):
+            paths.append(arg)
+            continue
+
+        if arg in VALUES:
+            if not rest:
+                raise ValueError('%s needs a value' % arg)
+            key, cast = VALUES[arg]
+            settings[key] = cast(rest.pop(0))
+            continue
+
+        name = arg[2:]
+        wanted = True
+        if name.startswith('no-'):
+            name, wanted = name[3:], False
+        if name not in FLAGS:
+            raise ValueError('unknown option %s' % arg)
+        settings[FLAGS[name]] = wanted
+
+    return settings, paths
+
+
+def main(argv):
+    if '--version' in argv or '-V' in argv:
+        sys.stdout.write('epub-layout-fix %s\n' % _version())
+        return 0
+
+    try:
+        settings, paths = parse_args(argv)
+    except ValueError as exc:
+        sys.stderr.write('%s\n' % exc)
+        return 2
+
+    if len(paths) != 2:
+        sys.stderr.write('usage: epub-layout-fix [options] <input.epub> <output.epub>\n')
+        return 2
+
+    src, dest = paths
+
+    if LIB_DIR not in sys.path:
+        sys.path.insert(0, LIB_DIR)
+    try:
+        from fixer import fix_epub
+    except ImportError as exc:
+        sys.stderr.write('EPUB Layout Fix engine not found in %s: %s\n' % (LIB_DIR, exc))
+        return 1
+
+    try:
+        shutil.copyfile(src, dest)
+    except OSError as exc:
+        sys.stderr.write('could not stage %s: %s\n' % (dest, exc))
+        return 1
+
+    result = fix_epub(dest, settings) if settings else fix_epub(dest)
+
+    summary = {
+        'version': _version(),
+        'settings': settings,
+        'changed': bool(result.changed),
+        'imagePages': result.image_pages,
+        'svgRepaired': result.svg_repaired,
+        'coverFixed': bool(result.cover_fixed),
+        'deadLinks': result.dead_links,
+        'skipped': result.skipped,
+        'summary': result.summary(),
+    }
+    if result.error:
+        summary['error'] = result.error
+    if result.problems:
+        summary['problems'] = list(result.problems)[:10]
+
+    sys.stdout.write(json.dumps(summary) + '\n')
+
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

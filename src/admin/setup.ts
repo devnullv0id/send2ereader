@@ -1,0 +1,136 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { issuerFromConfigUrl, REDIRECT_PATH } from '../auth/oidc.js'
+import { publicUrl } from '../config.js'
+import { setupTestEmail } from '../mail/template.js'
+import { settings } from '../settings.js'
+import { restarter } from './restart.js'
+
+export const SETUP_DONE = 'setup_done'
+
+const DISCOVERY_TIMEOUT_MS = 8000
+
+// Only the first admin is walked through this. Everyone else who arrives at an
+// unconfigured server would be asked for an SMTP password they do not have.
+function requireSetupAdmin(req: FastifyRequest, reply: FastifyReply): FastifyReply | undefined {
+  const user = req.user
+  if (!user) {
+    const wantsHtml = (req.headers.accept ?? '').includes('text/html')
+    if (wantsHtml) return reply.redirect('/login?next=%2Fsetup%2Fstart')
+    return reply.code(401).send({ ok: false, error: 'Not signed in' })
+  }
+  if (!req.server.repos.users.canAdmin(user.id)) {
+    return reply.code(404).send({ ok: false, error: 'Not found' })
+  }
+  return undefined
+}
+
+export function setupDone(app: FastifyInstance): boolean {
+  return app.repos.meta.flag(SETUP_DONE)
+}
+
+export async function setupRoutes(app: FastifyInstance): Promise<void> {
+  app.get('/setup/start', async (req, reply) => {
+    const refused = requireSetupAdmin(req, reply)
+    if (refused) return refused
+    return reply.page('setup-wizard.html')
+  })
+
+  app.get('/api/setup', async (req, reply) => {
+    const refused = requireSetupAdmin(req, reply)
+    if (refused) return refused
+
+    return reply.send({
+      ok: true,
+      done: setupDone(app),
+      canRestart: restarter.canRestart,
+      runningAddress: publicUrl(),
+      mailEnabled: settings.bool('SMTP_ENABLED'),
+    })
+  })
+
+  app.post('/api/setup/complete', async (req, reply) => {
+    const refused = requireSetupAdmin(req, reply)
+    if (refused) return refused
+
+    app.repos.meta.set(SETUP_DONE, '1')
+    req.log.info({ by: req.user!.id }, 'First-run setup was completed')
+    return reply.send({ ok: true, done: true })
+  })
+
+  // Reads what the provider publishes about itself. It cannot prove the client
+  // secret without a full sign-in, and says so rather than implying otherwise.
+  app.post('/api/setup/sso/test', async (req, reply) => {
+    const refused = requireSetupAdmin(req, reply)
+    if (refused) return refused
+
+    const configUrl = settings.str('OIDC_CONFIG_URL').trim()
+    if (!configUrl) {
+      return reply
+        .code(409)
+        .send({ ok: false, error: 'There is no discovery document to ask. Fill that in first.' })
+    }
+
+    const url = `${issuerFromConfigUrl(configUrl)}/.well-known/openid-configuration`
+    let doc: Record<string, unknown>
+    try {
+      const res = await fetch(url, {
+        headers: { accept: 'application/json' },
+        signal: AbortSignal.timeout(DISCOVERY_TIMEOUT_MS),
+      })
+      if (!res.ok) {
+        return reply
+          .code(502)
+          .send({ ok: false, error: `${url} answered ${res.status}, not a discovery document` })
+      }
+      doc = (await res.json()) as Record<string, unknown>
+    } catch (err) {
+      req.log.warn({ err, url }, 'The provider did not answer')
+      return reply
+        .code(502)
+        .send({ ok: false, error: `Could not reach ${url}: ${(err as Error).message}` })
+    }
+
+    const missing = ['issuer', 'authorization_endpoint', 'token_endpoint', 'jwks_uri'].filter(
+      (key) => typeof doc[key] !== 'string'
+    )
+    if (missing.length > 0) {
+      return reply.code(502).send({
+        ok: false,
+        error: `That answered, but it is not a complete provider: no ${missing.join(', ')}.`,
+      })
+    }
+
+    return reply.send({
+      ok: true,
+      issuer: String(doc.issuer),
+      redirect: publicUrl() + REDIRECT_PATH,
+      clientIdSet: settings.str('OIDC_CLIENT_ID').length > 0,
+    })
+  })
+
+  // Proves the settings before the assistant moves on. It goes to the person
+  // asking, because that is the one address on the server known to be theirs.
+  app.post('/api/setup/mail/test', async (req, reply) => {
+    const refused = requireSetupAdmin(req, reply)
+    if (refused) return refused
+
+    if (!settings.bool('SMTP_ENABLED')) {
+      return reply.code(409).send({
+        ok: false,
+        error: 'Mail is off, so there is nothing to test. Turn it on first.',
+      })
+    }
+
+    const to = req.user!.email
+    try {
+      await app.mailer.send({ to, ...setupTestEmail(publicUrl()) })
+    } catch (err) {
+      req.log.warn({ err }, 'The test message did not go out')
+      return reply.code(502).send({
+        ok: false,
+        error: (err as Error).message || 'The mail server would not take it',
+      })
+    }
+    return reply.send({ ok: true, to })
+  })
+}

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Sign in · Send to eReader</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='15'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E"/>
+	<link rel="stylesheet" href="/fonts/fonts.css"/>
+	<link rel="stylesheet" href="/fonts/phosphor.css"/>
+	<link rel="stylesheet" href="/app.css"/>
+	<link rel="stylesheet" href="/screens.css"/>
+	<script src="/auth.js" defer></script>
+	<script src="/shell.js" defer></script>
+	<script src="/history.js" defer></script>
+	<script src="/cells.js" defer></script>
+	<script src="/signin.js" defer></script>
+</head>
+<body data-page="login">
+<div class="shell">
+	<header class="header"></header>
+
+	<main class="main">
+		<div class="wrap">
+			<div class="auth" id="firstStep">
+				<h1 class="auth__title">Sign in</h1>
+				<p class="auth__sub">Signing in brings back your devices, defaults and history. Sending works without it, and always will.</p>
+
+				<div class="auth-modes" id="modes" data-seg="0" role="tablist">
+					<span class="auth-modes__thumb"></span>
+					<button type="button" role="tab" class="auth-modes__option is-selected" data-mode="password" aria-selected="true">Password</button>
+					<button type="button" role="tab" class="auth-modes__option" data-mode="link" aria-selected="false">Emailed link</button>
+				</div>
+
+				<form id="loginform">
+					<div class="auth-said auth-said--cover" id="linkSent" hidden>
+						<div class="auth-said__title">If that address has an account, a link is on its way</div>
+						<p class="auth-said__text" id="linkSentText" data-link-ttl="sign-in">We don't say which addresses exist. Valid for 15 minutes, one use.</p>
+					</div>
+
+					<div class="auth__label auth__label--modes">Email</div>
+					<div class="auth__field-wrap">
+						<input class="auth__field" type="email" id="email" name="email" placeholder="you@example.com" autocomplete="username" spellcheck="false" required/>
+						<span class="auth__status" aria-hidden="true"><i class="ph" aria-hidden="true"></i></span>
+					</div>
+
+					<div data-pane="password">
+						<div class="auth__label">Password</div>
+						<div class="cover-slot">
+							<input class="auth__field" type="password" id="password" name="password" placeholder="••••••••" autocomplete="current-password" required/>
+							<p class="cover-note" id="note" hidden></p>
+						</div>
+
+						<a class="auth__forgot" href="/auth/forgot">Forgot your password?</a>
+						<button type="button" class="option auth__remember" data-remember hidden role="checkbox" aria-checked="true">
+						<span class="checkbox is-on">✓</span>
+						<span class="option__text">
+							<span class="option__label">Stay signed in on this device</span>
+							<span class="option__desc">Otherwise you're signed out when the browser window closes.</span>
+						</span>
+					</button>
+
+					<button type="submit" class="auth__submit" id="submitbtn" disabled>Sign in</button>
+					</div>
+
+					<div data-pane="link" hidden>
+						<button type="button" class="option auth__remember" data-remember hidden role="checkbox" aria-checked="true">
+						<span class="checkbox is-on">✓</span>
+						<span class="option__text">
+							<span class="option__label">Stay signed in on this device</span>
+							<span class="option__desc">Applies when you open the link. Otherwise it signs you in for that window only.</span>
+						</span>
+					</button>
+
+					<button type="button" class="auth__submit auth__submit--first" id="sendLink">Email me a link</button>
+						<p class="auth__note" data-link-ttl="sign-in">Good for 15 minutes, one use. Nothing to remember and nothing to leak.</p>
+					</div>
+
+				</form>
+
+				<div id="passkeyfield" hidden>
+					<div class="auth-or"><span>OR</span></div>
+					<button type="button" class="auth-sso" id="passkeybtn">
+						<span class="auth-sso__mark"></span>
+						<span id="passkeylabel">Sign in with a passkey</span>
+					</button>
+					<p class="auth__error" id="passkeynote" hidden></p>
+				</div>
+
+				<div id="ssofield" hidden>
+					<div class="auth-or"><span>OR</span></div>
+					<a class="auth-sso" id="ssobtn" href="/auth/sso">
+						<span class="auth-sso__mark"></span>
+						<span id="ssolabel">Continue with SSO</span>
+					</a>
+				</div>
+
+				<div class="auth-alt" id="registerlink" hidden>
+					<span class="auth-alt__text">No account yet?</span>
+					<a class="auth-alt__link" href="/register">Create one</a>
+				</div>
+
+				<a class="auth-skip" id="useAccountCode" href="#recovery" hidden>Lost your password? Use your recovery phrase</a>
+				<a class="auth-skip" href="/">Continue without an account</a>
+			</div>
+
+			<div class="auth" id="codeStep" hidden>
+				<h1 class="auth__title">Enter the code from your authenticator app</h1>
+				<p class="auth__sub">The six digits it shows for this account. They change every 30 seconds.</p>
+
+				<form id="codeform">
+					<div class="auth__label" id="codeLabel">Code</div>
+					<div class="code-slot" id="codeSlot">
+						<div class="key-cells key-cells--sm key-cells--wide" id="codeCells"></div>
+						<input class="auth__field auth__field--code" id="recoveryCode" placeholder="abcde-fghij" spellcheck="false" autocomplete="off" maxlength="11" hidden/>
+						<p class="code-slot__error" id="codenote" hidden></p>
+					</div>
+					<button type="submit" class="auth__submit" id="codebtn" disabled>Sign in</button>
+				</form>
+
+				<div class="auth-alt">
+					<button type="button" class="auth-alt__link" id="useRecovery">Use a recovery code instead</button>
+				</div>
+
+				<button type="button" class="auth-skip" id="codeBack">Back</button>
+			</div>
+		</div>
+	</main>
+
+	<footer class="footer"></footer>
+</div>
+
+<div class="modal-scrim" id="noticeModal" hidden>
+	<div class="modal modal--narrow" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+		<div class="modal__title" id="noticeTitle">That link no longer works</div>
+		<p class="modal__text" id="noticeText"></p>
+		<div class="modal__actions">
+			<button type="button" class="btn btn--primary" id="noticeOk" data-modal-default>Got it</button>
+		</div>
+	</div>
+</div>
+</body>
+</html>

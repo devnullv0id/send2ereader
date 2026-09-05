@@ -1,45 +1,42 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-	<title>Send to Kobo/Kindle</title>
+	<title>Send to eReader</title>
 	<meta charset="utf-8"/>
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<link rel="stylesheet" type="text/css" href="./style.css?s"/>
-	<script src="./common.js?a"></script>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='15'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E"/>
+	<link rel="stylesheet" type="text/css" href="./style.css?v=4"/>
+	<script src="./common.js?v=4"></script>
 </head>
 <body>
 
 <div class="wrapper">
-	<h1 class="center">Send to Kobo/Kindle</h1>
+	<h1>Send to eReader</h1>
+	<p class="tagline">Enter this key on your phone or computer</p>
 
-	<div class="center">
-		<div style="font-size: 1.3em;">Unique key:</div>
-		<div id="key">
-			<span id="keyoutput">––––</span>
-			<button id="keygen" title="Generate new key">
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M19.146 4.854l-1.489 1.489A8 8 0 1 0 12 20a8.094 8.094 0 0 0 7.371-4.886 1 1 0 1 0-1.842-.779A6.071 6.071 0 0 1 12 18a6 6 0 1 1 4.243-10.243l-1.39 1.39a.5.5 0 0 0 .354.854H19.5A.5.5 0 0 0 20 9.5V5.207a.5.5 0 0 0-.854-.353z"/>
-				</svg>
-			</button>
-		</div>
+	<div class="panel">
+		<span class="panel-title">Your key</span>
+		<span id="keyoutput" class="waiting">&ndash;&ndash;&ndash;&ndash;</span>
+		<button id="keygen" class="btn" type="button">New key</button>
 	</div>
 
-	<div class="center">
-		<div id="downloads">
-			<br/>
-			<div style="font-size: 1.3em;"><em>Downloads</em></div>
-			<a id="downloadlink" class="downloadlink"></a>
-		</div>
-		<div id="urls"></div>
-		<br/>
+	<div id="downloads" class="panel">
+		<span class="panel-title">Ready to download</span>
+		<a id="downloadlink" class="downloadlink"><span class="label">Tap to save</span><span id="downloadname"></span></a>
 	</div>
+
+	<div id="urls" class="panel">
+		<span class="panel-title">Links</span>
+		<div id="urllist"></div>
+	</div>
+
 	<hr/>
-	<br/>
-	<div class="center">
-		Visit this on other devices to send ebooks to this ereader:<br/><a id="siteurl">https://send.djazz.se</a><br/>
-		<br/>
-		Created by djazz. Source code on <a href="https://github.com/daniel-j/send2ereader" target="_blank">Github</a><br/>
-		Last updated: 2024-10-20<br/>
+	<div class="footer">
+		Open this address on another device to send books here:<br/>
+		<a id="siteurl">/</a><br/><br/>
+		Maintained by <a href="https://github.com/devnullv0id" target="_blank">devnullv0id</a>.
+		Inspired by <a href="https://github.com/daniel-j/send2ereader" target="_blank">djazz</a>.<br/>
+		<a href="https://github.com/devnullv0id/send2ereader" target="_blank">Source on GitHub</a>
 	</div>
 </div>
 
@@ -51,86 +48,166 @@ var keyOutput = document.getElementById('keyoutput')
 var keyGenBtn = document.getElementById('keygen')
 var downloads = document.getElementById('downloads')
 var downloadlink = document.getElementById('downloadlink')
+var downloadname = document.getElementById('downloadname')
 var urlsnode = document.getElementById('urls')
+var urllist = document.getElementById('urllist')
 var siteurl = document.getElementById('siteurl')
 var key = null
 var pollTimer = null
+var placeholder = '––––'
+var renderedUrls = ''
 
-function pollFile () {
-	if (!key) {
-		keyOutput.textContent = '––––'
-		downloads.style.display = 'none'
+function setPlaceholder(text) {
+	keyOutput.textContent = text
+	keyOutput.className = 'waiting'
+}
+
+function resetKey() {
+	if (pollTimer) clearInterval(pollTimer)
+	pollTimer = null
+	key = null
+	setPlaceholder(placeholder)
+	downloads.style.display = 'none'
+	downloadlink.href = ''
+	downloadname.textContent = ''
+	renderUrls([])
+}
+
+function renderUrls(urls) {
+	var joined = urls.join('\n')
+	if (joined === renderedUrls) return
+	renderedUrls = joined
+
+	while (urllist.firstChild) urllist.removeChild(urllist.firstChild)
+	if (urls.length === 0) {
+		urlsnode.style.display = 'none'
 		return
 	}
-	xhr('GET', './status/' + key, function (x) {
+	urlsnode.style.display = 'block'
+
+	for (var i = 0; i < urls.length; i++) {
+		var link = document.createElement('a')
+		link.href = urls[i]
+		link.target = '_blank'
+		link.textContent = urls[i]
+		link.className = 'downloadlink'
+		urllist.appendChild(link)
+	}
+}
+
+function applyStatus(data) {
+	if (data.file) {
+		downloads.style.display = 'block'
+		downloadname.textContent = data.file.name
+		downloadlink.href = './download/' + encodeURIComponent(data.file.name) + '?key=' + key
+	} else {
+		downloads.style.display = 'none'
+	}
+	renderUrls(data.urls && data.urls.length > 0 ? data.urls : [])
+}
+
+function pollFile() {
+	if (!key) return
+	var asked = key
+	xhr('GET', './status/' + asked, function (x) {
+		if (asked !== key) return
+
+		if (x.status === 404) {
+			generateKey()
+			return
+		}
+		if (x.status !== 200) return
+
 		var data
 		try {
 			data = JSON.parse(x.responseText)
 		} catch (err) {
-			key = null
-			keyOutput.textContent = '––––'
-			downloads.style.display = 'none'
 			return
 		}
 		if (data.error) {
-			if (pollTimer) clearInterval(pollTimer)
-			key = null
-			keyOutput.textContent = '––––'
-			downloads.style.display = 'none'
+			generateKey()
+			return
 		}
-		var urls = data.urls && data.urls.length > 0 ? data.urls : null
-		if (data.file) {
-			downloads.style.display = 'block'
-			downloadlink.textContent = data.file.name
-			downloadlink.href = '/' + encodeURIComponent(data.file.name) + "?key=" + key
-		} else {
-			downloads.style.display = 'none'
-		}
-		if (urls) {
-			urlsnode.innerHTML = '<br/><div style="font-size: 1.3em;"><em>Urls</em></div>'
-			urls.forEach(function (url) {
-				var urllink = document.createElement("a")
-				urllink.href = url
-				urllink.target = '_blank'
-				urllink.textContent = url
-				urllink.className = "downloadlink"
-				var div = document.createElement('div')
-				div.appendChild(urllink)
-				urlsnode.appendChild(div)
-			})
-		}
+		applyStatus(data)
 	})
 }
 
-function generateKey () {
-	keyOutput.textContent = '––––'
+function startPolling() {
 	if (pollTimer) clearInterval(pollTimer)
-	downloads.style.display = 'none'
+	pollTimer = setInterval(pollFile, 2 * 1000)
+}
+
+function rememberKey(value) {
+	if (window.history && window.history.replaceState) {
+		window.history.replaceState(null, '', '#' + value)
+	} else {
+		window.location.hash = value
+	}
+}
+
+function showKey(value) {
+	key = value
+	keyOutput.textContent = value
+	keyOutput.className = ''
+	placeholder = new Array(value.length + 1).join('–')
+	rememberKey(value)
+	startPolling()
+}
+
+function generateKey() {
+	resetKey()
+	setPlaceholder('…')
 	xhr('POST', './generate', function (x) {
-		if (x.responseText !== 'error' && x.status === 200) {
-			key = x.responseText
-			keyOutput.textContent = key
-			downloadlink.href = ''
-			if (pollTimer) clearInterval(pollTimer)
-			pollTimer = setInterval(pollFile, 5 * 1000)
+		if (x.status === 200 && x.responseText && x.responseText !== 'error') {
+			showKey(x.responseText)
 		} else {
-			key = null
-			keyOutput.textContent = '––––'
-			downloadlink.href = ''
+			setPlaceholder('error')
 		}
 		keyGenBtn.blur()
 	})
 }
 
-window.onload = function () {
-	keyGenBtn.onclick = generateKey
-	generateKey()
+function keyFromAddress() {
+	var raw = window.location.hash.replace('#', '').toUpperCase()
+	return /^[A-Z0-9]{1,16}$/.test(raw) ? raw : null
 }
 
-siteurl.textContent = window.location.href
-siteurl.href = siteurl.textContent
-siteurl.target = '_self'
+function resumeOrGenerate() {
+	var previous = keyFromAddress()
+	if (!previous) {
+		generateKey()
+		return
+	}
+	setPlaceholder('…')
+	xhr('GET', './status/' + previous, function (x) {
+		if (x.status !== 200) {
+			generateKey()
+			return
+		}
+		var data
+		try {
+			data = JSON.parse(x.responseText)
+		} catch (err) {
+			generateKey()
+			return
+		}
+		if (data.error) {
+			generateKey()
+			return
+		}
+		showKey(previous)
+		applyStatus(data)
+	})
+}
 
+window.onload = function () {
+	keyGenBtn.onclick = generateKey
+	resumeOrGenerate()
+}
+
+siteurl.textContent = window.location.protocol + '//' + window.location.host + '/'
+siteurl.href = window.location.protocol + '//' + window.location.host + '/'
+siteurl.target = '_self'
 </script>
 </body>
 </html>

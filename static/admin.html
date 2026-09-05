@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<title>Admin · Send to eReader</title>
+	<meta charset="utf-8"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='14' font-size='15'%3E%F0%9F%93%96%3C/text%3E%3C/svg%3E"/>
+	<link rel="stylesheet" href="/fonts/fonts.css"/>
+	<link rel="stylesheet" href="/fonts/phosphor.css"/>
+	<link rel="stylesheet" href="/app.css"/>
+	<link rel="stylesheet" href="/screens.css"/>
+	<script src="/auth.js" defer></script>
+	<script src="/shell.js" defer></script>
+	<script src="/history.js" defer></script>
+	<script src="/admin.js" defer></script>
+</head>
+<body data-page="admin">
+<div class="shell">
+	<header class="header"></header>
+
+	<main class="main">
+		<div class="wrap">
+			<div class="settings">
+				<h1 class="page-title">Admin</h1>
+				<p class="list-page__sub" id="intro">Everything here applies to the whole server. Anything you set overrides the same key in the environment file, which is never rewritten. Below the line in the list are the keys that decide how the process starts and what protects it: those are shown as they are, and changed in the environment file.</p>
+				<p class="settings__line">The address, mail, single sign-on and passwords are also the four the first-run assistant asks for, one at a time. <a class="btn-link" href="/setup/start">Open the setup assistant</a></p>
+
+				<div class="settings__body">
+					<nav class="settings__rail" aria-label="Admin sections">
+						<button type="button" class="rail__item is-active" data-tab="people">People</button>
+						<div class="rail__divider"></div>
+						<div class="rail__groups" id="railGroups"></div>
+						<div class="rail__divider"></div>
+						<button type="button" class="rail__item" data-tab="backup">Backup</button>
+						<button type="button" class="rail__item rail__item--danger" data-tab="restart" id="restartTab">Restart</button>
+					</nav>
+
+					<div class="settings__panel">
+						<section id="panel-people" data-panel="people">
+							<div class="settings__section">People</div>
+							<p class="settings__intro">Addresses are shown masked. Names are not, because a list of dots is no way to find anyone.</p>
+
+							<div class="admin-people" id="people"></div>
+							<p class="field-note field-note--wide" id="peopleEmpty" hidden>Nobody else has an account here yet.</p>
+						</section>
+
+						<section id="panel-backup" data-panel="backup" hidden>
+							<div class="settings__section">Download a backup</div>
+							<p class="settings__intro">One <span class="mono">.tar.gz</span> holding the database and every kept book. It is taken while the server runs, with SQLite's own copy, so nothing is caught half-written.</p>
+
+							<dl class="danger__list">
+								<dt>&plus;</dt><dd id="backupAccounts">Accounts, devices, sessions and everything set on this page</dd>
+								<dt>&plus;</dt><dd id="backupBooks">Every book kept in the library</dd>
+								<dt class="is-muted">&minus;</dt><dd class="is-muted">Not the environment file, and not the generated session key beside the database — both live outside this server and are yours to copy</dd>
+								<dt class="is-muted">&minus;</dt><dd class="is-muted">Not anything waiting to be collected right now; a key does not survive a restart either</dd>
+							</dl>
+
+							<div class="save-row">
+								<a class="btn btn--primary" id="backupGo" href="/api/admin/backup" download>Download a backup</a>
+								<span class="save-row__msg" id="backupSize"></span>
+							</div>
+
+							<div class="settings__rule"></div>
+							<div class="settings__section">Putting one back</div>
+							<p class="settings__intro">There is no button for this, on purpose: restoring over a running server would race whatever it is doing. Stop it first, then unpack.</p>
+							<div class="endpoint">
+								<div class="manual__line">
+									<div class="manual__line-text mono" id="restoreLine">docker compose down &amp;&amp; tar -xzf send2ereader-backup.tar.gz -C /your/data &amp;&amp; docker compose up -d</div>
+									<button type="button" class="manual__line-copy" id="restoreCopy">Copy</button>
+								</div>
+							</div>
+							<p class="field-note field-note--wide">The archive holds <span class="mono">db/</span> and <span class="mono">library/</span>, which is the shape of the data directory. Unpacking it over that directory puts both back where they were. If the session key was lost with the server, sessions end and stored Kobo tokens and two-factor secrets cannot be read — everything else returns.</p>
+						</section>
+
+						<section id="panel-restart" data-panel="restart" hidden>
+							<div class="settings__section">Restart the server</div>
+							<p class="settings__intro">Some settings only take hold on a restart — the ones marked on their field. Everything else is already live and needs none of this.</p>
+
+							<div class="danger">
+								<div class="danger__title">What a restart costs</div>
+								<dl class="danger__list">
+									<dt>&minus;</dt><dd>Anything mid-upload or mid-conversion right now</dd>
+									<dt>&minus;</dt><dd>Every key waiting to be collected by an eReader</dd>
+									<dt class="is-muted">&minus;</dt><dd class="is-muted">Nothing signed in — sessions live in the database and survive</dd>
+									<dt class="is-muted">&minus;</dt><dd class="is-muted">Nothing kept — books and settings survive</dd>
+								</dl>
+								<p class="danger__note">The container exits and Docker starts it again. It is usually back within a few seconds.</p>
+
+								<div class="danger__row">
+									<button type="button" class="danger__go" id="restartGo" disabled>Restart the server</button>
+								</div>
+								<p class="danger__note" id="restartUnsupported" hidden>This server is not running in a container, so exiting would leave nothing to start it again. A restart is offered where Docker, or another supervisor, is watching the process.</p>
+							</div>
+
+							<div class="status-box" id="restartWaiting" hidden>
+								<span class="status-box__dot"></span>
+								<div class="status-box__body">
+									<div class="status-box__title" id="restartWaitingTitle">Restarting…</div>
+									<div class="status-box__meta" id="restartWaitingMeta">WAITING FOR THE SERVER TO ANSWER AGAIN</div>
+								</div>
+							</div>
+						</section>
+
+						<section id="panel-settings" data-panel="settings" hidden>
+							<div class="pending-box" id="addressPending" hidden>
+								<span class="bang bang--md bang--warn">!</span>
+								<div class="pending-box__body">
+									<div class="pending-box__title">This server is still answering as <span class="mono" id="addressNow"></span></div>
+									<p class="pending-box__text" id="addressText"></p>
+									<div class="pending-box__actions">
+										<button type="button" class="btn btn--sm btn--accent" id="addressRestart">Restart the server</button>
+									</div>
+								</div>
+							</div>
+
+							<div class="settings__section" id="groupTitle"></div>
+							<p class="settings__intro" id="groupIntro"></p>
+							<div class="admin-keys" id="keys"></div>
+						</section>
+					</div>
+				</div>
+			</div>
+		</div>
+	</main>
+
+	<footer class="footer"></footer>
+</div>
+
+<div class="modal-scrim" id="confirmModal" hidden>
+	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+		<div class="modal__title" id="confirmTitle">Delete this account?</div>
+		<p class="modal__text" id="confirmText"></p>
+		<p class="modal__text">Their books are deleted with them. Books already on their eReader stay there. This cannot be undone and they are not told.</p>
+		<div class="modal__actions">
+			<button type="button" class="btn btn--sm btn--danger" id="confirmGo" data-modal-default>Yes, delete it</button>
+			<button type="button" class="btn btn--err" id="confirmCancel">Keep the account</button>
+		</div>
+	</div>
+</div>
+
+<div class="modal-scrim" id="passkeyWarnModal" hidden>
+	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="passkeyWarnTitle">
+		<div class="modal__title" id="passkeyWarnTitle">This removes every passkey on this server</div>
+		<p class="modal__text" id="passkeyWarnCount"></p>
+		<p class="modal__text">A passkey is tied to the address it was created under. Once the address changes, the old ones can never be offered again — leaving them in place would mean a sign-in button that silently does nothing.</p>
+		<p class="modal__text">They are deleted now. Everyone who had one is told why the next time they sign in, and asked to make another. Passwords, codes and recovery codes are untouched.</p>
+		<div class="modal__actions">
+			<button type="button" class="btn btn--sm btn--danger" id="passkeyWarnGo" data-modal-default>Change it anyway</button>
+			<button type="button" class="btn btn--err" id="passkeyWarnCancel">Keep the address</button>
+		</div>
+	</div>
+</div>
+
+<div class="modal-scrim" id="noticeModal" hidden>
+	<div class="modal" role="dialog" aria-modal="true" aria-labelledby="noticeTitle">
+		<div class="modal__title" id="noticeTitle"></div>
+		<p class="modal__text" id="noticeText"></p>
+		<div class="modal__actions">
+			<button type="button" class="btn btn--primary" id="noticeOk" data-modal-default>Got it</button>
+		</div>
+	</div>
+</div>
+</body>
+</html>

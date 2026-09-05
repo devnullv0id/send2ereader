@@ -1,125 +1,224 @@
+html {
+	-webkit-text-size-adjust: 100%;
+}
 
 body {
-    line-height: 1.3;
-    font-family: serif;
+	margin: 0;
+	padding: 0;
+	background: #fff;
+	color: #000;
+	font-family: Georgia, "Times New Roman", serif;
+	font-size: 18px;
+	line-height: 1.45;
 }
 
 .wrapper {
-    margin: 0 auto;
-    padding: 0 20px;
-    max-width: 650px;
+	margin: 0 auto;
+	padding: 16px;
+	max-width: 640px;
 }
+
 h1 {
-    font-size: 2em;
-    font-weight: normal;
-    font-style: italic;
+	margin: 0 0 4px 0;
+	font-size: 30px;
+	font-weight: normal;
+	letter-spacing: 0.01em;
+	text-align: center;
 }
-#keyoutput {
-    font-size: 5em;
-    display: inline-block;
-    letter-spacing: 0.2em;
-    margin: 10px 0;
-    font-family: monospace, sans-serif;
-    white-space: nowrap;
-    text-transform: uppercase;
-    vertical-align: middle;
+
+.tagline {
+	margin: 0 0 20px 0;
+	text-align: center;
+	font-size: 15px;
+	font-style: italic;
 }
+
 .center {
-    text-align: center;
+	text-align: center;
 }
-.right {
-    text-align: right;
+
+hr {
+	border: 0;
+	border-top: 2px solid #000;
+	margin: 24px 0 16px 0;
 }
-#keygen, .downloadlink, #choosebtn, input[type="submit"] {
-    background: #CCC;
-    border: none;
-    color: black;
-    font-style: italic;
-    padding: 0.6em 1.3em;
-    line-height: 1.6;
-    display: inline-block;
-    font-family: inherit;
-    font-size: 1.2em;
-    margin: 0 0.5em;
-    vertical-align: middle;
-    cursor: pointer;
-    font-weight: normal;
+
+.panel {
+	border: 2px solid #000;
+	padding: 16px;
+	margin-bottom: 18px;
+	text-align: center;
 }
+
+.panel-title {
+	display: block;
+	margin: 0 0 8px 0;
+	font-size: 15px;
+	font-style: italic;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+}
+
+#keyoutput {
+	display: block;
+	font-family: "Courier New", Courier, monospace;
+	font-size: 68px;
+	line-height: 1.1;
+	letter-spacing: 0.16em;
+	text-indent: 0.16em;
+	text-transform: uppercase;
+	white-space: nowrap;
+	margin: 4px 0 14px 0;
+}
+
+#keyoutput.waiting {
+	color: #555;
+}
+
+#keygen,
+.downloadlink,
+.btn {
+	display: inline-block;
+	background: #fff;
+	color: #000;
+	border: 3px solid #000;
+	padding: 12px 20px;
+	margin: 6px 4px;
+	font-family: inherit;
+	font-size: 18px;
+	line-height: 1.2;
+	text-decoration: none;
+	cursor: pointer;
+	-webkit-appearance: none;
+	border-radius: 0;
+}
+
+#keygen:active,
+.downloadlink:active,
+.btn:active,
+#keygen:focus,
+.downloadlink:focus,
+.btn:focus {
+	background: #000;
+	color: #fff;
+}
+
 #keygen {
-    margin-left: 1em;
-    margin-right: -2em;
-    padding: 1em;
+	font-style: italic;
 }
-#keygen:focus, #downloadlink:focus, #choosebtn:focus, input[type="submit"]:focus,
-#keygen:active, #downloadlink:active, #choosebtn:active, input[type="submit"]:active {
-    background: black;
-    color: white;
-}
-#keygen svg {
-    display: block;
-    width: 1.5em;
-    height: 1.5em;
-}
+
 .downloadlink {
-    margin: 0.5em;
-}
-#downloads {
-    display: none;
-}
-
-
-
-
-#keyinput {
-    font-size: 4em;
-    width: 3.5em;
-    text-align: center;
-    font-family: monospace;
-    letter-spacing: 0.1em;
+	display: block;
+	margin: 8px 0;
+	padding: 14px 16px;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+	text-align: left;
 }
 
-input[type="url"], input[type="text"] {
-    background: white;
-    border: 1px solid #AAA;
-    padding: 5px;
-    font-family: serif;
+.downloadlink .label {
+	display: block;
+	font-size: 13px;
+	font-style: italic;
+	text-transform: uppercase;
+	letter-spacing: 0.1em;
+	margin-bottom: 2px;
 }
 
-#uploadstatus {
-    opacity: 0;
-    transition: opacity .5s ease-in-out;
-    padding: 10px;
-    margin-top: 20px;
-    border-radius: 5px;
-    text-align: center;
-    cursor: pointer;
-    line-height: 1.7;
+#downloads,
+#urls {
+	display: none;
 }
 
-#uploadstatus.success {
-    background-color: #DFD;
-    border: 1px solid #7F7;
+.hint {
+	font-size: 15px;
+	font-style: italic;
+	margin: 6px 0 0 0;
 }
 
-#uploadstatus.error {
-    background-color: #FDD;
-    border: 1px solid #F77;
-    white-space: pre;
-}
-td {
-    padding: 10px;
+.footer {
+	font-size: 14px;
+	text-align: center;
+	line-height: 1.6;
 }
 
-td.aligntop {
-    vertical-align: top;
+.footer a {
+	color: #000;
 }
 
-#fileinput {
-    display: none;
+#siteurl {
+	font-family: "Courier New", Courier, monospace;
+	font-size: 15px;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
-#fileinfo {
-    font-size: 0.9em;
-    font-style: italic;
-    width: 18em;
+#logs {
+	font-family: "Courier New", Courier, monospace;
+	font-size: 12px;
+	padding: 0 16px 16px 16px;
+}
+
+@media screen and (max-width: 520px) {
+	body {
+		font-size: 17px;
+	}
+
+	.wrapper {
+		padding: 12px;
+	}
+
+	h1 {
+		font-size: 25px;
+	}
+
+	#keyoutput {
+		font-size: 52px;
+		letter-spacing: 0.12em;
+		text-indent: 0.12em;
+	}
+
+	.panel {
+		padding: 12px;
+	}
+}
+
+@media screen and (max-width: 380px) {
+	#keyoutput {
+		font-size: 40px;
+	}
+}
+
+@media (prefers-color-scheme: dark) {
+	body {
+		background: #000;
+		color: #fff;
+	}
+
+	.panel,
+	hr {
+		border-color: #fff;
+	}
+
+	#keygen,
+	.downloadlink,
+	.btn {
+		background: #000;
+		color: #fff;
+		border-color: #fff;
+	}
+
+	#keygen:active,
+	.downloadlink:active,
+	.btn:active,
+	#keygen:focus,
+	.downloadlink:focus,
+	.btn:focus {
+		background: #fff;
+		color: #000;
+	}
+
+	.footer a {
+		color: #fff;
+	}
 }

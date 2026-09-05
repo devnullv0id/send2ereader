@@ -1,0 +1,156 @@
+import { spawn } from 'node:child_process'
+import { config } from '../config.js'
+import { settings } from '../settings.js'
+
+export interface RunResult {
+  code: number
+  stdout: string
+  stderr: string
+}
+
+export class ConversionError extends Error {
+  readonly tool: string
+  readonly output: string
+
+  constructor(tool: string, message: string, output = '') {
+    super(message)
+    this.name = 'ConversionError'
+    this.tool = tool
+    this.output = output
+  }
+
+  // The output is a converter's own stderr — calibre answers a bad file with a
+  // Python traceback naming its install path and version. Redaction only covers
+  // the upload directory, and the caller here can be anonymous, so the detail
+  // stays in the log and the sender is told which tool gave up.
+  toUserMessage(): string {
+    return this.message
+  }
+}
+
+function append(buffer: string, chunk: string): string {
+  const limit = settings.int('CONVERSION_OUTPUT_LIMIT')
+  if (buffer.length >= limit) return buffer
+  return (buffer + chunk).slice(0, limit)
+}
+
+export interface RunOptions {
+  cwd?: string
+  timeoutMs?: number
+  redact?: Record<string, string>
+}
+
+function redactAll(text: string, redact: Record<string, string> | undefined): string {
+  if (!redact) return text
+  let out = text
+  for (const [from, to] of Object.entries(redact)) {
+    if (from) out = out.split(from).join(to)
+  }
+  return out
+}
+
+// Windows resolves a bare name against PATHEXT only through a shell, and spawn
+// does not use one, so kepubify.exe on PATH looks missing while calibre — whose
+// installer registers ebook-convert.exe the same way — looks missing too. The
+// server ships on Linux; development happens here, and a converter that is
+// present should be found.
+const WINDOWS_SUFFIXES = ['.exe', '.cmd', '.bat']
+
+function candidates(bin: string): string[] {
+  if (process.platform !== 'win32') return [bin]
+  if (/\.[a-z0-9]+$/i.test(bin)) return [bin]
+  return [...WINDOWS_SUFFIXES.map((suffix) => bin + suffix), bin]
+}
+
+const resolved = new Map<string, string>()
+
+export async function runCommand(
+  bin: string,
+  args: string[],
+  options: RunOptions = {}
+): Promise<RunResult> {
+  const known = resolved.get(bin)
+  if (known) return runExact(known, args, options)
+
+  let lastError: unknown
+  for (const candidate of candidates(bin)) {
+    try {
+      const result = await runExact(candidate, args, options)
+      resolved.set(bin, candidate)
+      return result
+    } catch (err) {
+      const missing =
+        err instanceof ConversionError && err.message.includes('is not installed or not on PATH')
+      if (!missing) throw err
+      lastError = err
+    }
+  }
+  throw lastError
+}
+
+function runExact(bin: string, args: string[], options: RunOptions = {}): Promise<RunResult> {
+  const timeoutMs = options.timeoutMs ?? settings.int('CONVERSION_TIMEOUT_MS')
+
+  return new Promise((resolve, reject) => {
+    let stdout = ''
+    let stderr = ''
+    let settled = false
+    let timedOut = false
+
+    const child = spawn(bin, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill('SIGKILL')
+    }, timeoutMs)
+    timer.unref()
+
+    const finish = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
+
+    child.stdout.setEncoding('utf8')
+    child.stderr.setEncoding('utf8')
+    child.stdout.on('data', (chunk: string) => {
+      stdout = append(stdout, chunk)
+    })
+    child.stderr.on('data', (chunk: string) => {
+      stderr = append(stderr, chunk)
+    })
+
+    child.once('error', (err) => {
+      const hint =
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+          ? `${bin} is not installed or not on PATH`
+          : err.message
+      finish(() => reject(new ConversionError(bin, `Could not run ${bin}: ${hint}`)))
+    })
+
+    child.once('close', (code) => {
+      const output = redactAll(`${stdout}\n${stderr}`, options.redact)
+      finish(() => {
+        if (timedOut) {
+          reject(new ConversionError(bin, `${bin} timed out after ${timeoutMs / 1000}s`, output))
+        } else {
+          resolve({
+            code: code ?? -1,
+            stdout: redactAll(stdout, options.redact),
+            stderr: redactAll(stderr, options.redact),
+          })
+        }
+      })
+    })
+  })
+}
+
+export async function isToolAvailable(bin: string): Promise<boolean> {
+  try {
+    await runCommand(bin, ['--version'], { timeoutMs: 30_000 })
+    return true
+  } catch {
+    return false
+  }
+}
