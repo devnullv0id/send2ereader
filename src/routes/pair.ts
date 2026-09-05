@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify'
 import { detectDevice, deviceLabel } from '../device.js'
 import { KeyOverflowError, silentAfterSeconds } from '../keystore.js'
-import { say } from '../language.js'
+import { requestLanguage, say } from '../language.js'
 import { settings } from '../settings.js'
 
 interface KeyParams {
@@ -81,7 +81,7 @@ export async function pairRoutes(app: FastifyInstance): Promise<void> {
       const silentFor = Math.floor(idleMs / 1000)
       return reply.send({
         device: info.device,
-        label: deviceLabel(info.device),
+        label: deviceLabel(info.device, requestLanguage(req)),
         hasFile: info.file !== null,
         connected: idleMs < silentAfterSeconds() * 1000,
         silentFor,

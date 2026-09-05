@@ -304,7 +304,7 @@ async function runStep(
     }
   } catch (err) {
     if (err instanceof ConversionError && err.tool !== step.converter) {
-      throw new ConversionError(step.converter, err.message, err.output)
+      throw new ConversionError(step.converter, err.key, err.output, err.params)
     }
     throw err
   }
@@ -358,8 +358,9 @@ async function expectSuccess(
   if (result.code !== 0) {
     throw new ConversionError(
       converter,
-      `${converter} failed (exit code ${result.code})`,
-      `${result.stdout}\n${result.stderr}`
+      '{converter} failed (exit code {code})',
+      `${result.stdout}\n${result.stderr}`,
+      { converter, code: result.code }
     )
   }
 }

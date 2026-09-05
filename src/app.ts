@@ -130,7 +130,9 @@ export async function buildApp(options: BuildOptions = {}): Promise<FastifyInsta
     return reply.code(status).send({ ok: false, error: i18n.translate(requestLanguage(req), said) })
   })
 
-  app.setNotFoundHandler(async (_req, reply) => reply.code(404).send({ error: 'Not found' }))
+  app.setNotFoundHandler(async (req, reply) =>
+    reply.code(404).send({ error: i18n.translate(requestLanguage(req), 'Not found') })
+  )
 
   const tools = options.tools ?? (await detectTools())
   app.decorate('tools', tools)
@@ -195,7 +197,7 @@ export async function buildApp(options: BuildOptions = {}): Promise<FastifyInsta
   app.get<{ Params: { code: string } }>('/i18n/:code', async (req, reply) => {
     const code = req.params.code.toLowerCase()
     if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})?$/.test(code)) {
-      return reply.code(404).send({ error: 'Not found' })
+      return reply.code(404).send({ error: i18n.translate(requestLanguage(req), 'Not found') })
     }
     return reply.send({ ok: true, ...i18n.dictionary(code) })
   })

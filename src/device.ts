@@ -1,3 +1,4 @@
+import { i18n } from './i18n.js'
 import type { DeviceKind } from './types.js'
 
 export function detectDevice(userAgent: string | undefined): DeviceKind {
@@ -12,15 +13,15 @@ export function isEreader(userAgent: string | undefined): boolean {
   return detectDevice(userAgent) !== 'generic'
 }
 
-export function deviceLabel(device: DeviceKind): string {
+export function deviceLabel(device: DeviceKind, lang = 'en'): string {
   switch (device) {
     case 'kobo':
-      return 'a Kobo device'
+      return i18n.translate(lang, 'a Kobo device')
     case 'kindle':
-      return 'a Kindle device'
+      return i18n.translate(lang, 'a Kindle device')
     case 'tolino':
-      return 'a Tolino device'
+      return i18n.translate(lang, 'a Tolino device')
     default:
-      return 'a device'
+      return i18n.translate(lang, 'a device')
   }
 }

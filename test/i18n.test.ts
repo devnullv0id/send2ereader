@@ -3,10 +3,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { buildApp } from '../src/app.js'
+import { ConversionError, TOOL_MISSING_KEY } from '../src/convert/run.js'
 import { type Db, openDatabase } from '../src/db/index.js'
+import { deviceLabel } from '../src/device.js'
+import { prepareUploadDir } from '../src/files.js'
 import { fillIn, I18n, i18n } from '../src/i18n.js'
 import { duration, signInLinkEmail } from '../src/mail/template.js'
-import { asBrowser } from './helpers.js'
+import { asBrowser, multipart, multipartHeaders, sampleEpub } from './helpers.js'
 
 const noTools = {
   kepubify: false,
@@ -399,5 +402,121 @@ describe('mail speaks the language it is given', () => {
     expect(duration(900, 'de')).toBe('15 Minuten')
     expect(duration(60, 'de')).toBe('1 Minute')
     expect(duration(86400, 'de')).toBe('24 Stunden')
+  })
+})
+
+describe("a conversion failure speaks the reader's language", () => {
+  it('translates the diagnostic while the message stays English', () => {
+    const err = new ConversionError('kepubify', TOOL_MISSING_KEY, '', { bin: 'kepubify' })
+    expect(err.message).toBe('Could not run kepubify: kepubify is not installed or not on PATH')
+    expect(err.toUserMessage()).toBe(err.message)
+    expect(err.toUserMessage('de')).toBe(
+      'Konnte kepubify nicht starten: kepubify ist nicht installiert oder nicht im PATH'
+    )
+  })
+
+  it('keeps the legacy plain-message construction working', () => {
+    const err = new ConversionError('calibre', 'calibre failed (exit code 1)', 'boom')
+    expect(err.message).toBe('calibre failed (exit code 1)')
+    expect(err.toUserMessage('de')).toBe('calibre failed (exit code 1)')
+  })
+
+  it('numbers the exit code in German', () => {
+    const err = new ConversionError('calibre', '{converter} failed (exit code {code})', '', {
+      converter: 'calibre',
+      code: 1,
+    })
+    expect(err.toUserMessage('de')).toBe('calibre fehlgeschlagen (Exit-Code 1)')
+  })
+})
+
+describe('the upload messages and device names translate', () => {
+  let app: Awaited<ReturnType<typeof buildApp>>
+
+  beforeEach(async () => {
+    await prepareUploadDir(true)
+    app = await buildApp({ tools: noTools, logger: false, accounts: false })
+    await app.ready()
+  })
+
+  afterEach(async () => {
+    await app.close()
+  })
+
+  const generateKey = async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/generate',
+      headers: { 'user-agent': 'Mozilla/5.0 (Linux; U; Kobo Touch)' },
+    })
+    expect(res.statusCode).toBe(200)
+    return res.body
+  }
+
+  it('labels the paired device in the request language', async () => {
+    expect(deviceLabel('kobo')).toBe('a Kobo device')
+    expect(deviceLabel('kobo', 'de')).toBe('Kobo-Gerät')
+    expect(deviceLabel('generic', 'de')).toBe('Lesegerät')
+
+    const key = await generateKey()
+    const info = await app.inject({ url: `/key/${key}`, headers: { cookie: 's2e_lang=de' } })
+    expect(info.json().label).toBe('Kobo-Gerät')
+  })
+
+  it('answers the upload with German messages that still carry the filename', async () => {
+    const key = await generateKey()
+    const res = await app.inject({
+      method: 'POST',
+      url: '/upload',
+      headers: { ...multipartHeaders, cookie: 's2e_lang=de' },
+      payload: multipart([
+        { name: 'key', value: key },
+        { name: 'file', value: sampleEpub(), filename: 'Buch.epub' },
+      ]),
+    })
+    expect(res.statusCode).toBe(200)
+    const body = res.json()
+    expect(body.messages).toContain('Upload erfolgreich! An Kobo-Gerät gesendet.')
+    expect(body.messages).toContain('Dateiname: Buch.epub')
+    expect(body.messages.join(' ')).toContain(body.filename)
+  })
+})
+
+describe('the bare errors a browser renders', () => {
+  let app: Awaited<ReturnType<typeof buildApp>>
+
+  beforeEach(async () => {
+    app = await buildApp({ tools: noTools, logger: false, accounts: false })
+    await app.ready()
+  })
+
+  afterEach(async () => {
+    await app.close()
+  })
+
+  it('answers the download without a key in the request language', async () => {
+    const german = await app.inject({
+      url: '/download/x.epub',
+      headers: { cookie: 's2e_lang=de' },
+    })
+    expect(german.statusCode).toBe(400)
+    expect(german.json().error).toBe('Schlüssel fehlt')
+
+    const english = await app.inject({ url: '/download/x.epub' })
+    expect(english.statusCode).toBe(400)
+    expect(english.json().error).toBe('Missing key')
+  })
+
+  it('says Not found in the request language, even for a strange route', async () => {
+    const missing = await app.inject({
+      url: '/download/x.epub?key=ZZZZ',
+      headers: { cookie: 's2e_lang=de' },
+    })
+    expect(missing.statusCode).toBe(404)
+    expect(missing.json().error).toBe('Nicht gefunden')
+
+    const nowhere = await app.inject({ url: '/no-such-page', headers: { cookie: 's2e_lang=de' } })
+    expect(nowhere.statusCode).toBe(404)
+    expect(nowhere.json().error).toBe('Nicht gefunden')
   })
 })

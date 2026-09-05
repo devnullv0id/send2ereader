@@ -1,6 +1,7 @@
 import { type ChildProcessByStdio, spawn } from 'node:child_process'
 import type { Readable } from 'node:stream'
 import type { FastifyBaseLogger } from 'fastify'
+import { fillIn, i18n } from '../i18n.js'
 import { ChildOutput } from '../logging/child.js'
 import { settings } from '../settings.js'
 
@@ -10,19 +11,26 @@ export interface RunResult {
   stderr: string
 }
 
+export const TOOL_MISSING_KEY = 'Could not run {bin}: {bin} is not installed or not on PATH'
+
+// The message stays English for logs and callers; key+params make it translatable at the route.
 export class ConversionError extends Error {
   readonly tool: string
   readonly output: string
+  readonly key: string
+  readonly params?: Record<string, string | number>
 
-  constructor(tool: string, message: string, output = '') {
-    super(message)
+  constructor(tool: string, key: string, output = '', params?: Record<string, string | number>) {
+    super(fillIn(key, params))
     this.name = 'ConversionError'
     this.tool = tool
     this.output = output
+    this.key = key
+    this.params = params
   }
 
-  toUserMessage(): string {
-    return this.message
+  toUserMessage(lang = 'en'): string {
+    return i18n.translate(lang, this.key, this.params)
   }
 
   // Already redacted by runCommand: infile/outfile replace the real paths before output reaches here.
@@ -84,8 +92,7 @@ export async function runCommand(
       resolved.set(bin, candidate)
       return result
     } catch (err) {
-      const missing =
-        err instanceof ConversionError && err.message.includes('is not installed or not on PATH')
+      const missing = err instanceof ConversionError && err.key === TOOL_MISSING_KEY
       if (!missing) throw err
       lastError = err
     }
@@ -107,11 +114,14 @@ function runExact(bin: string, args: string[], options: RunOptions = {}): Promis
       child = spawn(bin, args, { cwd: options.cwd, stdio: ['ignore', 'pipe', 'pipe'] })
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code
-      const hint =
+      reject(
         code === 'ENOENT' || code === 'EINVAL'
-          ? `${bin} is not installed or not on PATH`
-          : (err as Error).message
-      reject(new ConversionError(bin, `Could not run ${bin}: ${hint}`))
+          ? new ConversionError(bin, TOOL_MISSING_KEY, '', { bin })
+          : new ConversionError(bin, 'Could not run {bin}: {reason}', '', {
+              bin,
+              reason: (err as Error).message,
+            })
+      )
       return
     }
 
@@ -154,11 +164,14 @@ function runExact(bin: string, args: string[], options: RunOptions = {}): Promis
     })
 
     child.once('error', (err) => {
-      const hint =
+      const failure =
         (err as NodeJS.ErrnoException).code === 'ENOENT'
-          ? `${bin} is not installed or not on PATH`
-          : err.message
-      finish(() => reject(new ConversionError(bin, `Could not run ${bin}: ${hint}`)))
+          ? new ConversionError(bin, TOOL_MISSING_KEY, '', { bin })
+          : new ConversionError(bin, 'Could not run {bin}: {reason}', '', {
+              bin,
+              reason: err.message,
+            })
+      finish(() => reject(failure))
     })
 
     child.once('close', (code) => {
@@ -166,7 +179,12 @@ function runExact(bin: string, args: string[], options: RunOptions = {}): Promis
       const output = redactAll(`${stdout}\n${stderr}`, options.redact)
       finish(() => {
         if (timedOut) {
-          reject(new ConversionError(bin, `${bin} timed out after ${timeoutMs / 1000}s`, output))
+          reject(
+            new ConversionError(bin, '{bin} timed out after {seconds}s', output, {
+              bin,
+              seconds: timeoutMs / 1000,
+            })
+          )
         } else {
           resolve({
             code: code ?? -1,

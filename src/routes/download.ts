@@ -4,6 +4,7 @@ import type { FastifyInstance } from 'fastify'
 import { config, publicUrlFor } from '../config.js'
 import { isEreader } from '../device.js'
 import { contentTypeFor } from '../files.js'
+import { say } from '../language.js'
 import { settings } from '../settings.js'
 
 interface DownloadParams {
@@ -96,15 +97,17 @@ export async function downloadRoutes(app: FastifyInstance): Promise<void> {
     },
     async (req, reply) => {
       const key = req.query.key?.toUpperCase()
-      if (!key) return reply.code(400).send({ error: 'Missing key' })
+      if (!key) return reply.code(400).send({ error: say(req, 'Missing key') })
 
       const info = app.keystore.get(key)
       const file = info?.file
-      if (!info || !file) return reply.code(404).send({ error: 'Not found' })
-      if (file.name !== req.params.filename) return reply.code(404).send({ error: 'Not found' })
+      if (!info || !file) return reply.code(404).send({ error: say(req, 'Not found') })
+      if (file.name !== req.params.filename) {
+        return reply.code(404).send({ error: say(req, 'Not found') })
+      }
       if (info.agent !== (req.headers['user-agent'] ?? '')) {
         req.log.warn({ key }, 'User-agent mismatch on download')
-        return reply.code(404).send({ error: 'Not found' })
+        return reply.code(404).send({ error: say(req, 'Not found') })
       }
 
       let size: number
@@ -113,7 +116,7 @@ export async function downloadRoutes(app: FastifyInstance): Promise<void> {
       } catch {
         req.log.error({ key, path: file.path }, 'Stored file vanished from disk')
         await app.keystore.clearFile(key)
-        return reply.code(404).send({ error: 'Not found' })
+        return reply.code(404).send({ error: say(req, 'Not found') })
       }
 
       app.keystore.heard(key)

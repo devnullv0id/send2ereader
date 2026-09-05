@@ -195,7 +195,7 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
           req.log.error({ err, tool: err.tool, output: err.output }, 'Conversion failed')
           return reply.code(422).send({
             ok: false,
-            error: err.toUserMessage(),
+            error: err.toUserMessage(requestLanguage(req)),
             detail: err.toUserDetail(),
             tool: err.tool,
           })
@@ -226,7 +226,7 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
       req.job = req.params.id.slice(0, 8)
       const file = app.conversions.get(req.params.id, req.user?.id ?? null)
       if (!file || file.name !== req.params.filename) {
-        return reply.code(404).send({ error: 'Not found' })
+        return reply.code(404).send({ error: say(req, 'Not found') })
       }
 
       let size: number
@@ -235,7 +235,7 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
       } catch {
         req.log.error({ id: file.id }, 'Converted file vanished from disk')
         await app.conversions.remove(file.id)
-        return reply.code(404).send({ error: 'Not found' })
+        return reply.code(404).send({ error: say(req, 'Not found') })
       }
 
       reply.header('Content-Type', contentTypeFor(file.format))

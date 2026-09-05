@@ -34,8 +34,9 @@ import {
   transliterateName,
   withExtension,
 } from '../files.js'
+import { i18n } from '../i18n.js'
 import { newBookId } from '../kobo/queue.js'
-import { say } from '../language.js'
+import { requestLanguage, say } from '../language.js'
 import { type KeepResult, keepACopy, publicKeep } from '../library.js'
 import type { PendingDelivery, QueuedBook } from '../pending.js'
 import { settings } from '../settings.js'
@@ -95,13 +96,17 @@ const toolLabels: Record<string, string> = {
   calibre: 'calibre',
   kepubify: 'kepubify',
   pdfcropmargins: 'pdfCropMargins',
-  layoutfix: 'the EPUB layout fix',
 }
 
-function listTools(names: string[]): string {
-  const labels = names.map((n) => toolLabels[n] ?? n)
+function listTools(names: string[], lang: string): string {
+  const labels = names.map((n) =>
+    n === 'layoutfix' ? i18n.translate(lang, 'the EPUB layout fix') : (toolLabels[n] ?? n)
+  )
   if (labels.length <= 1) return labels.join('')
-  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`
+  return i18n.translate(lang, '{list} and {last}', {
+    list: labels.slice(0, -1).join(', '),
+    last: labels.at(-1) ?? '',
+  })
 }
 
 const LAYOUT_FLAGS: [string, keyof LayoutFixSettings][] = [
@@ -224,7 +229,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
             throw new UploadError(say(req, 'Only http(s) urls can be sent'))
           }
           if (!info.urls.includes(url)) info.urls.push(url)
-          messages.push(`Added url: ${url}`)
+          messages.push(say(req, 'Added url: {url}', { url }))
         }
 
         let filename: string | null = null
@@ -254,12 +259,18 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
             })
           }
 
+          const lang = requestLanguage(req)
           messages.push(
             conversion.length > 0
-              ? `Upload successful! Processed with ${listTools(conversion)} and sent to ${deviceLabel(info.device)}.`
-              : `Upload successful! Sent to ${deviceLabel(info.device)}.`
+              ? say(req, 'Upload successful! Processed with {tools} and sent to {device}.', {
+                  tools: listTools(conversion, lang),
+                  device: deviceLabel(info.device, lang),
+                })
+              : say(req, 'Upload successful! Sent to {device}.', {
+                  device: deviceLabel(info.device, lang),
+                })
           )
-          messages.push(`Filename: ${result.filename}`)
+          messages.push(say(req, 'Filename: {name}', { name: result.filename }))
         }
 
         if (messages.length === 0) throw new UploadError(say(req, 'No file or url selected'))
@@ -288,7 +299,7 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
           req.log.error({ err, tool: err.tool, output: err.output }, 'Conversion failed')
           return reply.code(422).send({
             ok: false,
-            error: err.toUserMessage(),
+            error: err.toUserMessage(requestLanguage(req)),
             detail: err.toUserDetail(),
             tool: err.tool,
           })
@@ -481,8 +492,10 @@ async function sendToDevice(
       ok: true,
       deviceId: device.id,
       messages: [
-        `Queued for ${device.label}. It will appear after the next sync.`,
-        `Filename: ${filename}`,
+        say(req, 'Queued for {device}. It will appear after the next sync.', {
+          device: device.label,
+        }),
+        say(req, 'Filename: {name}', { name: filename }),
       ],
       filename,
       conversion: applied,
@@ -514,8 +527,10 @@ async function sendToDevice(
     ok: true,
     deviceId: device.id,
     messages: [
-      `Queued for ${device.label}. It will appear after the next sync.`,
-      `Filename: ${book.name}`,
+      say(req, 'Queued for {device}. It will appear after the next sync.', {
+        device: device.label,
+      }),
+      say(req, 'Filename: {name}', { name: book.name }),
     ],
     filename: book.name,
     conversion: applied,

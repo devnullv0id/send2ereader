@@ -17,7 +17,9 @@ Errors are JSON: `{ "ok": false, "error": "human readable reason" }` on the
 JSON API, and a bare `{ "error": "..." }` on the endpoints a device or a
 download link hits directly (`/kobo/*`, `/download/*`, the pair endpoints, the
 converted-file download). Status codes carry the meaning; the strings are for
-display and may change.
+display and may change. They also follow the request's language — the account's
+choice, else the `s2e_lang` cookie, else the admin `LANGUAGE` default, which is
+what an e-ink browser gets. Only `/kobo/*` and `/healthz` stay English.
 
 **CSRF.** Every state-changing request under accounts is checked. `GET
 /auth/status` hands out the token as `csrf`; send it back as an
@@ -229,7 +231,9 @@ below), plus a file, a url, or both.
 ```
 
 `messages` is an array of plain strings — **render them as text, never HTML**.
-They embed the uploaded filename, which is attacker-controlled. `conversion`
+They embed the uploaded filename, which is attacker-controlled. They are
+localized to the request's language like every error string, so never parse
+them; the structured fields beside them carry the same facts. `conversion`
 lists the steps that actually ran, in order, and is `[]` for a pass-through.
 `kept` describes the library copy when the sender is signed in and keeping
 books, else `null`.
