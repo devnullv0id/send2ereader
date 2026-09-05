@@ -1044,8 +1044,6 @@ describe('requests that did not come from a page here', () => {
     const { cookie, token } = await signedInWithToken()
     expect(token, 'the page is given something to send').toBeTruthy()
 
-    // Straight past the helper that stands in for a page, because the point here
-    // is what happens to a request that never had a page behind it.
     const raw = (app as unknown as { rawInject: typeof app.inject }).rawInject
 
     const bare = await raw({

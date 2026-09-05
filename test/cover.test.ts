@@ -139,9 +139,6 @@ describe('finding the cover in a book', () => {
 })
 
 describe('an archive that lies about its own sizes', () => {
-  // The central directory is attacker-controlled, and every length in it is a
-  // uint32. Claiming a huge compressed size used to make the reader reserve that
-  // much before it ever looked at how big the file actually is.
   function withClaimedSizes(compressed: number, uncompressed: number): Buffer {
     const zip = makeZip([{ name: 'META-INF/container.xml', data: '<container/>' }])
 

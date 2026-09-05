@@ -3,9 +3,6 @@ import { config } from '../config.js'
 import type { Device } from '../db/repositories.js'
 import { settings } from '../settings.js'
 
-// An allowlist, the way store.ts has always done it. The denylist that was here
-// forwarded everything it had not thought of, which included the cookie for this
-// site: any browser that loaded a /kobo/… url sent its own session to Rakuten.
 const FORWARD_REQUEST = [
   'authorization',
   'accept',
@@ -38,8 +35,6 @@ const STRIP_RESPONSE = new Set([
   'upgrade',
   'content-encoding',
   'content-length',
-  // Upstream has no business setting a cookie on this origin, least of all one
-  // that could land on the same name as the session cookie.
   'set-cookie',
 ])
 

@@ -25,5 +25,4 @@ queue
 
 TMP/
 
-# Throwaway instances used while testing by hand.
 .tmp-*/

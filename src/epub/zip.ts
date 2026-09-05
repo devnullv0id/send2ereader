@@ -74,10 +74,6 @@ export class ZipFile {
   }
 }
 
-// Every length here comes out of the archive's own headers as a uint32, and the
-// archive is whatever someone uploaded. Allocating what it asks for lets a file
-// claiming compressedSize 0xFFFFFFFF make the server reserve 4GB, so a read is
-// never larger than what is actually left in the file.
 async function readAt(
   handle: FileHandle,
   position: number,

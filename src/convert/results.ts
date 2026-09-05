@@ -36,8 +36,8 @@ export class ConversionResults {
     return this.#entries.size
   }
 
-  add(file: Omit<ConvertedFile, 'id'>): ConvertedFile {
-    const stored: ConvertedFile = { ...file, id: randomUUID() }
+  add(file: Omit<ConvertedFile, 'id'>, id: string = randomUUID()): ConvertedFile {
+    const stored: ConvertedFile = { ...file, id }
 
     const timer = setTimeout(() => {
       this.#log.info({ id: stored.id }, 'Converted file expired before it was downloaded')

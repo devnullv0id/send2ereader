@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 FROM node:24-trixie-slim AS builder
 
 WORKDIR /usr/src/app
@@ -9,30 +7,19 @@ RUN npm ci
 
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
-# sodium-native ships a prebuilt binary for thirteen platforms. Only Linux can
-# ever load here, and the other eleven are about nine megabytes of dead weight
-# that has to go before node_modules is copied into the runtime image.
 RUN npm run build && npm prune --omit=dev &&     find node_modules -type d -path '*/prebuilds/*'         ! -name 'linux-x64' ! -name 'linux-arm64'         -maxdepth 3 -mindepth 3 -prune -exec rm -rf {} +
 
-
-# Everything fetched from the network is fetched here, so the runtime image never
-# installs curl or unzip and never carries an apt list for having done so.
 FROM node:24-trixie-slim AS tools
 
 ARG TARGETARCH
 ARG KEPUBIFY_VERSION=4.0.4
 ARG EPUB_LAYOUT_FIX_REPO=devnullv0id/calibre-epub-layout-fix
-# Pinned, not "latest": this python runs inside the conversion pipeline over files
-# strangers upload, so the image should not change underneath a rebuild. Raise it
-# deliberately when there is a release worth taking.
 ARG EPUB_LAYOUT_FIX_REF=v0.2.0
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl unzip && \
     rm -rf /var/lib/apt/lists/*
 
-# One architecture, not both. ADDing both put the unused one in the image for good,
-# because deleting it in a later layer does not take it back out of the earlier one.
 RUN case "${TARGETARCH}" in \
         amd64) SUFFIX=linux-64bit ;; \
         arm64) SUFFIX=linux-arm64 ;; \
@@ -43,8 +30,13 @@ RUN case "${TARGETARCH}" in \
     chmod +x /out-kepubify
 
 ARG KFX_INPUT_PLUGIN_URL=""
-# Always produces the file so the COPY below is unconditional; empty means no plugin.
-RUN if [ -n "${KFX_INPUT_PLUGIN_URL}" ]; then         curl -fsSL -o /out-kfx-input.zip "${KFX_INPUT_PLUGIN_URL}" ;     else         : > /out-kfx-input.zip ;     fi
+ARG KFX_OUTPUT_PLUGIN_URL=""
+ARG KFX_INPUT_THREAD="291290"
+ARG KFX_OUTPUT_THREAD="272407"
+
+COPY docker/fetch-calibre-plugin.sh /fetch-calibre-plugin.sh
+RUN sh /fetch-calibre-plugin.sh 'KFX Input.zip' "${KFX_INPUT_THREAD}" "${KFX_INPUT_PLUGIN_URL}" /out-kfx-input.zip && \
+    sh /fetch-calibre-plugin.sh 'KFX Output.zip' "${KFX_OUTPUT_THREAD}" "${KFX_OUTPUT_PLUGIN_URL}" /out-kfx-output.zip
 
 RUN if [ "${EPUB_LAYOUT_FIX_REF}" = "latest" ]; then \
         API="https://api.github.com/repos/${EPUB_LAYOUT_FIX_REPO}/releases/latest" ; \
@@ -60,7 +52,6 @@ RUN if [ "${EPUB_LAYOUT_FIX_REF}" = "latest" ]; then \
     unzip -j -o /tmp/elf.zip fixer.py -d /out-layout-fix && \
     printf '%s\n' "$TAG" > /out-layout-fix/VERSION
 
-
 FROM node:24-trixie-slim AS runtime
 
 ARG TARGETARCH
@@ -75,49 +66,12 @@ ENV NODE_ENV=production \
     CALIBRE_CONFIG_DIRECTORY=/opt/calibre-config \
     HOME=/home/node
 
-# One layer for the whole runtime, because anything deleted in a later layer stays
-# in the image regardless. calibre brings a full scientific python stack it only
-# needs for its GUI and its plugins, and ebook-convert never touches scipy or
-# sympy on these formats.
-#
-# QtWebEngine stays, all 239MB of it. calibre's PDF output plugin imports
-# QWebEnginePage, so deleting it does not shrink the image so much as remove PDF
-# from the product — which is what the version of this file before it did, without
-# saying so. Its locale packs do go: one language is enough for a renderer whose
-# interface nobody ever sees. Every removal here is checked afterwards by
-# converting a book into every format the page offers.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         ca-certificates \
-        calibre \
         curl \
-        pipx \
         python3 \
-    && PIPX_HOME=/opt/pipx PIPX_BIN_DIR=/usr/local/bin pipx install pdfCropMargins \
-    && rm -rf /usr/lib/python3/dist-packages/scipy \
-              /usr/lib/python3/dist-packages/sympy \
-              /usr/lib/python3/dist-packages/pygments \
-              /usr/lib/x86_64-linux-gnu/lapack \
-              /usr/lib/x86_64-linux-gnu/blas \
-    && rm -f /usr/lib/*-linux-gnu/libx265.so* \
-             /usr/lib/*-linux-gnu/libcodec2.so* \
-             /usr/lib/*-linux-gnu/libSvtAv1Enc.so* \
-             /usr/lib/*-linux-gnu/libz3.so* \
-    && rm -rf /opt/pipx/venvs/*/lib/python*/site-packages/pip \
-              /opt/pipx/venvs/*/lib/python*/site-packages/pip-* \
-              /opt/pipx/venvs/*/lib/python*/site-packages/setuptools \
-              /opt/pipx/venvs/*/lib/python*/site-packages/setuptools-* \
-              /opt/pipx/venvs/*/lib/python*/site-packages/wheel \
-              /opt/pipx/venvs/*/lib/python*/site-packages/wheel-* \
-    && rm -f /usr/share/qt6/translations/*.qm \
-    && find /usr/share/qt6/translations/qtwebengine_locales -type f \
-            ! -name 'en-US.pak' -delete \
-    && rm -rf /usr/share/doc /usr/share/man /usr/share/info \
-              /usr/share/calibre/manual \
-              /usr/share/locale \
-    && find /usr/lib/python3 /usr/lib/python3.* /opt/pipx -name '__pycache__' -type d -prune -exec rm -rf {} + \
-    && find /usr/lib/python3 /usr/lib/python3.* /opt/pipx -name '*.pyc' -delete \
-    && apt-get purge -y pipx \
+    && rm -rf /usr/share/doc /usr/share/man /usr/share/info /usr/share/locale \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/* /root/.cache /tmp/*
 
@@ -125,14 +79,13 @@ COPY --from=tools /out-kepubify /usr/local/bin/kepubify
 COPY --from=tools /out-layout-fix /opt/epub-layout-fix
 COPY docker/epub-layout-fix /usr/local/bin/epub-layout-fix
 
-COPY --from=tools /out-kfx-input.zip /tmp/kfx-input.zip
-RUN if [ -s /tmp/kfx-input.zip ]; then         calibre-customize -a /tmp/kfx-input.zip &&         calibre-customize --list-plugins | grep -qi 'KFX Input' ;     fi &&     rm -f /tmp/kfx-input.zip
+COPY --from=tools /out-kfx-input.zip /opt/s2e/kfx-input.zip
+COPY --from=tools /out-kfx-output.zip /opt/s2e/kfx-output.zip
 
 RUN chmod +x /usr/local/bin/epub-layout-fix && \
     epub-layout-fix --version && \
     python3 -c "import sys; sys.path.insert(0, '/opt/epub-layout-fix'); import fixer; print('engine ok')" && \
-    kepubify --version && \
-    ebook-convert --version
+    kepubify --version
 
 WORKDIR /usr/src/app
 
@@ -144,12 +97,19 @@ COPY package.json ./
 RUN mkdir -p /data/uploads /data/db /data/queue /data/library /opt/calibre-config /etc/s2e/extensions && \
     chown -R node:node /data /opt/calibre-config
 
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint
-RUN chmod +x /usr/local/bin/entrypoint
+ENV DATA_DIR=/data
 
-# No USER here on purpose. The entrypoint starts as root, installs whatever
-# EXTENSIONS asks for, and then drops to node with setpriv before the server is
-# ever exec'd — the same guarantee USER gives, arrived at a step later.
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint
+COPY docker/extension-agent.sh /usr/local/bin/extension-agent
+COPY docker/extensions-lib.sh /usr/local/lib/s2e/extensions-lib.sh
+COPY docker/extensions/calibre/install.sh /opt/s2e/install-calibre.sh
+COPY docker/extensions/calibre/remove.sh /opt/s2e/remove-calibre.sh
+COPY docker/extensions/pdfcrop/install.sh /opt/s2e/install-pdfcrop.sh
+COPY docker/extensions/pdfcrop/remove.sh /opt/s2e/remove-pdfcrop.sh
+COPY docker/extensions/kfx/install.sh /opt/s2e/install-kfx.sh
+COPY docker/extensions/kfx/remove.sh /opt/s2e/remove-kfx.sh
+RUN chmod +x /usr/local/bin/entrypoint /usr/local/bin/extension-agent /opt/s2e/install-calibre.sh /opt/s2e/remove-calibre.sh /opt/s2e/install-kfx.sh /opt/s2e/remove-kfx.sh /opt/s2e/install-pdfcrop.sh /opt/s2e/remove-pdfcrop.sh
+
 EXPOSE 3001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

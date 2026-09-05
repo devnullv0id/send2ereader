@@ -52,8 +52,6 @@ afterEach(async () => {
   db.close()
 })
 
-// Reads the names out of a tar without a dependency: each entry is a 512-byte
-// header whose first field is the path, followed by its body, padded.
 function namesIn(tar: Buffer): { name: string; size: number }[] {
   const found: { name: string; size: number }[] = []
   let at = 0
@@ -112,7 +110,6 @@ describe('the archive', () => {
     const entries = namesIn(tar)
     const record = entries.find((f) => f.name === 'db/send2ereader.db')!
 
-    // Find the body that follows its header.
     let at = 0
     let body: Buffer | null = null
     for (const entry of entries) {

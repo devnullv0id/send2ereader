@@ -125,8 +125,6 @@ export class AuthService {
     const consumed = this.repos.emailTokens.consume(token, 'verify')
     if (!consumed) throw new AuthError('That verification link is invalid or has expired', 400)
     this.repos.users.markVerified(consumed.userId)
-    // The address is now the way back, and it is the better one. A phrase left
-    // standing beside it is a second credential to lose for no extra way in.
     this.dropRecoveryPhrase(consumed.userId)
     this.log.info({ userId: consumed.userId }, 'Verified e-mail address')
 
@@ -135,8 +133,6 @@ export class AuthService {
     return user
   }
 
-  // What the nudge asks about. Only where mail can actually carry the link:
-  // with SMTP off it goes to the log, so asking would be asking for nothing.
   verifyNudge(user: User): { needed: boolean; remindersLeft: number } {
     const limit = settings.int('VERIFY_REMINDER_LIMIT')
     return {
@@ -195,7 +191,6 @@ export class AuthService {
     const user = this.repos.users.byId(consumed.userId)
     if (!user) throw new AuthError('Unknown account', 404)
 
-    // Between asking and confirming, somebody else may have taken it.
     const taken = this.repos.users.byEmail(consumed.email)
     if (taken && taken.id !== user.id) {
       throw new AuthError('An account with that address already exists', 409)
@@ -472,9 +467,6 @@ export class AuthService {
     return this.repos.recoveryCodes.counts(userId)
   }
 
-  // Only where it is the only way back. With mail configured the address is the
-  // recovery path and a second standing credential would be one more thing to
-  // lose without buying anything.
   get recoveryPhraseNeeded(): boolean {
     return !settings.bool('SMTP_ENABLED')
   }
@@ -494,8 +486,6 @@ export class AuthService {
     this.repos.recoveryCodes.clear(userId, 'account')
   }
 
-  // Stands in for the password, and for nothing else. Two-factor still applies
-  // afterwards, because losing a password is not losing a phone.
   async signInWithPhrase(
     emailRaw: string,
     phrase: string,
@@ -577,10 +567,6 @@ function makeRecoveryCode(): string {
   return out
 }
 
-// Hashed at whatever cost this server actually uses. A constant pinned to N=65536
-// verified slower than a real hash on any server that lowered SCRYPT_N, which
-// turned the timing defence into the opposite of one: an unknown address became
-// the slow answer and so the recognisable one.
 let dummy: Promise<string> | null = null
 
 function dummyHash(): Promise<string> {

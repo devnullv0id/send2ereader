@@ -401,18 +401,12 @@ async function sendToDevice(
   const options = readOptions(state.fields)
   const target = resolveTarget(options.target, 'kobo')
   const plan = planFor(target, detected.format, options, app.tools)
-  req.log.info(
-    { deviceId: device.id, format: detected.format, target, plan, size },
-    'Preparing book for a registered device'
-  )
+  req.job = device.id.slice(0, 8)
 
-  const { path: convertedPath, applied } = await runConversion(
-    plan,
-    upload.path,
-    detected.format,
-    (converter, reason) =>
-      req.log.warn({ deviceId: device.id, converter, reason }, 'Optional conversion step skipped')
-  )
+  const { path: convertedPath, applied } = await runConversion(plan, upload.path, detected.format, {
+    logger: req.log,
+    job: req.job,
+  })
 
   let filename = upload.originalName
   if (options.transliteration) filename = transliterateName(filename)
@@ -559,18 +553,12 @@ async function handleFile(
 
   const target = resolveTarget(options.target, info.device)
   const plan = planFor(target, detected.format, options, app.tools)
-  req.log.info(
-    { key: info.key, format: detected.format, device: info.device, target, plan, size },
-    'Processing upload'
-  )
+  req.job = info.key
 
-  const { path: outputPath, applied } = await runConversion(
-    plan,
-    upload.path,
-    detected.format,
-    (converter, reason) =>
-      req.log.warn({ key: info.key, converter, reason }, 'Optional conversion step skipped')
-  )
+  const { path: outputPath, applied } = await runConversion(plan, upload.path, detected.format, {
+    logger: req.log,
+    job: req.job,
+  })
 
   let filename = upload.originalName
   if (options.transliteration) filename = transliterateName(filename)

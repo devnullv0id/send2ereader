@@ -168,8 +168,6 @@ describe('.env.example', () => {
 
   const IGNORED = new Set(['NODE_ENV', 'CI'])
 
-  // A substring match would call MAIL_LOG_SECRETS documented because
-  // MAIL_LOG_SECRETS_RENAMED is in the file. Only an assignment counts.
   const documents = (example: string, name: string): boolean =>
     new RegExp(`^#?\\s*${name}=`, 'm').test(example)
 

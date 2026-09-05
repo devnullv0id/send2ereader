@@ -40,10 +40,6 @@ describe('the card is sized by the viewport, not by a number', () => {
 describe('one set of breakpoints', () => {
   const widths = [...sheets.matchAll(/\(\s*(?:max|min)-width:\s*(\d+)px\s*\)/g)].map((m) => m[1])
 
-  // A second, wider breakpoint was planned for the two-column pages and turned
-  // out not to be needed: the rail and panel are 178px and 400px, so they still
-  // fit side by side on a tablet and only need collapsing at phone width. One
-  // value is the whole design; a second one appearing here is drift.
   it('uses one width, everywhere', () => {
     expect(new Set(widths)).toEqual(new Set(['640']))
   })
@@ -99,8 +95,6 @@ describe('the drawer that replaces the header nav on a phone', () => {
 describe('the e-reader page is left out of all of it', () => {
   const ereader = read('style.css')
 
-  // It was already responsive on its own terms, in plain 2011 CSS, before any of
-  // this. It is not missing the new work; it is deliberately outside it.
   it('keeps its own breakpoints and takes none of ours', () => {
     expect(ereader, 'it had these all along').toMatch(/@media screen and \(max-width: 520px\)/)
 
@@ -119,9 +113,6 @@ describe('the e-reader page is left out of all of it', () => {
 describe('the card keeps one width, whichever step is open', () => {
   const rule = /\.step-card\s*\{([^}]*)\}/.exec(app)?.[1] ?? ''
 
-  // The wrap is a flex column, and auto side margins on a flex item cancel the
-  // default stretch, so the card shrink-wrapped whatever step was open and
-  // changed width on every click. Width and margin have to travel together.
   it('fills its row rather than shrink-wrapping the open step', () => {
     expect(rule).toMatch(/width:\s*100%/)
     expect(rule, 'still centred and still capped').toMatch(/margin:\s*26px auto 0/)

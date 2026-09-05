@@ -180,8 +180,6 @@ export class Library {
       return 0
     }
 
-    // This deletes anything the database does not know about, so restoring one
-    // half of a backup without the other would destroy the half that survived.
     if (!entries.includes(MARKER)) {
       this.#log.error(
         { dir: config.library.dir },

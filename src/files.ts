@@ -61,7 +61,7 @@ export function isEpubFamily(format: EbookFormat): boolean {
   return epubFamily.has(format)
 }
 
-const layoutFixFormats = new Set<EbookFormat>(['epub', 'kepub', 'azw3'])
+const layoutFixFormats = new Set<EbookFormat>(['epub', 'kepub'])
 
 export function supportsLayoutFix(format: EbookFormat): boolean {
   return layoutFixFormats.has(format)
@@ -191,11 +191,6 @@ export async function safeUnlink(path: string | null | undefined): Promise<void>
 
 export const MARKER = '.send2ereader'
 
-// These directories are wiped wholesale, so a mistyped UPLOAD_DIR, KOBO_QUEUE_DIR
-// or LIBRARY_DIR would erase whatever it happened to point at. A directory is only
-// ours to empty if we created it, or already left our mark in it. Writing the
-// marker unconditionally would defeat the point: it would be there by the time the
-// sweep ran.
 export async function claimDirectory(dir: string): Promise<boolean> {
   await mkdir(dir, { recursive: true })
 

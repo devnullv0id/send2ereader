@@ -93,8 +93,6 @@ async function locateCover(
     return mediaType ? { name, mediaType } : null
   }
 
-  // Two open-ended [^>]* runs in one pattern make the scan quadratic over a
-  // 4MB OPF. A tag is short; bounding the runs costs nothing real.
   const metaId = opf.match(
     /<meta\b[^>]{0,500}\bname\s*=\s*["']cover["'][^>]{0,500}\bcontent\s*=\s*["']([^"']+)["']/i
   )?.[1]

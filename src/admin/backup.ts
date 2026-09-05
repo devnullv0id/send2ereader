@@ -13,8 +13,6 @@ function octal(value: number, width: number): string {
   return value.toString(8).padStart(width - 1, '0') + '\0'
 }
 
-// ustar, written by hand rather than by a dependency: the format is a 512-byte
-// header and a padded body, and this is the whole of what we need from it.
 function header(name: string, size: number, mtime: number): Buffer {
   const block = Buffer.alloc(BLOCK)
   const path = name.split(sep).join('/')
@@ -58,7 +56,6 @@ async function* archive(entries: BackupEntry[]): AsyncGenerator<Buffer> {
     const overhang = info.size % BLOCK
     if (overhang > 0) yield Buffer.alloc(BLOCK - overhang)
   }
-  // Two empty blocks end a tar, and every reader looks for them.
   yield Buffer.alloc(BLOCK * 2)
 }
 
@@ -84,8 +81,6 @@ export interface Backup {
   filename: string
 }
 
-// A copy taken with VACUUM INTO rather than of the live file: SQLite in WAL mode
-// keeps recent writes in a sidecar, so copying the .db alone can miss them.
 export async function makeBackup(db: Db, when: Date): Promise<Backup> {
   const staging = await mkdtemp(join(tmpdir(), 's2e-backup-'))
   const copy = join(staging, 'send2ereader.db')

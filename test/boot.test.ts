@@ -18,6 +18,8 @@ const PAGES: [page: string, scripts: string[]][] = [
   ['reset.html', ['auth.js', 'history.js', 'signin.js']],
   ['setup.html', ['auth.js', 'history.js', 'signin.js']],
   ['linked.html', ['auth.js', 'history.js', 'signin.js']],
+  ['setup-wizard.html', ['auth.js', 'history.js', 'setup-wizard.js']],
+  ['extensions.html', ['auth.js', 'history.js', 'extensions.js']],
 ]
 
 function sandboxFor(html: string) {
@@ -82,7 +84,11 @@ function sandboxFor(html: string) {
     },
     history: { replaceState() {} },
     navigator: { clipboard: { writeText: async () => {} } },
-    fetch: async () => ({ ok: true, status: 200, json: async () => ({}) }),
+    fetch: async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, settings: [], extensions: [], stages: [] }),
+    }),
     setTimeout,
     setInterval: () => 0,
     clearInterval() {},

@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import fp from 'fastify-plugin'
+import { extensionRoutes } from '../admin/extensions.js'
 import { adminRoutes } from '../admin/routes.js'
 import { setupRoutes } from '../admin/setup.js'
 import { fixPublicUrl } from '../config.js'
@@ -106,6 +107,7 @@ async function accountsPlugin(app: FastifyInstance, options: AccountsOptions): P
   await app.register(authRoutes)
   if (app.oidcEnabled) await app.register(ssoRoutes)
   await app.register(adminRoutes)
+  await app.register(extensionRoutes)
   await app.register(setupRoutes)
   await app.register(deviceRoutes)
   await app.register(koboRoutes)

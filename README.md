@@ -9,15 +9,21 @@ for that device.
 
 ## Format support
 
-| Device | Input | Sent as | Converter |
-| --- | --- | --- | --- |
-| Kobo | EPUB | `.kepub.epub` | kepubify |
-| Kobo | KEPUB, PDF, CBZ, CBR, MOBI, TXT, HTML | unchanged | — |
-| Kindle | EPUB, CBZ, CBR, TXT, HTML | `.azw3` (default) | calibre `ebook-convert` |
-| Kindle | EPUB | `.mobi` (opt-in, pre-2015 devices) | calibre `ebook-convert` |
-| Kindle | MOBI, AZW3, KFX, PDF | unchanged | — |
-| Any | PDF | cropped PDF (opt-in) | pdfCropMargins |
-| Tolino / other | anything supported | unchanged | — |
+| Device | Input | Sent as | Converter | In the image |
+| --- | --- | --- | --- | --- |
+| Kobo | EPUB | `.kepub.epub` | kepubify | yes |
+| Kobo | KEPUB, PDF, CBZ, CBR, MOBI, TXT, HTML | unchanged | — | yes |
+| Kindle | EPUB, CBZ, CBR, TXT, HTML | `.azw3` (default) | calibre `ebook-convert` | the `calibre` extension |
+| Kindle | EPUB | `.mobi` (opt-in, pre-2015 devices) | calibre `ebook-convert` | the `calibre` extension |
+| Kindle | MOBI, AZW3, KFX, PDF | unchanged | — | yes |
+| Any | PDF | cropped PDF (opt-in) | pdfCropMargins | the `pdfcrop` extension |
+| Tolino / other | anything supported | unchanged | — | yes |
+
+A freshly pulled image sends EPUB, makes a KEPUB for a Kobo, and repairs the layout on the way.
+Everything else is fetched onto your machine when you ask for it — see [Extensions](#extensions) —
+because it is the difference between a 110MB pull and a 500MB one, and most servers never use all
+of it. Nothing is hidden while it is missing: the Convert page greys the format and says which
+install would bring it back.
 
 Files sent to a Kindle have their names stripped of special characters — a limitation of the
 Kindle browser. Uploads are validated by magic bytes, not just by extension.
@@ -72,27 +78,44 @@ that is already the device's native format, so no conversion is involved.
 
 Reading KFX (converting it into something a Kobo or Tolino can open, or unwrapping the
 `.kfx-zip` container that no device can open directly) needs calibre's third-party **KFX Input**
-plugin. It is a MobileRead forum download with no stable public URL, so it is not bundled.
-Supply it at build time:
+plugin, and that is in the image. The build reads its
+[MobileRead thread](https://www.mobileread.com/forums/showthread.php?t=291290) and takes whatever
+attachment is current, because the forum gives every reupload a new id and a pinned one would
+quietly go stale. Override either plugin with a URL of your own if you would rather:
 
 ```sh
 docker build --build-arg KFX_INPUT_PLUGIN_URL=https://…/KFX_Input.zip -t send2ereader .
 ```
 
+If the thread cannot be read at build time the image is built without that plugin rather than
+failing, and the feature is refused at runtime the way it always was.
+
 With the plugin present, `.kfx`/`.kfx-zip` convert to AZW3/MOBI for a Kindle and to EPUB for
 everything else. Without it, both are passed through untouched. The server detects this at
 startup (`calibre-customize --list-plugins`) and `/healthz` reports it as `tools.kfxInput`.
 
-**KFX output is not in the image**, and the Convert page says so rather than offering it. Writing
-KFX means calibre's KFX Output plugin driving Amazon's Kindle Previewer — a Windows program, and
-not ours to redistribute. AZW3 is the best format this image can produce for a Kindle, and every
-Kindle since 2011 reads it.
+**Writing KFX needs two things, and the image can only ship one of them.** calibre's KFX Output
+plugin is in the image — the build resolves the current attachment from its
+[MobileRead thread](https://www.mobileread.com/forums/showthread.php?t=272407), so it tracks the
+author's releases rather than pinning a version that goes stale. What the image cannot carry is
+Amazon's Kindle Previewer: it is a Windows program and not ours to redistribute.
 
-An operator who wants KFX anyway can add it at container start with the `kfx` extension, which
-installs Wine, fetches the Previewer from Amazon **on your machine, at your instruction**, and
-installs the plugin. The server then offers KFX for real, because it asks calibre what plugins it
-has (`tools.kfxOutput` on `/healthz`) rather than being told. See
-[Extensions](#extensions).
+So the Convert page refuses KFX until a Previewer is present, and says so. It is not enough for
+the plugin to be installed — a plugin with nothing behind it would offer KFX and then fail at the
+conversion, which is worse than refusing it. AZW3 is the best format this image can produce on its
+own, and every Kindle since 2011 reads it.
+
+An operator who wants KFX turns it on from the **admin page**, under Converters: it installs Wine
+and fetches the Previewer from Amazon **on your machine, at your instruction**, showing each stage
+as it goes, and the server stays up throughout. `EXTENSIONS: kfx` in the compose file does the
+same before the server starts.
+
+It is not free: 356MB downloaded once, a 2.6GB Wine prefix kept on the data volume, 1.7GB of Wine
+packages in the container, and about 920MB of memory while a KFX conversion runs — which takes a
+minute or two per book, because a Windows program renders it. The page says all of that before the
+button, and can remove the lot again. The
+server then offers KFX for real, because it checks that both the plugin and a Previewer are there
+(`tools.kfxOutput` on `/healthz`) rather than being told. See [Extensions](#extensions).
 
 ## How to run
 
@@ -124,9 +147,14 @@ Images are published for `linux/amd64` and `linux/arm64`, and the service listen
 | `latest` | The current build from `master`. |
 | `legacy` | The last build of the original Express app, kept pinned. Pull this if you want the app as it was before the rewrite; it will not receive updates. |
 
-The image is around 1.7 GB, almost all of it calibre — the price of proper Kindle conversion.
-The Qt WebEngine and Mesa stack calibre would otherwise drag in is pruned during the build,
-since `ebook-convert` never uses it for the formats this service produces.
+The image is around 110MB to pull and about 470MB unpacked — down from 500MB and 1.9GB. calibre
+is not in it — it is an extension, installed on the data
+volume when you ask for it, and it brings the Qt and Mesa libraries it needs with it. That was
+measured rather than assumed: with those libraries moved aside every format still converted
+except PDF, which is the one path that reaches Qt WebEngine.
+
+Installing all three extensions costs roughly 700MB on the volume, plus about 2.6GB more if you
+want KFX.
 
 ### Build the image yourself
 
@@ -247,24 +275,41 @@ Everything is optional; defaults are shown.
 
 ### Extensions
 
-Some things are deliberately not in the image. Amazon's Kindle Previewer — the
-only thing that writes KFX — is not ours to redistribute, and Wine is several
-hundred megabytes that nobody who only wants EPUB should pull. So the image says
-no to KFX, and an operator who wants it says otherwise:
+Three converters are left out of the image and installed on demand. Two of them
+are simply large; the third, Amazon's Kindle Previewer, is not ours to
+redistribute at all.
+
+| id | What it adds | Needs | Roughly |
+| --- | --- | --- | --- |
+| `calibre` | MOBI, AZW3, PDF, TXT, HTMLZ, and reading a KFX | — | 600MB, a few minutes |
+| `pdfcrop` | Trimming the white margins off a PDF | — | 90MB, a minute |
+| `kfx` | Writing KFX, the format a modern Kindle prefers | `calibre` | 2.6GB, up to twenty minutes |
+
+There are two ways in, and they install the same scripts from the same image.
+
+**From the browser**, at Admin → Converters, while the server keeps running.
+Each stage is shown as it happens, the installer's own output is streamed under
+it, and the same page removes any of them again. The first-run assistant asks
+the same question as its fifth step and queues whatever was ticked.
+
+**Before the server starts**, by naming them in the compose file:
 
 ```yaml
 environment:
-  EXTENSIONS: ghcr.io/devnullv0id/s2e-mod-kfx:latest
+  EXTENSIONS: calibre|pdfcrop|kfx
   EXTENSION_PACKAGES: fonts-noto-cjk|poppler-utils
 ```
 
-At start, the entrypoint installs those packages, unpacks each extension image
-over the filesystem, runs whatever script it left behind, and only then drops to
-the `node` user and starts the server. An extension that fails is logged and
-skipped rather than stopping the container. Both are read before the server
-exists, so they are set in the environment and shown read-only on the admin
-page. [docker/extensions](docker/extensions) has the details and the one in this
-repo.
+Both are pipe-separated. What was asked for either way is remembered in
+`/data/extensions/enabled`, so a container recreated against the same volume
+puts it back — and since everything lands under `/data`, that is a relink rather
+than another download. A name with a slash in it is still treated as an OCI
+image to unpack, which is how a third-party extension is added.
+
+At start the entrypoint installs `EXTENSION_PACKAGES`, stages each extension it
+was asked for, runs them in dependency order, and only then drops to the `node`
+user and starts the server. One that fails is logged and skipped rather than
+stopping the container. [docker/extensions](docker/extensions) has the details.
 
 ## HTTP API
 

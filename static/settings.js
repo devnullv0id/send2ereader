@@ -251,8 +251,6 @@ onPage('settings', async (page) => {
     } catch {
     }
 
-    // Blocked means the address is not confirmed, and a device is what a
-    // waiting book waits on. Asking would only be a 403 in the console.
     if (!state.blocked) {
       try {
         const res = await fetch('/api/waiting/count', { credentials: 'same-origin' })
@@ -469,9 +467,6 @@ onPage('settings', async (page) => {
   function renderVerification() {
     const confirmed = state.user?.emailVerified === true
 
-    // With no mail configured, the confirmation link goes to the server log.
-    // Nagging for a confirmation nobody can receive, and locking Kobo sync
-    // behind it, would leave a fresh server with no way forward but the log.
     const asked = state.verificationNeeded !== false
     const settled = confirmed || !asked
 

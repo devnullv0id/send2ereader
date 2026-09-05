@@ -23,7 +23,7 @@
 			<div class="settings">
 				<h1 class="page-title">Admin</h1>
 				<p class="list-page__sub" id="intro">Everything here applies to the whole server. Anything you set overrides the same key in the environment file, which is never rewritten. Below the line in the list are the keys that decide how the process starts and what protects it: those are shown as they are, and changed in the environment file.</p>
-				<p class="settings__line">The address, mail, single sign-on and passwords are also the four the first-run assistant asks for, one at a time. <a class="btn-link" href="/setup/start">Open the setup assistant</a></p>
+				<p class="settings__line">The address, mail, single sign-on, passwords and which converters to fetch are the five the first-run assistant asks for, one at a time. <a class="btn-link" href="/setup/start">Open the setup assistant</a></p>
 
 				<div class="settings__body">
 					<nav class="settings__rail" aria-label="Admin sections">
@@ -31,6 +31,7 @@
 						<div class="rail__divider"></div>
 						<div class="rail__groups" id="railGroups"></div>
 						<div class="rail__divider"></div>
+						<button type="button" class="rail__item" data-tab="kfx">Converters</button>
 						<button type="button" class="rail__item" data-tab="backup">Backup</button>
 						<button type="button" class="rail__item rail__item--danger" data-tab="restart" id="restartTab">Restart</button>
 					</nav>
@@ -42,6 +43,18 @@
 
 							<div class="admin-people" id="people"></div>
 							<p class="field-note field-note--wide" id="peopleEmpty" hidden>Nobody else has an account here yet.</p>
+						</section>
+
+						<section id="panel-kfx" data-panel="kfx" hidden>
+							<div class="settings__section">Converters</div>
+							<p class="settings__intro">This server sends EPUB, and makes KEPUB for a Kobo, on its own. Everything else is fetched onto this machine when you ask for it, and can be removed again — nothing stops working while it installs.</p>
+
+							<dl class="danger__list" id="kfxList"></dl>
+
+							<div class="save-row">
+								<a class="btn btn--primary" id="kfxOpen" href="/admin/extensions">Set up converters</a>
+								<span class="save-row__msg" id="kfxState"></span>
+							</div>
 						</section>
 
 						<section id="panel-backup" data-panel="backup" hidden>

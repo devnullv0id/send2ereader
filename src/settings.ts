@@ -686,6 +686,15 @@ export const SETTING_SPECS: SettingSpec[] = [
     env: () => config.db.path,
   },
   {
+    key: 'DATA_DIR',
+    group: 'storage',
+    label: 'Everything that persists',
+    note: 'The volume the database, the library and anything an extension installs live under. It is the directory the container is given; changing it means changing the mount.',
+    kind: 'string',
+    readOnly: true,
+    env: () => config.dataDir,
+  },
+  {
     key: 'UPLOAD_DIR',
     group: 'storage',
     label: 'Uploads in flight',
@@ -827,6 +836,82 @@ export const SETTING_SPECS: SettingSpec[] = [
     env: () => config.extensionPackages,
   },
   {
+    key: 'CONVERT_RATE_MAX',
+    group: 'converters',
+    label: 'Conversions allowed per window',
+    note: 'Per client address. The window below decides how long that is. Raise it for a test rig that converts in a loop; the default is sized for people, not scripts.',
+    kind: 'int',
+    readOnly: true,
+    env: () => String(config.convertRateMax),
+  },
+  {
+    key: 'CONVERT_RATE_WINDOW',
+    group: 'converters',
+    label: 'Window the count applies to',
+    placeholder: '1 minute',
+    note: 'Anything @fastify/rate-limit understands, so "30 seconds" or "1 minute" or a number of milliseconds.',
+    kind: 'string',
+    readOnly: true,
+    env: () => config.convertRateWindow,
+  },
+  {
+    key: 'LOG_FORMAT',
+    group: 'logging',
+    label: 'Log output',
+    note: 'text is the readable default. json emits one structured line per event, which is what a log collector wants.',
+    kind: 'choice',
+    choices: [
+      { value: 'text', label: 'text' },
+      { value: 'json', label: 'json' },
+    ],
+    readOnly: true,
+    env: () => config.logFormat,
+  },
+  {
+    key: 'LOG_SCOPE',
+    group: 'logging',
+    label: 'Only these scopes',
+    placeholder: 'convert,layoutfix',
+    note: 'Comma separated. A name prefixed with - is excluded instead. Empty means everything.',
+    kind: 'string',
+    readOnly: true,
+    env: () => config.logScope,
+  },
+  {
+    key: 'LOG_TIME',
+    group: 'logging',
+    label: 'Timestamp style',
+    note: 'iso is the date, clock and offset. short drops the date, rel counts from start, none leaves it out.',
+    kind: 'choice',
+    choices: [
+      { value: 'iso', label: 'iso' },
+      { value: 'short', label: 'short' },
+      { value: 'rel', label: 'rel' },
+      { value: 'none', label: 'none' },
+    ],
+    readOnly: true,
+    env: () => config.logTime,
+  },
+  {
+    key: 'NO_COLOR',
+    group: 'logging',
+    label: 'Never colour the log',
+    note: 'Set to anything at all and colour is off, whatever --log-color says. The convention is not ours; see no-color.org.',
+    kind: 'string',
+    readOnly: true,
+    env: () => config.noColor,
+  },
+  {
+    key: 'KFX_PREVIEWER_PATH',
+    group: 'extensions',
+    label: 'Path to Kindle Previewer',
+    placeholder: '/data/kfx/wine/drive_c/.../Kindle Previewer 3.exe',
+    note: "calibre's KFX Output plugin is in the image, but it can only write KFX with Amazon's Previewer behind it, so KFX is offered only when one is there. The kfx extension records the path it installed and this is not needed. Set it when the Previewer came from somewhere else.",
+    kind: 'string',
+    readOnly: true,
+    env: () => config.kfxPreviewerPath,
+  },
+  {
     key: 'ACCOUNTS',
     group: 'security',
     label: 'Accounts exist on this server',
@@ -884,8 +969,6 @@ export function isLocked(key: string): boolean {
   return lockedKeys.has(key)
 }
 
-// Shown, never editable from a browser: what the process starts with, and what
-// protects it. Changing one is editing the environment and starting again.
 export function isReadOnly(key: string): boolean {
   return BY_KEY.get(key)?.readOnly === true
 }
@@ -998,8 +1081,6 @@ export class Settings {
     return spec.env()
   }
 
-  // Every write already records who and when. Reading it back is what turns
-  // "changed from this page" into an answer to "changed by whom, and when".
   changedBy(key: string): { at: string; by: string | null } | null {
     if (!this.db || this.stored(key) === undefined) return null
     const row = this.db

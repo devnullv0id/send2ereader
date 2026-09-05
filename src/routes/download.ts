@@ -62,10 +62,6 @@ export async function downloadRoutes(app: FastifyInstance): Promise<void> {
     return reply.page('convert.html')
   })
 
-  // /history reads this browser's own localStorage and stands on its own with no
-  // account at all; the kept-books section on it simply stays empty. /waiting is
-  // only ever about books queued for a registered device, so without accounts it
-  // has nothing to be. The two differ because the pages differ.
   app.get('/history', async (_req, reply) => reply.page('history.html'))
 
   app.get('/waiting', async (_req, reply) => {
@@ -73,9 +69,6 @@ export async function downloadRoutes(app: FastifyInstance): Promise<void> {
     return reply.page('waiting.html')
   })
 
-  // What the send and convert pages need to draw themselves, and nothing that
-  // describes the deployment: the live key count and the key length together told
-  // an anonymous caller how big the guessing space is and how full it is.
   app.get('/healthz', async (_req, reply) =>
     reply.send({
       ok: true,

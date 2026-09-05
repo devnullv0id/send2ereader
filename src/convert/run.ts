@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process'
+import type { FastifyBaseLogger } from 'fastify'
 import { config } from '../config.js'
+import { ChildOutput } from '../logging/child.js'
 import { settings } from '../settings.js'
 
 export interface RunResult {
@@ -19,10 +21,6 @@ export class ConversionError extends Error {
     this.output = output
   }
 
-  // The output is a converter's own stderr — calibre answers a bad file with a
-  // Python traceback naming its install path and version. Redaction only covers
-  // the upload directory, and the caller here can be anonymous, so the detail
-  // stays in the log and the sender is told which tool gave up.
   toUserMessage(): string {
     return this.message
   }
@@ -38,6 +36,7 @@ export interface RunOptions {
   cwd?: string
   timeoutMs?: number
   redact?: Record<string, string>
+  log?: FastifyBaseLogger
 }
 
 function redactAll(text: string, redact: Record<string, string> | undefined): string {
@@ -49,11 +48,6 @@ function redactAll(text: string, redact: Record<string, string> | undefined): st
   return out
 }
 
-// Windows resolves a bare name against PATHEXT only through a shell, and spawn
-// does not use one, so kepubify.exe on PATH looks missing while calibre — whose
-// installer registers ebook-convert.exe the same way — looks missing too. The
-// server ships on Linux; development happens here, and a converter that is
-// present should be found.
 const WINDOWS_SUFFIXES = ['.exe', '.cmd', '.bat']
 
 function candidates(bin: string): string[] {
@@ -112,13 +106,29 @@ function runExact(bin: string, args: string[], options: RunOptions = {}): Promis
       fn()
     }
 
+    const watcher = options.log ? new ChildOutput(options.log) : undefined
+    let pending = ''
+    const emitLines = (chunk: string) => {
+      if (!watcher) return
+      pending += chunk.replace(/\r/g, '\n')
+      let cut = pending.indexOf('\n')
+      while (cut !== -1) {
+        const line = pending.slice(0, cut).trim()
+        pending = pending.slice(cut + 1)
+        if (line) watcher.line(redactAll(line, options.redact))
+        cut = pending.indexOf('\n')
+      }
+    }
+
     child.stdout.setEncoding('utf8')
     child.stderr.setEncoding('utf8')
     child.stdout.on('data', (chunk: string) => {
       stdout = append(stdout, chunk)
+      emitLines(chunk)
     })
     child.stderr.on('data', (chunk: string) => {
       stderr = append(stderr, chunk)
+      emitLines(chunk)
     })
 
     child.once('error', (err) => {
@@ -130,6 +140,7 @@ function runExact(bin: string, args: string[], options: RunOptions = {}): Promis
     })
 
     child.once('close', (code) => {
+      if (code !== 0 && watcher) watcher.flush()
       const output = redactAll(`${stdout}\n${stderr}`, options.redact)
       finish(() => {
         if (timedOut) {

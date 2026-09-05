@@ -4,7 +4,7 @@ onPage('setup-wizard', async (page) => {
   const $ = (id) => document.getElementById(id)
   const gone = () => !page.alive
 
-  const STEPS = [1, 2, 3, 4, 5]
+  const STEPS = [1, 2, 3, 4, 5, 6]
 
   const state = {
     opened: 1,
@@ -51,6 +51,11 @@ onPage('setup-wizard', async (page) => {
   const toggles = controls.filter((el) => el.hasAttribute('data-toggle'))
   const fields = controls.filter((el) => !el.hasAttribute('data-toggle'))
 
+  const extToggles = [...document.querySelectorAll('[data-ext]')]
+  const wanted = new Set()
+  const EXT_ORDER = ['calibre', 'pdfcrop', 'kfx']
+  const EXT_LABEL = { calibre: 'calibre', pdfcrop: 'PDF cropping', kfx: 'KFX' }
+
   const on = (key) => state.values[key] === 'true'
 
   for (const el of fields) el.dataset.blank = el.placeholder ?? ''
@@ -59,8 +64,6 @@ onPage('setup-wizard', async (page) => {
     for (const el of fields) {
       el.value = state.values[el.dataset.key] ?? ''
 
-      // A secret never comes back from the server, so an empty field would read
-      // as "nothing set" when the environment file already has one.
       if (el.type === 'password') {
         el.placeholder = state.secretSet[el.dataset.key] ? '••••••••••••' : el.dataset.blank
       }
@@ -68,11 +71,64 @@ onPage('setup-wizard', async (page) => {
     for (const el of toggles) {
       el.querySelector('.toggle').classList.toggle('is-on', on(el.dataset.key))
     }
+    paintExtensions()
     $('mailFields').hidden = !on('SMTP_ENABLED')
     $('ssoFields').hidden = !on('OIDC_ENABLED')
     $('ssoRedirect').textContent =
       `The redirect your provider needs on file is ${addressNow()}/auth/sso/callback.`
     renderSummaries()
+  }
+
+  // Ticking nothing and not having answered look the same, so the step is only
+  // passable once one of them is on — including the one that says "nothing".
+  function paintExtensions() {
+    const kfxNeedsCalibre = wanted.has('kfx') && !wanted.has('calibre')
+    if (kfxNeedsCalibre) wanted.add('calibre')
+
+    for (const el of extToggles) {
+      el.querySelector('.toggle').classList.toggle('is-on', wanted.has(el.dataset.ext))
+    }
+    $('wizKfxDesc').textContent = wanted.has('kfx')
+      ? 'The format a modern Kindle prefers. calibre is ticked too, because KFX cannot work without it. Amazon\u2019s Kindle Previewer runs under Wine here. About 3GB and up to twenty minutes.'
+      : 'The format a modern Kindle prefers. Needs calibre, and Amazon\u2019s Kindle Previewer running under Wine. About 3GB and up to twenty minutes.'
+
+    $('extNext').disabled = wanted.size === 0
+  }
+
+  for (const el of extToggles) {
+    el.addEventListener('click', () => {
+      const id = el.dataset.ext
+      if (id === 'none') {
+        wanted.clear()
+        wanted.add('none')
+      } else {
+        wanted.delete('none')
+        if (wanted.has(id)) {
+          wanted.delete(id)
+          if (id === 'calibre') wanted.delete('kfx')
+        } else {
+          wanted.add(id)
+        }
+      }
+      paintExtensions()
+      renderSummaries()
+    })
+  }
+
+  // Asked for, not waited for: calibre alone is minutes, and KFX can be twenty.
+  // The queue keeps them in order and the Converters page shows the progress.
+  async function askForExtensions() {
+    const asked = EXT_ORDER.filter((id) => wanted.has(id))
+    if (asked.length === 0) return true
+
+    for (const id of asked) {
+      const result = await send(`/api/admin/extensions/${id}`, { method: 'POST' })
+      if (!result.ok && result.status !== 409) {
+        notice('Not started', result.data?.error || `The server would not fetch ${EXT_LABEL[id]}.`)
+        return false
+      }
+    }
+    return true
   }
 
   function addressNow() {
@@ -81,9 +137,6 @@ onPage('setup-wizard', async (page) => {
     return `${$('wizProtocol').value || 'http'}://${domain}`
   }
 
-  // A browser will not accept an IP as the relying party for a passkey, and a
-  // certificate for one is not something anybody has, so a literal means http
-  // and a name means https — until the scheme is set by hand, which stops it.
   function schemeFor(host) {
     const bare = host.trim().replace(/^\[|\]$/g, '')
     if (!bare) return null
@@ -150,6 +203,8 @@ onPage('setup-wizard', async (page) => {
   }
 
   async function saveStep(n) {
+    if (n === 5) return await askForExtensions()
+
     const step = $(`step${n}`)
     const msg = $(`msg${n}`)
     msg.className = 'save-row__msg'
@@ -159,8 +214,6 @@ onPage('setup-wizard', async (page) => {
       const key = el.dataset.key
       const value = el.value.trim()
 
-      // A secret comes back empty from the server, so an untouched password
-      // field is not somebody asking to clear the one already stored.
       if (el.type === 'password' && value === '') continue
       if (value === (state.values[key] ?? '')) continue
       if (!(await put(key, value))) {
@@ -231,10 +284,6 @@ onPage('setup-wizard', async (page) => {
 
   const openBody = () => $(`step${state.opened}`)?.querySelector('.step__body') ?? null
 
-  // The tiles hold their place, so the only thing that scrolls is the open step
-  // — and a wheel over a tile would otherwise land on nothing at all. Anywhere
-  // in the card scrolls the step that is open; once that step has nowhere left
-  // to go, the next turn of the wheel moves to the step on that side.
   const SWITCH_PAUSE_MS = 500
   let lastSwitch = 0
 
@@ -263,8 +312,6 @@ onPage('setup-wizard', async (page) => {
       if (next < 1 || next > STEPS.length) return
 
       event.preventDefault()
-      // One flick of a trackpad is dozens of events. Without this it would fall
-      // through every remaining step in a single gesture.
       const now = Date.now()
       if (now - lastSwitch < SWITCH_PAUSE_MS) return
       lastSwitch = now
@@ -273,8 +320,6 @@ onPage('setup-wizard', async (page) => {
     { passive: false }
   )
 
-  // Whatever was typed in the step being left is saved on the way out, so a
-  // scroll past a step is not a quiet way to lose what was in it.
   async function leaveFor(n) {
     const from = state.opened
     if (n === from) return
@@ -289,11 +334,9 @@ onPage('setup-wizard', async (page) => {
   }
 
   function goToStep(n) {
-    state.opened = Math.min(5, Math.max(1, n))
+    state.opened = Math.min(STEPS.length, Math.max(1, n))
     render()
 
-    // The open step scrolls inside itself, so a step arrived at from anywhere
-    // has to start at its own first line rather than wherever the last one was.
     const body = $(`step${state.opened}`).querySelector('.step__body')
     if (body) body.scrollTop = 0
     window.scrollTo(0, 0)
@@ -324,7 +367,12 @@ onPage('setup-wizard', async (page) => {
     3: () => (on('OIDC_ENABLED') ? state.values.OIDC_PROVIDER_NAME || 'On' : 'Off'),
     4: () =>
       `${on('ALLOW_SIGNUP') ? 'Anyone may sign up' : 'Closed'} · at least ${state.values.MIN_PASSWORD_LENGTH} characters`,
-    5: () => 'Not finished yet',
+    5: () => {
+      const asked = EXT_ORDER.filter((id) => wanted.has(id))
+      if (asked.length > 0) return `Fetching ${asked.map((id) => EXT_LABEL[id]).join(', ')}`
+      return wanted.has('none') ? 'EPUB and KEPUB only' : 'Not answered yet'
+    },
+    6: () => 'Not finished yet',
   }
 
   function renderSummaries() {
@@ -383,15 +431,13 @@ onPage('setup-wizard', async (page) => {
       }
     }
     if (!page.alive) return
-    $('msg5').classList.add('is-error')
-    $('msg5').textContent = 'It has not come back. Check the container.'
+    $('msg6').classList.add('is-error')
+    $('msg6').textContent = 'It has not come back. Check the container.'
   }
 
   $('finishGo').addEventListener('click', async () => {
     $('finishGo').disabled = true
 
-    // Marked done before the signal, so a server that restarts faster than this
-    // page can write does not come back and ask for the same five answers again.
     const done = await send('/api/setup/complete', { method: 'POST' })
     if (gone()) return
     if (!done.ok) {
@@ -413,7 +459,7 @@ onPage('setup-wizard', async (page) => {
       return
     }
 
-    $('msg5').textContent = 'Restarting…'
+    $('msg6').textContent = 'Restarting…'
     void waitForTheServer()
   })
 
@@ -432,8 +478,6 @@ onPage('setup-wizard', async (page) => {
     if (spec.kind === 'secret') state.secretSet[spec.key] = spec.isSet === true
   }
 
-  // An address already set is one somebody chose on purpose, so it is not
-  // second-guessed by the scheme helper the moment the domain is edited.
   state.schemeTouched = Boolean(state.values.DOMAIN)
 
   paint()

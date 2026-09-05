@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { createReadStream, createWriteStream } from 'node:fs'
 import { stat } from 'node:fs/promises'
 import { extname } from 'node:path'
@@ -83,7 +84,14 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
 
   app.post(
     '/convert',
-    { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } },
+    {
+      config: {
+        rateLimit: {
+          max: settings.int('CONVERT_RATE_MAX'),
+          timeWindow: settings.str('CONVERT_RATE_WINDOW'),
+        },
+      },
+    },
     async (req, reply) => {
       if (!req.isMultipart()) {
         return reply.code(415).send({ ok: false, error: 'Expected a multipart/form-data body' })
@@ -122,16 +130,14 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
 
         const options = readOptions(body.fields)
         const plan = planFormatConversion(detected.format, requested, options, app.tools)
-        req.log.info(
-          { from: detected.format, to: requested, plan, size },
-          'Converting a file for download'
-        )
+        const jobId = randomUUID()
+        req.job = jobId.slice(0, 8)
 
         const { path: outputPath, applied } = await runConversion(
           plan,
           upload.path,
           detected.format,
-          (converter, reason) => req.log.warn({ converter, reason }, 'Optional step skipped')
+          { logger: req.log, job: req.job }
         )
 
         let filename = upload.originalName
@@ -146,13 +152,16 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
           source: 'convert',
         })
 
-        const result = app.conversions.add({
-          name: filename,
-          path: outputPath,
-          format: plan.targetFormat,
-          size: finalSize,
-          owner: req.user?.id ?? null,
-        })
+        const result = app.conversions.add(
+          {
+            name: filename,
+            path: outputPath,
+            format: plan.targetFormat,
+            size: finalSize,
+            owner: req.user?.id ?? null,
+          },
+          jobId
+        )
 
         return await reply.send({
           ok: true,
@@ -199,6 +208,7 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
       },
     },
     async (req, reply) => {
+      req.job = req.params.id.slice(0, 8)
       const file = app.conversions.get(req.params.id, req.user?.id ?? null)
       if (!file || file.name !== req.params.filename) {
         return reply.code(404).send({ error: 'Not found' })
@@ -218,9 +228,6 @@ export async function convertRoutes(app: FastifyInstance): Promise<void> {
       reply.header('Cache-Control', 'no-store')
       reply.header('Content-Disposition', `attachment; filename="${encodeURIComponent(file.name)}"`)
 
-      // 'close' fires when the client disconnects part way as well as when the
-      // transfer finishes, so deleting there threw the file away on a dropped
-      // connection and the sender had to pay for the whole conversion again.
       const stream = createReadStream(file.path)
       stream.on('end', () => {
         void app.conversions.remove(file.id)

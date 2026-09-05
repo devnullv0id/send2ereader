@@ -64,6 +64,7 @@ export const config = {
   domain: str('DOMAIN', ''),
   trustProxy: bool('TRUST_PROXY', false),
 
+  dataDir: dir('DATA_DIR', 'data'),
   uploadDir: dir('UPLOAD_DIR', 'uploads'),
   staticDir: dir('STATIC_DIR', 'static'),
   cleanUploadDirOnBoot: bool('CLEAN_UPLOAD_DIR_ON_BOOT', true),
@@ -106,6 +107,7 @@ export const config = {
 
   extensions: str('EXTENSIONS', ''),
   extensionPackages: str('EXTENSION_PACKAGES', ''),
+  kfxPreviewerPath: str('KFX_PREVIEWER_PATH', ''),
 
   layoutFixDefault: bool('LAYOUT_FIX_DEFAULT', true),
 
@@ -115,6 +117,12 @@ export const config = {
 
   logLevel: str('LOG_LEVEL', 'info'),
   logPretty: bool('LOG_PRETTY', false),
+  convertRateMax: int('CONVERT_RATE_MAX', 5),
+  convertRateWindow: str('CONVERT_RATE_WINDOW', '1 minute'),
+  logFormat: str('LOG_FORMAT', 'text'),
+  logScope: str('LOG_SCOPE', ''),
+  logTime: str('LOG_TIME', 'iso'),
+  noColor: str('NO_COLOR', ''),
 
   publicUrl: publicBase().replace(/\/+$/, ''),
 
@@ -189,9 +197,6 @@ export function sessionSecretIsWeak(): boolean {
   return secretOrigin === 'environment' && secretInForce.length < WEAK_SECRET_LENGTH
 }
 
-// Not done on import: a server with no SESSION_SECRET still has to have one, but
-// writing a file is a side effect and importing the configuration is not the moment
-// for it. Called once at boot, before anything derives a key from the answer.
 export function provisionSessionSecret(): { created: boolean; path: string } {
   if (secretOrigin === 'environment') return { created: false, path: '' }
 
@@ -205,10 +210,6 @@ export function accountsEnabled(): boolean {
   return config.auth.accounts && sessionSecret().length > 0
 }
 
-// Resolved once. A DOMAIN or PROTOCOL stored in the database is applied at boot,
-// before anything reads it, and never again while the process lives — because the
-// cookie flags and the security headers are decided at boot too, and an address
-// that changed underneath half of them would be worse than one that did not move.
 let resolvedPublicUrl = publicBase().replace(/\/+$/, '')
 
 export function publicUrl(): string {

@@ -313,7 +313,7 @@ onPage('convert', (page) => {
 
   function optionText(fix, live, enabled) {
     const why =
-      live && !enabled ? (fix.available ? fix.reason : 'Not installed on this server.') : ''
+      live && !enabled ? (fix.available ? fix.reason : 'Not installed on this server. An administrator can add it under Admin → Converters.') : ''
     return [fix.description || '', why].filter(Boolean).join(' ')
   }
 

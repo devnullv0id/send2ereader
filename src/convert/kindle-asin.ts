@@ -49,8 +49,6 @@ export function stripStoreIdentity(book: Buffer): boolean {
   return changed
 }
 
-// Written beside the book and renamed over it, so a failure part way through
-// cannot leave a half-written file where the finished one is about to be read.
 export async function unbrandKindleFile(path: string): Promise<boolean> {
   const book = await readFile(path)
   if (!stripStoreIdentity(book)) return false

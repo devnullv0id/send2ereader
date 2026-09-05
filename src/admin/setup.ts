@@ -9,8 +9,6 @@ export const SETUP_DONE = 'setup_done'
 
 const DISCOVERY_TIMEOUT_MS = 8000
 
-// Only the first admin is walked through this. Everyone else who arrives at an
-// unconfigured server would be asked for an SMTP password they do not have.
 function requireSetupAdmin(req: FastifyRequest, reply: FastifyReply): FastifyReply | undefined {
   const user = req.user
   if (!user) {
@@ -57,8 +55,6 @@ export async function setupRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, done: true })
   })
 
-  // Reads what the provider publishes about itself. It cannot prove the client
-  // secret without a full sign-in, and says so rather than implying otherwise.
   app.post('/api/setup/sso/test', async (req, reply) => {
     const refused = requireSetupAdmin(req, reply)
     if (refused) return refused
@@ -108,8 +104,6 @@ export async function setupRoutes(app: FastifyInstance): Promise<void> {
     })
   })
 
-  // Proves the settings before the assistant moves on. It goes to the person
-  // asking, because that is the one address on the server known to be theirs.
   app.post('/api/setup/mail/test', async (req, reply) => {
     const refused = requireSetupAdmin(req, reply)
     if (refused) return refused

@@ -3,8 +3,6 @@ import { sessionSecret } from '../config.js'
 
 const IV_LENGTH = 12
 
-// Derived on first use rather than on import, because the secret may still be
-// waiting to be read off disk when this module is loaded.
 let derived: Buffer | null = null
 function boxKey(): Buffer {
   derived ??= createHash('sha256').update(sessionSecret()).digest()

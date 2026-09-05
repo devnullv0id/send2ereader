@@ -114,17 +114,8 @@
   --branch-floor: 168px;
   --file-slot: 157px;
 
-  /* One header height, shared by the sticky rail and the drawer, so the two
-     cannot drift apart. Two rows on a phone became 97px; one row is 62. */
   --header-h: 62px;
 }
-
-/* One breakpoint: 640px, where a phone stops being able to hold a row of
-   navigation beside the wordmark. A second, wider one for the two-column pages
-   turned out to be unnecessary — a 178px rail beside a 400px panel still fits a
-   tablet. Before this there were none, only a stray 420px rule for one form
-   field. Touch sizing hangs off pointer:coarse instead, so a wide touchscreen
-   gets it too. */
 
 * {
   box-sizing: border-box;
@@ -356,7 +347,6 @@ a:hover {
   font-weight: 500;
 }
 
-/* Hidden above the phone breakpoint, where the pills carry the navigation. */
 .nav-toggle {
   display: none;
   margin-left: auto;
@@ -577,16 +567,8 @@ body.is-drawer-open {
   font-family: var(--font-mono);
 }
 
-/* --card-floor is the height the card was drawn at, and it is now a ceiling
-   rather than a fixed height: on anything shorter than that the card takes what
-   the viewport has left and scrolls its own contents, so the page behind it
-   does not scroll as well. */
 .step-card {
   max-width: var(--card-max);
-  /* The wrap around this is a flex column, and auto side margins on a flex item
-     cancel the default stretch — which left the card shrink-wrapping whichever
-     step was open, so it changed width every time you moved through it. The
-     explicit width puts it back to filling the row and being centred. */
   width: 100%;
   margin: 26px auto 0;
   position: relative;
@@ -607,9 +589,6 @@ body.is-drawer-open {
   gap: var(--card-gap);
 }
 
-/* The card still scrolls — wheel, touch, keyboard and focus all work — it just
-   does not draw a bar for it. The dots are the progress this card reports, and
-   a second indicator beside them measured something nobody was asked to track. */
 .step-card {
   scrollbar-width: none;
 }
@@ -793,6 +772,235 @@ body.is-drawer-open {
   font: 400 13px/1 var(--font-ui);
 }
 
+.step__badge--spin::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--accent-border);
+  border-top-color: var(--accent-deep);
+  animation: ste-spin .7s linear infinite;
+}
+
+@keyframes ste-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .step__badge--spin::after {
+    border-top-color: var(--accent-border);
+    animation: ste-pulse 1.4s ease-in-out infinite !important;
+  }
+}
+
+.install-step__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.install-step__pct {
+  flex: none;
+  min-width: 42px;
+  text-align: right;
+  font: 600 12px/1.3 var(--font-mono);
+  color: var(--accent-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.install-step__detail {
+  margin: 6px 0 0;
+  font: 400 12px/1.45 var(--font-ui);
+  color: var(--text-3);
+}
+
+.install-step__detail.is-error { color: var(--err-strong); }
+
+.install-step.is-spent .step__title { color: var(--text-2); }
+
+.cost {
+  border: 1px solid var(--accent-border);
+  background: var(--accent-surface);
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+}
+
+.cost--modal {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.cost--modal .cost__list {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 13px;
+  margin-top: 14px;
+}
+
+.cost--modal .cost__item {
+  gap: 12px;
+}
+
+.cost--modal .cost__figure {
+  min-width: 72px;
+}
+
+.cost--modal .cost__what {
+  line-height: 1.5;
+}
+
+.cost--modal .cost__note {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--divider);
+}
+
+.cost__title {
+  font: 600 13px/1.3 var(--font-ui);
+  color: var(--accent-deep);
+  margin-bottom: 10px;
+}
+
+.cost__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 18px;
+}
+
+.cost__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cost__figure {
+  flex: none;
+  font: 600 13px/1.3 var(--font-mono);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cost__what {
+  min-width: 0;
+  font: 400 12px/1.4 var(--font-ui);
+  color: var(--text-2);
+}
+
+.cost__note {
+  margin: 12px 0 0;
+  font: 400 12px/1.5 var(--font-ui);
+  color: var(--text-2);
+}
+
+.install-out {
+  margin-top: 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-well);
+}
+
+.install-out__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.install-out__title {
+  font: 600 11px/1 var(--font-ui);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.install-out__follow {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  font: 500 11px/1 var(--font-ui);
+  color: var(--text-3);
+}
+
+.install-out__follow:hover { color: var(--accent-text); }
+
+.install-out__body {
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px;
+  background: var(--surface-well);
+  font: 400 11px/1.55 var(--font-mono);
+  color: var(--text-2);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.ext-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ext {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  background: var(--surface-well);
+}
+
+.ext.is-on {
+  border-color: var(--ok-border);
+  background: var(--ok-fill);
+}
+
+.ext.is-blocked {
+  opacity: 0.62;
+}
+
+.ext__body {
+  min-width: 0;
+}
+
+.ext__name {
+  font: 600 14px/1.3 var(--font-ui);
+  color: var(--text);
+}
+
+.ext__what {
+  margin-top: 2px;
+  font: 400 12px/1.4 var(--font-ui);
+  color: var(--text-2);
+}
+
+.ext__state {
+  font: 500 12px/1.3 var(--font-ui);
+  color: var(--text-3);
+  text-align: right;
+}
+
+.ext-run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--card-gap);
+  min-height: 0;
+}
+
+.install-actions { margin-top: 4px; }
+
 .step__badge--tick {
   display: block;
   background: var(--ok-fill);
@@ -901,10 +1109,6 @@ body.is-drawer-open {
   border-left: 3px solid var(--accent);
 }
 
-/* The row wraps, but only if the text is allowed to ask for a width. With
-   min-width: 0 it shrank to whatever was left beside the 98px spine — about
-   60px at 360px — which ellipsised the title to "The…" and broke the meta
-   onto one word per line. */
 .file-row__text {
   flex: 1 1 14ch;
   min-width: 14ch;
@@ -1130,6 +1334,17 @@ body.is-drawer-open {
 
 .btn--primary:hover:not(:disabled) {
   background: var(--btn-dark-hover);
+}
+
+/* A link styled as a button is still a link, and the global a:hover rule was
+   repainting its label the accent colour — which on a dark button is the same
+   colour as the button. The Backup download had this too. */
+a.btn:hover {
+  color: var(--text);
+}
+
+a.btn--primary:hover {
+  color: var(--btn-dark-text);
 }
 
 .btn--secondary {
@@ -1540,14 +1755,6 @@ body.is-drawer-open {
   background: var(--surface-panel);
 }
 
-/* ── Small screens ───────────────────────────────────────────────────────────
-   Kept together rather than scattered through the file, so "what changes on a
-   phone" is one place to read. Breakpoints: 640px phone, 900px narrow, and
-   pointer:coarse for touch sizing regardless of width. */
-
-/* The send, convert and setup pages lock to the viewport, so the card is the
-   only thing that scrolls and the page behind it does not. --card-floor still
-   caps the card, so a tall desktop window looks exactly as it did before. */
 body[data-page='send'] .shell,
 body[data-page='convert'] .shell,
 body[data-page='setup-wizard'] .shell {
@@ -1573,10 +1780,6 @@ body[data-page='setup-wizard'] .main > .wrap {
   flex-direction: column;
 }
 
-/* A landscape phone has so little height that a viewport-sized card would be a
-   letterbox, so there the card sizes to its content and the page scrolls. This
-   is deliberately orientation-scoped: a 568px-tall phone in portrait — an SE —
-   still has room for a real card and keeps the locked layout. */
 @media (orientation: landscape) and (max-height: 600px) {
   body[data-page='send'] .shell,
   body[data-page='convert'] .shell,
@@ -1595,6 +1798,34 @@ body[data-page='setup-wizard'] .main > .wrap {
 }
 
 @media (max-width: 640px) {
+  .ext {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 8px;
+  }
+
+  .ext__state {
+    grid-column: 1;
+    text-align: left;
+  }
+
+  .install-step__head {
+    display: block;
+  }
+
+  .install-step__pct {
+    min-width: 0;
+    margin-top: 4px;
+    text-align: left;
+  }
+
+  .cost__list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .install-out__body {
+    max-height: 180px;
+  }
+
   .header .wrap {
     flex-wrap: nowrap;
     gap: 8px;
@@ -1602,8 +1833,6 @@ body[data-page='setup-wizard'] .main > .wrap {
     padding-bottom: 11px;
   }
 
-  /* The pills and the account button wrapped into a second row here. The
-     drawer carries the same destinations instead. */
   .nav-pill,
   .account-btn {
     display: none;
@@ -1634,8 +1863,6 @@ body[data-page='setup-wizard'] .main > .wrap {
     margin-top: 8px;
   }
 
-  /* The 40px right padding existed only to clear the step rail, which now sits
-     across the top of the card instead of down its side. */
   .step-card {
     margin-top: 16px;
     padding: 16px 15px;
@@ -1650,9 +1877,6 @@ body[data-page='setup-wizard'] .main > .wrap {
     padding-bottom: 2px;
   }
 
-  /* Now that the text claims a real width, the clear button no longer fits on
-     the row and wrapped onto a line of its own. It belongs in the corner, with
-     the padding keeping the title from running underneath it. */
   .file-row {
     position: relative;
     gap: 12px;
@@ -1689,8 +1913,6 @@ body[data-page='setup-wizard'] .main > .wrap {
     min-height: 44px;
   }
 
-  /* The dots stay the size they were drawn; the pseudo-element only widens
-     where a finger counts as a hit, so none of the state styling is restated. */
   .step-rail {
     gap: 22px;
   }

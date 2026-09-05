@@ -174,8 +174,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     '/auth/register',
     { schema: { body: registrationSchema }, ...slowLimit },
     async (req, reply) => {
-      // Registering used to call startSession unconditionally, so an admin who
-      // created an account became that account mid-session, silently.
       if (req.user) {
         return reply.code(409).send({
           ok: false,
@@ -188,8 +186,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         firstName: req.body.firstName,
         lastName: req.body.lastName,
       })
-      // Only where mail cannot carry the reset. With SMTP on, the address is the
-      // way back and the verification message is already on its way.
       const recoveryPhrase = auth.recoveryPhraseNeeded ? auth.issueRecoveryPhrase(user.id) : null
       startSession(req, user, req.body.remember !== false)
       return reply.send({
@@ -197,8 +193,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         claimed: claiming,
         mailEnabled: app.mailer.enabled,
         user: publicUser(user),
-        // Said once. Only the hash is kept, so this reply is the only place it
-        // will ever exist in a readable form.
         recoveryPhrase,
       })
     }
@@ -536,8 +530,6 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       if (isPrefetch(req)) return reply.code(204).send()
       try {
         const user = auth.confirmEmailChange(req.query.token ?? '')
-        // Whoever opens the link may not be signed in as that account, or signed
-        // in at all, so the page they land on has to say what happened either way.
         if (req.user?.id === user.id) return reply.redirect('/settings?moved=1#profile')
         return reply.redirect('/login?moved=1')
       } catch {
@@ -757,9 +749,6 @@ export async function requireUser(req: FastifyRequest, reply: FastifyReply): Pro
   return undefined
 }
 
-// A confirmation nobody can send is not a bar anyone can clear. With mail off,
-// the link goes to the log, and asking someone to go and read it before they may
-// set up the mail that would have sent it is a circle with no way in.
 export function verificationIsPossible(): boolean {
   return settings.bool('SMTP_ENABLED')
 }

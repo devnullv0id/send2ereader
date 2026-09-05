@@ -208,9 +208,6 @@ export class Users {
   }
 
   founderId(): string | null {
-    // rowid, not created_at: two accounts made in the same millisecond would
-    // otherwise be ordered by a random UUID, and "the first account" is a fact
-    // about which row was written first.
     const row = this.db.prepare('SELECT id FROM users ORDER BY rowid LIMIT 1').get() as
       | { id: string }
       | undefined
@@ -267,8 +264,6 @@ export class Users {
       .run(email, id)
   }
 
-  // Returns what is left after this one. NULL in the column is the full budget,
-  // so an account nobody has asked yet is not penalised for a limit that moved.
   spendVerifyReminder(id: string, limit: number): number {
     const row = this.db
       .prepare('SELECT verify_reminders_left AS left FROM users WHERE id = ?')
@@ -743,9 +738,6 @@ export class Books {
   }
 
   takeExpired(): Book[] {
-    // One timestamp for both statements: a second call is a later moment, and a
-    // row that expired in between was deleted without its file coming back here
-    // to be removed with it.
     const cutoff = now()
     const rows = this.db
       .prepare('SELECT * FROM books WHERE expires_at <= ?')
@@ -886,10 +878,6 @@ export class Passkeys {
   }
 }
 
-// Two pools that must not be confused. 'second_factor' codes get past two-factor
-// and are wiped whenever two-factor is turned off. 'account' codes get past a lost
-// password, survive that, and are the only way back into an account on a server
-// with no mail. Spending one must never spend the other.
 export type CodePurpose = 'second_factor' | 'account'
 
 export class RecoveryCodes {
@@ -908,8 +896,6 @@ export class RecoveryCodes {
     }
   }
 
-  // A recovery phrase is not spent by being used. It is the way back in, and one
-  // that stops working the first time it works is a trapdoor, not a way back.
   matches(userId: string, code: string, purpose: CodePurpose): boolean {
     const row = this.db
       .prepare(
@@ -957,7 +943,6 @@ export class RecoveryCodes {
       .run(userId, purpose)
   }
 
-  // The whole account is going: both pools with it.
   clearEverything(userId: string): void {
     this.db.prepare('DELETE FROM recovery_codes WHERE user_id = ?').run(userId)
   }

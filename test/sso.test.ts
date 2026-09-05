@@ -169,8 +169,6 @@ describe('administrator rights from a group', () => {
     const a = repos.users.create({ email: 'a@example.com', passwordHash: 'x' })
     const b = repos.users.create({ email: 'b@example.com', passwordHash: 'x' })
 
-    // Two accounts made in the same millisecond are ordered by id, so which one
-    // is the founder is not the order they were written in.
     const other = repos.users.founderId() === a.id ? b : a
 
     repos.users.setAdmin(other.id, true)

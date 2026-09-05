@@ -5,14 +5,24 @@ export interface ContainerCheck {
   evidence: string
 }
 
-export function detectContainer(): ContainerCheck {
-  if (existsSync('/.dockerenv')) return { inContainer: true, evidence: '/.dockerenv' }
-  if (existsSync('/run/.containerenv')) {
+export interface ContainerProbes {
+  exists: (path: string) => boolean
+  read: (path: string) => string
+}
+
+const onThisMachine: ContainerProbes = {
+  exists: existsSync,
+  read: (path) => readFileSync(path, 'utf8'),
+}
+
+export function detectContainer(probes: ContainerProbes = onThisMachine): ContainerCheck {
+  if (probes.exists('/.dockerenv')) return { inContainer: true, evidence: '/.dockerenv' }
+  if (probes.exists('/run/.containerenv')) {
     return { inContainer: true, evidence: '/run/.containerenv' }
   }
 
   try {
-    const cgroup = readFileSync('/proc/1/cgroup', 'utf8')
+    const cgroup = probes.read('/proc/1/cgroup')
     for (const marker of ['docker', 'containerd', 'kubepods', 'podman']) {
       if (cgroup.includes(marker)) return { inContainer: true, evidence: `cgroup:${marker}` }
     }

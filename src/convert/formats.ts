@@ -36,16 +36,18 @@ export function offerFormat(
 ): FormatOffer {
   const refusal = (reason: string): FormatOffer => ({ format: to, refusal: reason })
 
-  // Writing KFX means running Amazon's Kindle Previewer, which is not ours to
-  // ship. It arrives, if the operator wants it, through EXTENSIONS at start.
   if (to === 'kfx' && !tools.kfxOutput) {
-    return refusal('Writing KFX needs Amazon’s Kindle Previewer, which is not installed here')
+    return refusal(
+      'Writing KFX needs Amazon’s Kindle Previewer, which an administrator can install under Admin → Converters'
+    )
   }
 
   if (!from) return refusal('unsupported source')
 
   if (kfxSources.includes(from) && !tools.kfxInput) {
-    return refusal('Reading KFX needs calibre’s KFX Input plugin, which is not installed here')
+    return refusal(
+      'Reading KFX needs calibre’s KFX Input plugin, which arrives with the calibre install under Admin → Converters'
+    )
   }
 
   if (comicSources.includes(from) && !comicTargets.includes(to)) {
@@ -60,7 +62,9 @@ export function offerFormat(
 
   const kepubifyOnly = to === 'kepub' && from === 'epub'
   if (!kepubifyOnly && !tools.calibre) {
-    return refusal('This conversion needs calibre, which is not installed here')
+    return refusal(
+      'This conversion needs calibre, which an administrator can install under Admin → Converters'
+    )
   }
 
   return { format: to, refusal: null }

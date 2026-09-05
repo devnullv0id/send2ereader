@@ -1,22 +1,9 @@
 #!/usr/bin/env node
-// Converts one real book into every format the server offers, and checks that
-// what comes back is that format.
-//
-// Nothing in the unit suite runs a converter: every test stubs the tools off,
-// which is exactly why epub-to-pdf was broken in every image ever built and
-// stayed green the whole time. This runs against a server that is really
-// running, with calibre really installed, and is the only thing that can catch
-// that class of failure.
-//
-//   node scripts/smoke-convert.mjs http://127.0.0.1:3001
 
 import { deflateRawSync } from 'node:zlib'
 
 const base = (process.argv[2] ?? 'http://127.0.0.1:3001').replace(/\/+$/, '')
 
-// A minimal but genuine EPUB, built here rather than committed: a fixture in the
-// repository would be one more thing to keep true, and calibre only needs a
-// container, a spine and a chapter.
 function makeEpub() {
   const files = [
     ['mimetype', 'application/epub+zip', true],
@@ -126,8 +113,6 @@ function makeEpub() {
   return Buffer.concat([...chunks, directory, end])
 }
 
-// What each format has to look like coming back out. A conversion that returns
-// the input unchanged, or an error page, fails here rather than being counted.
 const SIGNATURES = {
   epub: (buf) => buf.subarray(0, 2).toString() === 'PK' && buf.includes('application/epub+zip'),
   kepub: (buf) => buf.subarray(0, 2).toString() === 'PK' && buf.includes('application/epub+zip'),
@@ -155,8 +140,6 @@ async function convert(book, format) {
   let res
   let body
 
-  // /convert is rate limited to five a minute, and there are more formats than
-  // that. Waiting is the point of the limit, so this waits rather than shouting.
   for (let attempt = 0; attempt < 6; attempt++) {
     const form = new FormData()
     form.set('file', new Blob([book], { type: 'application/epub+zip' }), 'smoke.epub')

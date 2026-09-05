@@ -171,7 +171,6 @@ describe('a download that breaks off part way', () => {
     })
     await writeFile(stored.path, 'hello')
 
-    // What a dropped connection does: the stream is destroyed before it ends.
     const stream = createReadStream(stored.path)
     stream.on('end', () => {
       void app.conversions.remove(stored.id)
@@ -225,7 +224,7 @@ describe('a real client that hangs up mid-transfer', () => {
         signal: controller.signal,
       })
       const reader = res.body!.getReader()
-      await reader.read() // one chunk, then walk away
+      await reader.read()
       controller.abort()
       await reader.read()
     } catch {

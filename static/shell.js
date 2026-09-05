@@ -79,9 +79,6 @@ function menuHtml(state) {
   </div>`
 }
 
-// Below the phone breakpoint the pills and the account button are hidden and
-// this takes their place. It is the same set of destinations, in the same order,
-// so nothing is reachable on one size and not the other.
 function drawerHtml(path, state) {
   const links = NAV.filter((item) => !item.private || state.user)
     .map((item) => {
@@ -126,9 +123,6 @@ function passkeyNoticeHtml(user) {
   </div>`
 }
 
-// Held for this browser window only. The budget on the account is what limits
-// putting it off for good; this is so asking for the message, or going to change
-// the address, does not put you back in front of the same modal on the next page.
 const VERIFY_HELD = 's2e:verify-nudge-held'
 
 function nudgeHeld() {
@@ -256,7 +250,7 @@ function headerHtml(path, state) {
 
 const FOOTER_HTML = `<div class="wrap">
   <span>Maintained by devnullv0id. Inspired by djazz.</span>
-  <span>Fastify, kepubify, calibre, pdfCropMargins</span>
+  <span>Fastify, kepubify, and whatever converters this server was given</span>
   <a href="https://github.com/devnullv0id/send2ereader" rel="noreferrer">Source on GitHub</a>
 </div>`
 
@@ -276,9 +270,6 @@ function wireDrawer(header, overlays) {
     toggle.setAttribute('aria-expanded', String(open))
     document.body.classList.toggle('is-drawer-open', open)
 
-    // The page behind an open drawer is not reachable by tab or by a screen
-    // reader. The toggle lives in there too, so this has to lift before focus
-    // can go back to it.
     if (shell) shell.inert = open
 
     if (open) {
@@ -423,8 +414,6 @@ async function refreshShell() {
   const status = await getStatus()
   if (!status) return
 
-  // The first admin has five answers to give before this server is really set
-  // up, and every one of them is easier to give now than to discover later.
   if (status.setupPending && currentPath() !== '/setup/start') {
     window.location.href = '/setup/start'
     return
@@ -436,9 +425,6 @@ async function refreshShell() {
   shellState.verifyNudge = status.verifyNudge || null
   shellState.hasRecoveryPhrase = status.hasRecoveryPhrase === true
 
-  // Kobo sync needs a confirmed address, so an account without one has no
-  // device and nothing waiting. Asking anyway earns a 403 in the console on
-  // every page load, which is how a real error goes unnoticed.
   const canHaveDevices = status.user?.emailVerified === true || status.verificationNeeded === false
 
   if (shellState.user && canHaveDevices) {

@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-// Walks every route on one or two running instances and prints what each one
-// served. With two, it diffs them: the point is to catch a page that behaves
-// differently in the container from the way it behaves under tsx.
-//
-//   node scripts/compare-instances.mjs http://127.0.0.1:3099
-//   node scripts/compare-instances.mjs http://127.0.0.1:3099 http://127.0.0.1:3100
 
 const bases = process.argv.slice(2)
 if (bases.length === 0) {

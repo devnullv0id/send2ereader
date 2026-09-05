@@ -3,12 +3,14 @@ import fastifyMultipart from '@fastify/multipart'
 import fastifyRateLimit from '@fastify/rate-limit'
 import fastifyStatic from '@fastify/static'
 import Fastify, {
+  type FastifyBaseLogger,
   type FastifyError,
   type FastifyInstance,
   type FastifyReply,
   type FastifyRequest,
   type FastifyServerOptions,
 } from 'fastify'
+import { watchExtensionRuns } from './admin/extensions.js'
 import { accounts } from './auth/plugin.js'
 import { AuthError } from './auth/service.js'
 import { accountsEnabled, config, publicUrl } from './config.js'
@@ -16,6 +18,7 @@ import { detectTools, type ToolAvailability } from './convert/index.js'
 import { ConversionResults } from './convert/results.js'
 import type { Db } from './db/index.js'
 import { KeyStore } from './keystore.js'
+import { createLogger, newId, resolveLogOptions } from './logging/index.js'
 import { Pages } from './pages.js'
 import { PendingDeliveries } from './pending.js'
 import { convertRoutes } from './routes/convert.js'
@@ -33,6 +36,10 @@ declare module 'fastify' {
   interface FastifyReply {
     page(name: string): FastifyReply
   }
+  interface FastifyRequest {
+    job?: string
+    failure?: string
+  }
 }
 
 export interface BuildOptions {
@@ -42,8 +49,6 @@ export interface BuildOptions {
   db?: Db
 }
 
-// A Kobo carries its bearer token in the path because its firmware gives us
-// nowhere else to put it, so the one thing we can do is keep it out of the log.
 export function redactKoboToken(url: string): string {
   return url.replace(/^\/kobo\/[^/?#]+/, '/kobo/[redacted]')
 }
@@ -59,33 +64,57 @@ const serializers = {
   },
 }
 
-function defaultLogger(): FastifyServerOptions['logger'] {
-  const base = { level: config.logLevel, serializers }
-  if (!config.logPretty) return base
-  return {
-    ...base,
-    transport: {
-      target: 'pino-pretty',
-      options: { colorize: true, translateTime: 'HH:MM:ss.l', ignore: 'pid,hostname' },
-    },
-  }
+function defaultLogger(): FastifyBaseLogger {
+  return createLogger(resolveLogOptions(), serializers) as unknown as FastifyBaseLogger
+}
+
+const HEALTH_PATHS = new Set(['/healthz', '/health', '/readyz'])
+
+function levelFor(status: number): 'error' | 'warn' | 'info' {
+  if (status >= 500) return 'error'
+  if (status >= 400) return 'warn'
+  return 'info'
 }
 
 export async function buildApp(options: BuildOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: options.logger ?? defaultLogger(),
+    ...(options.logger === undefined
+      ? { loggerInstance: defaultLogger() }
+      : { logger: options.logger }),
     trustProxy: config.trustProxy,
     bodyLimit: 1024 * 1024,
+    disableRequestLogging: true,
+    genReqId(req) {
+      const given = req.headers['x-request-id']
+      if (typeof given === 'string' && given.length > 0 && given.length <= 128) return given
+      return newId()
+    },
+  })
+
+  app.addHook('onResponse', async (req, reply) => {
+    const route = req.routeOptions?.url ?? redactKoboToken(req.url)
+    const status = reply.statusCode
+    const level = HEALTH_PATHS.has(route) && status < 400 ? 'debug' : levelFor(status)
+    req.log[level](
+      {
+        scope: 'http',
+        job: req.job,
+        err: req.failure,
+        took: Math.round(reply.elapsedTime * 100) / 100,
+        ip: req.ip,
+      },
+      `${req.method} ${route} ${status}`
+    )
   })
 
   app.setErrorHandler(async (err: FastifyError, req, reply) => {
     if (err instanceof AuthError) {
-      req.log.warn({ err: err.message }, 'Auth request rejected')
+      req.failure = err.message
       return reply.code(err.statusCode).send({ ok: false, error: err.message })
     }
     const status = err.statusCode ?? 500
-    if (status >= 500) req.log.error({ err }, 'Request failed')
-    else req.log.warn({ err: err.message }, 'Request rejected')
+    if (status >= 500) req.log.error({ scope: 'server', err }, 'request failed')
+    else req.failure = err.message
     return reply
       .code(status)
       .send({ ok: false, error: status >= 500 ? 'Internal error' : err.message })
@@ -101,14 +130,6 @@ export async function buildApp(options: BuildOptions = {}): Promise<FastifyInsta
 
   const overHttps = publicUrl().startsWith('https://')
 
-  // Both of these are conditional on actually being served over https, and for
-  // the same reason. HSTS from a plain-http instance would strand whoever
-  // visited it. upgrade-insecure-requests is worse: helmet turns it on by
-  // default, and it rewrites every stylesheet, script and font request to
-  // https://, so on a plain-http instance nothing loads at all. It is a no-op on
-  // localhost, which is a trustworthy origin, so it hides from local testing and
-  // only shows up once the app is reached by IP or hostname — which is how a
-  // self-hosted app is actually used.
   await app.register(fastifyHelmet, {
     contentSecurityPolicy: {
       useDefaults: false,
@@ -152,10 +173,6 @@ export async function buildApp(options: BuildOptions = {}): Promise<FastifyInsta
     maxAge: '5m',
   })
 
-  // Pages are rendered rather than sent from disk, so every asset they name can
-  // carry a hash of its own contents. In development nothing is cached, because
-  // tsx does not restart for a stylesheet and a stale page is how an afternoon
-  // goes missing.
   const pages = new Pages(config.staticDir, process.env.NODE_ENV === 'production')
   app.decorateReply('page', function (this: FastifyReply, name: string) {
     const html = pages.html(name)
@@ -175,8 +192,6 @@ export async function buildApp(options: BuildOptions = {}): Promise<FastifyInsta
     if (typeof type === 'string' && type.includes('text/html')) {
       reply.header('Cache-Control', 'no-cache')
     }
-    // Helmet has no opinion on this one, and an ebook sender has no business
-    // asking for any of them.
     reply.header(
       'Permissions-Policy',
       'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()'
@@ -193,6 +208,8 @@ export async function buildApp(options: BuildOptions = {}): Promise<FastifyInsta
   if (withAccounts) {
     await app.register(accounts, options.db ? { db: options.db } : {})
   }
+
+  watchExtensionRuns(app)
 
   await app.register(pairRoutes)
   await app.register(uploadRoutes)

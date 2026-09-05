@@ -34,8 +34,6 @@ async function sendJson(method, url, body) {
     if (!csrf && SAFE_METHODS.indexOf(method) === -1) await getStatus()
 
     const first = await attempt(method, url, body)
-    // A token goes stale when the session is replaced under us — signing in on
-    // another tab, say. One refresh tells us whether it is stale or genuinely refused.
     if (first.status !== 403 || !csrf) return first
 
     const before = csrf

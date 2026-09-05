@@ -145,7 +145,7 @@ onPage('admin', async (page) => {
     }
   }
 
-  const PANELS = ['people', 'backup', 'restart']
+  const PANELS = ['people', 'kfx', 'backup', 'restart']
 
   function showTab(name) {
     const known = [...PANELS, ...state.groups.map((group) => group.id)]
@@ -153,6 +153,7 @@ onPage('admin', async (page) => {
     state.tab = tab
 
     $('panel-people').hidden = tab !== 'people'
+    $('panel-kfx').hidden = tab !== 'kfx'
     $('panel-backup').hidden = tab !== 'backup'
     $('panel-restart').hidden = tab !== 'restart'
     $('panel-settings').hidden = PANELS.includes(tab)
@@ -173,6 +174,29 @@ onPage('admin', async (page) => {
   }
 
   page.on(window, 'hashchange', () => showTab(window.location.hash.replace('#', '')))
+
+  async function renderExtensions() {
+    const result = await send('/api/admin/extensions')
+    if (gone() || !result.ok || !result.data?.extensions) return
+
+    const list = result.data.extensions
+    $('kfxList').innerHTML = list
+      .map((one) => {
+        const mark = one.installed ? '&plus;' : '&minus;'
+        const words = one.installed
+          ? 'Installed'
+          : one.pending
+            ? 'Installing now'
+            : (one.blocked ?? 'Not installed')
+        return `<dt class="${one.installed ? '' : 'is-muted'}">${mark}</dt><dd class="${one.installed ? '' : 'is-muted'}">${one.label} — ${words}</dd>`
+      })
+      .join('')
+
+    const installed = list.filter((one) => one.installed).length
+    $('kfxState').textContent = result.data.busy
+      ? 'Something is installing'
+      : `${installed} of ${list.length} installed`
+  }
 
   async function load() {
     const [config, people] = await Promise.all([
@@ -455,8 +479,6 @@ onPage('admin', async (page) => {
       row.appendChild(unit)
     }
 
-    // Whichever is declared first is drawn first, so scheme sits before domain
-    // and port before encryption without either needing to say so.
     if (beside && beside.kind === 'choice') {
       const mine = state.settings.indexOf(spec)
       const theirs = state.settings.indexOf(beside)
@@ -532,9 +554,6 @@ onPage('admin', async (page) => {
     return block
   }
 
-  // Picking an encryption mode fills in the port that mode conventionally uses.
-  // A port that is not one of the three is one somebody chose on purpose, so it
-  // is left alone; everything else is a suggestion the next edit overrides.
   const PORT_FOR = { starttls: '587', ssl: '465', none: '25' }
   const CONVENTIONAL = ['25', '465', '587']
 
@@ -787,5 +806,6 @@ onPage('admin', async (page) => {
   if (gone()) return
 
   renderPeople()
+  void renderExtensions()
   showTab(window.location.hash.replace('#', ''))
 })

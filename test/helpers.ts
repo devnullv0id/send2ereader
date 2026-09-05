@@ -183,10 +183,6 @@ interface Injectable {
   rawInject?(opts: unknown): Promise<unknown>
 }
 
-// A signed-in page always holds the token the server handed it, so a test standing
-// in for that page should too. Anything that sets x-csrf-token itself is left alone,
-// which is how the tests for the check itself send a wrong one or none at all.
-// app.rawInject is the untouched original, for asserting what happens without it.
 export function asBrowser<T>(app: T): T {
   const target = app as Injectable
   const raw = target.inject.bind(target)
@@ -210,8 +206,6 @@ export function asBrowser<T>(app: T): T {
   return app
 }
 
-// The managed directories carry a marker file that says they are ours to empty,
-// so "what is in here" means everything except that.
 export async function contentsOf(dir: string): Promise<string[]> {
   const { readdir } = await import('node:fs/promises')
   const entries = await readdir(dir)

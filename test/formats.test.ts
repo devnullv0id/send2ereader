@@ -118,8 +118,8 @@ describe('the steps a conversion takes', () => {
     expect(repair?.optional, 'a cosmetic repair never fails the conversion').toBe(true)
   })
 
-  it('runs on AZW3, which carries the same defect', () => {
-    expect(steps('epub', 'azw3', { ...PLAIN, layoutFix: true })).toEqual(['calibre', 'layoutfix'])
+  it('leaves AZW3 alone, because the fixer opens an epub zip and AZW3 is not one', () => {
+    expect(steps('epub', 'azw3', { ...PLAIN, layoutFix: true })).toEqual(['calibre'])
   })
 
   it('leaves MOBI alone, which the fix does not cover', () => {

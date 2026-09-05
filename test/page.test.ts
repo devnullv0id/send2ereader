@@ -489,8 +489,6 @@ describe('asset cache busting', () => {
 
   const ASSET_REF = /(?:href|src)="(\/[\w./-]+\.(?:css|js))([^"]*)"/g
 
-  // download.html is the page a Kobo's own browser renders and loads the legacy
-  // stylesheet by a relative path. It is left exactly as it is, on purpose.
   const stamped = pages.filter((page) => page !== 'download.html')
 
   it('carries no hand-written version, because nobody bumps one any more', () => {

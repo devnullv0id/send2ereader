@@ -86,9 +86,6 @@ export function renewSessionCookie(req: FastifyRequest): void {
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 
-// Derived from the session id rather than stored beside it, so handing the token
-// out never rewrites the cookie and every tab on one session agrees on its value.
-// Ending the session ends the token with it.
 export function csrfToken(req: FastifyRequest): string | null {
   const sid = req.session.get('sid')
   if (!sid) return null
@@ -104,12 +101,8 @@ function sameToken(a: string, b: string): boolean {
 export function csrfRefusal(req: FastifyRequest): string | null {
   if (SAFE_METHODS.has(req.method)) return null
 
-  // A Kobo speaks to /kobo/<token>/… with its own bearer credential and no
-  // browser behind it, so there is nothing to forge and nowhere to carry a token.
   if (req.url.startsWith('/kobo/')) return null
 
-  // Anonymous pairing, upload and convert carry no cookie, so a forged request
-  // gains an attacker nothing they could not do by asking directly.
   if (!req.session.get('userId')) return null
 
   const expected = csrfToken(req)

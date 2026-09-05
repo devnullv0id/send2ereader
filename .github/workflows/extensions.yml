@@ -1,0 +1,102 @@
+name: Extensions
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'docker/extensions/**'
+      - '.github/workflows/extensions.yml'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ${{ vars.REGISTRY || 'ghcr.io' }}
+
+concurrency:
+  group: extensions-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+          - name: kfx
+            context: docker/extensions/kfx
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/s2e-mod-${{ matrix.name }}:latest
+          labels: |
+            org.opencontainers.image.title=send2ereader ${{ matrix.name }} extension
+            org.opencontainers.image.description=Unpacked over the server filesystem at container start
+            org.opencontainers.image.licenses=MIT
+          provenance: false
+          sbom: false
+
+      - name: Prove the entrypoint can read it the way it will at runtime
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          REPO="${{ github.repository_owner }}/s2e-mod-${{ matrix.name }}"
+          HOST="${{ env.REGISTRY }}"
+
+          CHALLENGE="$(curl -sSI "https://${HOST}/v2/" | tr -d '\r' \
+            | sed -n 's/^[Ww][Ww][Ww]-[Aa]uthenticate: *//p')"
+          REALM="$(printf '%s' "$CHALLENGE" | sed -n 's/.*realm="\([^"]*\)".*/\1/p')"
+          SERVICE="$(printf '%s' "$CHALLENGE" | sed -n 's/.*service="\([^"]*\)".*/\1/p')"
+          REALM="${REALM:-https://${HOST}/token}"
+          SERVICE="${SERVICE:-${HOST}}"
+
+          ask() {
+            curl -fsSL "$@" "${REALM}?scope=repository:${REPO}:pull&service=${SERVICE}" 2>/dev/null \
+              | sed -n 's/.*"token"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p'
+          }
+
+          TOKEN="$(ask || true)"
+          if [ -n "$TOKEN" ]; then
+            echo "anonymous pull works: anyone may install this extension"
+          else
+            echo "anonymous pull refused, trying as ${REGISTRY_USER}"
+            TOKEN="$(ask -u "${REGISTRY_USER}:${REGISTRY_PASSWORD}" || true)"
+            [ -n "$TOKEN" ] || { echo 'the registry would not issue a pull token at all'; exit 1; }
+          fi
+
+          ACCEPT='application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json,application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'
+          MANIFEST="$(curl -fsSL -H "Authorization: Bearer ${TOKEN}" -H "Accept: ${ACCEPT}" \
+            "https://${HOST}/v2/${REPO}/manifests/latest")"
+
+          BLOB="$(printf '%s' "$MANIFEST" | tr ',' '\n' \
+            | sed -n 's/.*"digest"[[:space:]]*:[[:space:]]*"\(sha256:[a-f0-9]\{64\}\)".*/\1/p' | tail -1)"
+
+          curl -fsSL -H "Authorization: Bearer ${TOKEN}" \
+            "https://${HOST}/v2/${REPO}/blobs/${BLOB}" > /tmp/layer.tgz
+
+          tar -tzf /tmp/layer.tgz | sed 's/^/  /'
+          tar -tzf /tmp/layer.tgz | grep -q 'etc/s2e/extensions/' \
+            || { echo 'no script where the entrypoint looks'; exit 1; }

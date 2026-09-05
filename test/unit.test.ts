@@ -189,15 +189,9 @@ describe('planConversion — EPUB layout fix', () => {
     }
   )
 
-  it('runs on AZW3 output, which carries the same defect', () => {
-    expect(steps(planConversion('kindle', 'epub', defaults, allTools))).toEqual([
-      'calibre',
-      'layoutfix',
-    ])
-    expect(steps(planConversion('kindle', 'cbz', defaults, allTools))).toEqual([
-      'calibre',
-      'layoutfix',
-    ])
+  it('is skipped for AZW3 output, which is not a zip the fixer can open', () => {
+    expect(steps(planConversion('kindle', 'epub', defaults, allTools))).toEqual(['calibre'])
+    expect(steps(planConversion('kindle', 'cbz', defaults, allTools))).toEqual(['calibre'])
   })
 
   it('is skipped for MOBI output, which the fix does not cover', () => {
@@ -235,7 +229,7 @@ describe('planConversion — KFX', () => {
 
   it('unwraps a .kfx-zip for a Kindle, since no device can open that container', () => {
     const plan = planConversion('kindle', 'kfxZip', defaults, allTools)
-    expect(steps(plan)).toEqual(['calibre', 'layoutfix'])
+    expect(steps(plan)).toEqual(['calibre'])
     expect(plan.targetFormat).toBe('azw3')
   })
 

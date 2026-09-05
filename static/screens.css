@@ -509,7 +509,6 @@
   text-align: center;
 }
 
-
 .format-grid {
   margin-top: 9px;
   display: grid;
@@ -1158,6 +1157,15 @@
   gap: 18px;
 }
 
+.pref-list--ext .pref {
+  flex-wrap: nowrap;
+}
+
+.pref-list--ext .pref__text {
+  max-width: none;
+  flex: 1 1 auto;
+}
+
 .pref-list--kobo .pref__text {
   max-width: 450px;
 }
@@ -1605,9 +1613,6 @@
   gap: 10px;
 }
 
-/* A step here can be a whole SMTP form, taller than the card. Scrolling the
-   card would carry the finished steps off the top with it, so the tiles hold
-   their place and only the open step moves inside its own room. */
 .setup-card {
   overflow: hidden;
 }
@@ -1617,8 +1622,6 @@
   min-height: 0;
 }
 
-/* Shrinks when it has to, never grows: a short step keeps its own height and
-   the tiles sit straight under it, exactly as they do on Send. */
 .setup-card .step-stack > .step:not(.step--summary) {
   flex: 0 1 auto;
   min-height: 0;
@@ -1640,8 +1643,6 @@
   display: none;
 }
 
-/* The assistant asks for more per step than any other screen here, so every
-   part of it is given room rather than stacked flush against the last one. */
 .setup-card .settings__line {
   margin-top: 24px;
 }
@@ -2159,8 +2160,6 @@
   z-index: 44;
 }
 
-/* Only .modal--manual bounded its height, so the two-factor QR and the ten
-   recovery codes ran off the bottom of a phone with no way to reach them. */
 .modal {
   width: 100%;
   max-width: 400px;
@@ -2173,6 +2172,11 @@
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-modal);
   animation: ste-in 0.16s ease;
+}
+
+.modal--cost {
+  max-width: 520px;
+  padding: 26px 28px;
 }
 
 .modal--codes {
@@ -2228,8 +2232,6 @@
   flex-wrap: wrap;
 }
 
-/* Pushes the first action away from the rest: a way out on one side, the two
-   ways forward on the other, so the quiet one is never mistaken for a choice. */
 .modal__actions--apart > :first-child {
   margin-right: auto;
 }
@@ -2569,10 +2571,6 @@
 .auth__pair .auth__field {
   min-width: 0;
 }
-
-/* The lone 420px rule that used to live here has moved into the small-screen
-   block at the end of the file, at the shared 640px breakpoint. Two name fields
-   side by side are cramped well before 420px anyway. */
 
 .auth__field-wrap {
   position: relative;
@@ -3125,15 +3123,7 @@
   }
 }
 
-/* ── Small screens ───────────────────────────────────────────────────────────
-   The page-level counterpart to the block at the end of app.css. Same
-   breakpoints: 640px phone, pointer:coarse for touch. */
-
 @media (max-width: 640px) {
-  /* The rail was a 178px sidebar that wrapped into a tall stack you scrolled
-     past to reach any content. It becomes a single row of tabs instead, sticky
-     under the header, keeping every section one tap away. Settings and Admin
-     share these classes, so this is both pages. */
   .settings__body {
     margin-top: 18px;
     gap: 14px;
@@ -3166,8 +3156,6 @@
     white-space: nowrap;
   }
 
-  /* The divider is a horizontal line between stacked items; in a row it has to
-     stand up. */
   .rail__divider {
     width: 1px;
     height: auto;
@@ -3183,9 +3171,6 @@
     margin-top: 0;
   }
 
-  /* Six 40px cells and their gaps come to 270px, which is wider than a modal on
-     a 320px screen, so the last one hung off the edge. They share the width
-     they have instead. */
   .key-cells,
   .key-cells--sm {
     width: 100%;
@@ -3202,7 +3187,6 @@
     max-width: 46px;
   }
 
-  /* Rather than a scrollbar under the key you are meant to copy by eye. */
   .tfa-secret {
     white-space: normal;
     overflow-x: visible;
@@ -3211,9 +3195,6 @@
 }
 
 @media (pointer: coarse) {
-  /* The whole summary row is the button, so it is the row that has to be big
-     enough — giving the Change label its own height only pushed its text to the
-     top of a 44px box. */
   .rail__item,
   .btn,
   .step--summary {

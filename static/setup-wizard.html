@@ -22,7 +22,7 @@
 		<div class="wrap">
 			<div class="page-head">
 				<h1 class="page-title">Set up this server</h1>
-				<p class="sub">Four things to decide, then it restarts once and is yours. The rest of the server waits here until they are answered.</p>
+				<p class="sub">Five things to decide, then it restarts once and is yours. The rest of the server waits here until they are answered.</p>
 			</div>
 
 			<div class="step-card setup-card">
@@ -31,7 +31,8 @@
 					<button type="button" class="step-rail__dot" data-step="2" role="tab" aria-label="Step 2, mail"></button>
 					<button type="button" class="step-rail__dot" data-step="3" role="tab" aria-label="Step 3, single sign-on"></button>
 					<button type="button" class="step-rail__dot" data-step="4" role="tab" aria-label="Step 4, accounts and passwords"></button>
-					<button type="button" class="step-rail__dot" data-step="5" role="tab" aria-label="Step 5, finish"></button>
+					<button type="button" class="step-rail__dot" data-step="5" role="tab" aria-label="Step 5, converters"></button>
+					<button type="button" class="step-rail__dot" data-step="6" role="tab" aria-label="Step 6, finish"></button>
 				</div>
 
 				<div class="step-stack" id="stack">
@@ -256,6 +257,66 @@
 				<div class="step" id="step5" hidden>
 					<div class="step__badge" id="badge5">5</div>
 					<div class="step__body">
+						<div class="step__title">Converters</div>
+						<p class="field-note field-note--wide">As it stands this server takes an EPUB and sends it to a Kobo as a KEPUB, repairing the layout on the way. That covers Kobo, Tolino and PocketBook and needs nothing further. Everything else — Kindle formats, PDF, and reading a KFX — is fetched onto this machine when you ask for it, because it is most of a gigabyte and most servers never use all of it.</p>
+
+						<div class="pref-list pref-list--ext">
+							<button type="button" class="pref" data-ext="calibre" data-toggle>
+								<span class="pref__text">
+									<span class="pref__label">calibre</span>
+									<span class="pref__desc">MOBI, AZW3, PDF, TXT and HTMLZ, and reading a KFX. The converter everything else here is built on. About 600MB and a few minutes.</span>
+								</span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+							<button type="button" class="pref" data-ext="pdfcrop" data-toggle>
+								<span class="pref__text">
+									<span class="pref__label">PDF margin cropping</span>
+									<span class="pref__desc">Trims the white border off a PDF so more of the page is text on a small screen. About 90MB. Stands on its own.</span>
+								</span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+							<button type="button" class="pref" data-ext="kfx" data-toggle>
+								<span class="pref__text">
+									<span class="pref__label">KFX</span>
+									<span class="pref__desc" id="wizKfxDesc">The format a modern Kindle prefers. Needs calibre, and Amazon’s Kindle Previewer running under Wine. About 3GB and up to twenty minutes.</span>
+								</span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+						</div>
+
+						<div class="pref-list pref-list--ext">
+							<button type="button" class="pref" data-ext="none" data-toggle>
+								<span class="pref__text">
+									<span class="pref__label">Nothing for now</span>
+									<span class="pref__desc">EPUB and KEPUB only. Any of these can be installed later under Admin → Converters.</span>
+								</span>
+								<span class="toggle"><span class="toggle__knob"></span></span>
+							</button>
+						</div>
+
+						<p class="field-note field-note--wide">Whatever you tick is fetched in the background, in that order, while you carry on. Nothing here waits for it, and the progress is on the Converters page.</p>
+
+						<div class="save-row">
+							<button type="button" class="btn btn--primary" data-next="5" id="extNext" disabled>Continue</button>
+							<span class="save-row__msg" id="msg5"></span>
+						</div>
+					</div>
+				</div>
+
+				<button type="button" class="step step--summary" id="step5Summary" hidden>
+					<span class="step__badge" id="badge5Summary">5</span>
+					<span class="step__summary-body">
+						<span class="step__summary-title">Converters</span>
+						<span class="step__summary-value" id="step5Value"></span>
+					</span>
+					<span class="step__summary-action">Change</span>
+				</button>
+
+				<div class="step__rule"></div>
+
+				<div class="step" id="step6" hidden>
+					<div class="step__badge" id="badge6">6</div>
+					<div class="step__body">
 						<div class="step__title">One restart and it is done</div>
 						<p class="field-note field-note--wide" id="finishText"></p>
 
@@ -271,16 +332,16 @@
 
 						<div class="save-row">
 							<button type="button" class="btn btn--primary" id="finishGo">Restart and finish</button>
-							<span class="save-row__msg" id="msg5"></span>
+							<span class="save-row__msg" id="msg6"></span>
 						</div>
 					</div>
 				</div>
 
-				<button type="button" class="step step--summary" id="step5Summary" hidden>
-					<span class="step__badge" id="badge5Summary">5</span>
+				<button type="button" class="step step--summary" id="step6Summary" hidden>
+					<span class="step__badge" id="badge6Summary">6</span>
 					<span class="step__summary-body">
 						<span class="step__summary-title">Finish</span>
-						<span class="step__summary-value" id="step5Value"></span>
+						<span class="step__summary-value" id="step6Value"></span>
 					</span>
 					<span class="step__summary-action">Change</span>
 				</button>

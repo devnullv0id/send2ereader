@@ -1,4 +1,7 @@
+import { existsSync } from 'node:fs'
+import { readFile, stat } from 'node:fs/promises'
 import { basename, dirname, join, sep } from 'node:path'
+import type { FastifyBaseLogger } from 'fastify'
 import { config } from '../config.js'
 import { fileExtensions, safeUnlink, supportsLayoutFix } from '../files.js'
 import { settings as store } from '../settings.js'
@@ -123,28 +126,39 @@ export class TooBusyError extends Error {
   }
 }
 
-// calibre will happily take a core and ten minutes over one book, and nothing
-// upstream of here bounds how many callers ask at once.
 let running = 0
 
 export function conversionsRunning(): number {
   return running
 }
 
+export interface ConversionLogging {
+  logger?: FastifyBaseLogger
+  job?: string
+}
+
 export async function runConversion(
   plan: ConversionPlan,
   inputPath: string,
   inputFormat: EbookFormat,
-  log?: StepLogger
+  logging: ConversionLogging = {}
 ): Promise<ConversionResult> {
   if (plan.steps.length === 0) return { path: inputPath, applied: [] }
   if (running >= store.int('CONVERSION_CONCURRENCY')) throw new TooBusyError()
 
   running += 1
   try {
-    return await convert(plan, inputPath, inputFormat, log)
+    return await convert(plan, inputPath, inputFormat, logging)
   } finally {
     running -= 1
+  }
+}
+
+async function bytesOf(path: string): Promise<number | undefined> {
+  try {
+    return (await stat(path)).size
+  } catch {
+    return undefined
   }
 }
 
@@ -152,21 +166,42 @@ async function convert(
   plan: ConversionPlan,
   inputPath: string,
   inputFormat: EbookFormat,
-  log?: StepLogger
+  logging: ConversionLogging
 ): Promise<ConversionResult> {
   let currentPath = inputPath
   let currentFormat = inputFormat
   const applied: ConverterName[] = []
   const produced: string[] = []
+  const skipped: ConverterName[] = []
+
+  const { logger, job } = logging
+  const from = inputFormat
+  const to = plan.targetFormat
+  const startedAt = Date.now()
+
+  logger?.info(
+    {
+      scope: 'convert',
+      job,
+      in: await bytesOf(inputPath),
+      steps: plan.steps.map((step) => step.converter).join(','),
+    },
+    `${from}→${to} started`
+  )
 
   try {
     for (const [index, step] of plan.steps.entries()) {
       const outputPath = buildStepPath(inputPath, step, index)
+      const stepStartedAt = Date.now()
       try {
-        await runStep(step, currentPath, currentFormat, outputPath)
+        await runStep(step, currentPath, currentFormat, outputPath, logging)
       } catch (err) {
         if (!step.optional) throw err
-        log?.(step.converter, err instanceof Error ? err.message : String(err))
+        skipped.push(step.converter)
+        logger?.warn(
+          { scope: step.converter, job, took: Date.now() - stepStartedAt },
+          `step failed: ${err instanceof Error ? err.message : String(err)}`
+        )
         await safeUnlink(outputPath)
         continue
       }
@@ -176,6 +211,10 @@ async function convert(
       currentFormat = step.format
     }
   } catch (err) {
+    logger?.error(
+      { scope: 'convert', job, took: Date.now() - startedAt },
+      `${from}→${to} failed: ${err instanceof Error ? err.message : String(err)}`
+    )
     await safeUnlink(inputPath)
     await Promise.all(produced.map(safeUnlink))
     throw err
@@ -184,23 +223,37 @@ async function convert(
   if (currentPath !== inputPath) await safeUnlink(inputPath)
   await Promise.all(produced.filter((p) => p !== currentPath).map(safeUnlink))
   if (currentFormat === 'azw3' || currentFormat === 'mobi') {
-    // Cosmetic, so a failure here must not lose the book — but silence meant a
-    // failed rewrite looked exactly like a book with nothing to strip.
     await unbrandKindleFile(currentPath).catch((err) => {
-      log?.('calibre', `could not strip the store identifiers: ${(err as Error).message}`)
+      logger?.warn(
+        { scope: 'calibre', job },
+        `could not strip the store identifiers: ${(err as Error).message}`
+      )
       return false
     })
   }
+
+  const outcome = skipped.length > 0 ? 'partial' : 'ok'
+  const finish = skipped.length > 0 ? logger?.warn.bind(logger) : logger?.info.bind(logger)
+  finish?.(
+    {
+      scope: 'convert',
+      job,
+      out: await bytesOf(currentPath),
+      took: Date.now() - startedAt,
+      failed: skipped.length > 0 ? skipped.join(',') : undefined,
+    },
+    `${from}→${to} ${outcome}`
+  )
+
   return { path: currentPath, applied }
 }
-
-export type StepLogger = (converter: ConverterName, reason: string) => void
 
 async function runStep(
   step: ConversionStep,
   inputPath: string,
   inputFormat: EbookFormat,
-  outputPath: string
+  outputPath: string,
+  logging: ConversionLogging = {}
 ): Promise<void> {
   const cwd = dirname(inputPath)
   const inputName = basename(inputPath)
@@ -213,7 +266,11 @@ async function runStep(
     [inputName]: `infile${fileExtensions[inputFormat]}`,
     [outputName]: `outfile${fileExtensions[step.format]}`,
   }
-  const opts = { cwd, redact }
+  const opts = {
+    cwd,
+    redact,
+    log: logging.logger?.child({ scope: step.converter, job: logging.job }),
+  }
 
   switch (step.converter) {
     case 'kepubify':
@@ -300,8 +357,6 @@ async function expectSuccess(
   }
 }
 
-// One call, two answers: the plugin list is the same list for both, and asking
-// calibre twice costs a second of boot for nothing.
 async function detectKfxPlugins(): Promise<{ input: boolean; output: boolean }> {
   try {
     const result = await runCommand(config.bin.calibreCustomize, ['--list-plugins'], {
@@ -317,6 +372,23 @@ async function detectKfxPlugins(): Promise<{ input: boolean; output: boolean }> 
   }
 }
 
+const PREVIEWER_MARKER = '/etc/s2e/kfx-previewer'
+
+async function previewerAvailable(): Promise<boolean> {
+  if (config.kfxPreviewerPath) return existsSync(config.kfxPreviewerPath)
+  try {
+    const recorded = (await readFile(PREVIEWER_MARKER, 'utf8')).trim()
+    return recorded.length > 0 && existsSync(recorded)
+  } catch {
+    return false
+  }
+}
+
+export async function refreshTools(tools: ToolAvailability): Promise<ToolAvailability> {
+  Object.assign(tools, await detectTools())
+  return tools
+}
+
 export async function detectTools(): Promise<ToolAvailability> {
   const [kepubify, calibre, pdfcropmargins, layoutFix] = await Promise.all([
     isToolAvailable(config.bin.kepubify),
@@ -330,7 +402,7 @@ export async function detectTools(): Promise<ToolAvailability> {
     calibre,
     pdfcropmargins,
     kfxInput: kfx.input,
-    kfxOutput: kfx.output,
+    kfxOutput: kfx.output && (await previewerAvailable()),
     layoutFix,
   }
 }

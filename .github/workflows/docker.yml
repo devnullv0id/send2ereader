@@ -8,6 +8,11 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
+      ref:
+        description: 'Tag or branch to build, e.g. v1.1.0. Empty means whatever triggered this.'
+        required: false
+        default: ''
+        type: string
       bump:
         description: 'Version bump for this build'
         required: false
@@ -20,21 +25,16 @@ on:
           - major
 
 env:
-  REGISTRY: ghcr.io
+  REGISTRY: ${{ vars.REGISTRY || 'ghcr.io' }}
   IMAGE_NAME: ${{ github.repository }}
 
-# Keyed on the commit rather than the ref, so pushing master and its version
-# tag together does not build the same tree twice and leave the index each run
-# published orphaned by the next.
 concurrency:
   group: docker-${{ github.sha }}
   cancel-in-progress: true
 
 jobs:
-  # Nothing gets published past a red suite. Every push to master used to tag,
-  # push :latest and cut a release without running the tests once.
   check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
     permissions:
       contents: read
     steps:
@@ -42,6 +42,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref }}
 
       - name: Use Node
         uses: actions/setup-node@v4
@@ -49,11 +50,6 @@ jobs:
           node-version: 24
           cache: npm
 
-      # A local hook can be skipped with --no-verify, and the leak this exists
-      # for was pushed a day after it was committed, when the working tree was
-      # already clean. This looks at the whole history, from CI, where nobody
-      # can wave it through. It needs no dependencies, so it runs before install
-      # and fails in seconds.
       - name: Look for credentials in the history
         run: node scripts/scan-for-credentials.mjs --all
 
@@ -71,7 +67,7 @@ jobs:
 
   version:
     needs: check
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
     permissions:
       contents: read
     outputs:
@@ -86,6 +82,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ inputs.ref }}
 
       - name: Work out the next version
         id: next
@@ -150,7 +147,7 @@ jobs:
 
   build-and-push:
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: write
@@ -158,6 +155,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -165,7 +164,7 @@ jobs:
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GHCR
+      - name: Log in to the registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -182,19 +181,13 @@ jobs:
           tags: |
             type=raw,value=${{ needs.version.outputs.version }}
             type=raw,value=${{ needs.version.outputs.major_minor }},enable=${{ needs.version.outputs.stable == 'true' }}
-            type=raw,value=latest,enable=${{ needs.version.outputs.stable == 'true' }}
+            type=raw,value=latest,enable=${{ needs.version.outputs.stable == 'true' && !inputs.ref }}
           labels: |
             org.opencontainers.image.title=send2ereader
             org.opencontainers.image.description=Send ebooks to Kobo/Kindle ereaders easily
             org.opencontainers.image.licenses=MIT
             org.opencontainers.image.version=${{ needs.version.outputs.version }}
 
-      # One architecture at a time, each pushed under its own tag. Building both
-      # at once makes buildx push an index whose per-architecture children have
-      # no tags of their own: in the packages list they read as debris, and
-      # deleting them empties every tag that points at them — which is how every
-      # published tag of this image was broken once. Built this way, the children
-      # are tagged and the index below is stitched from those tags.
       - name: Build and push amd64
         uses: docker/build-push-action@v6
         with:
@@ -205,10 +198,8 @@ jobs:
             KFX_INPUT_PLUGIN_URL=${{ vars.KFX_INPUT_PLUGIN_URL }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}-amd64
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=amd64
-          cache-to: type=gha,mode=max,scope=amd64
-          # Both of these would add manifests of their own, and they arrive
-          # untagged.
+          cache-from: ${{ vars.BUILD_CACHE != 'off' && 'type=gha,scope=amd64' || '' }}
+          cache-to: ${{ vars.BUILD_CACHE != 'off' && 'type=gha,mode=max,scope=amd64' || '' }}
           provenance: false
           sbom: false
 
@@ -222,8 +213,8 @@ jobs:
             KFX_INPUT_PLUGIN_URL=${{ vars.KFX_INPUT_PLUGIN_URL }}
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ needs.version.outputs.version }}-arm64
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=arm64
-          cache-to: type=gha,mode=max,scope=arm64
+          cache-from: ${{ vars.BUILD_CACHE != 'off' && 'type=gha,scope=arm64' || '' }}
+          cache-to: ${{ vars.BUILD_CACHE != 'off' && 'type=gha,mode=max,scope=arm64' || '' }}
           provenance: false
           sbom: false
 
@@ -248,15 +239,12 @@ jobs:
             echo "ok  ${TAG}"
           done
 
-      # The unit suite stubs every converter off, which is how epub-to-pdf was
-      # broken in every image ever built and stayed green. This runs the image
-      # that was just pushed and converts a real book into every format it
-      # offers, so a missing library is caught here rather than by a reader.
       - name: Convert a real book in the image that was just built
         run: |
           IMAGE="$(printf '%s' '${{ steps.meta.outputs.tags }}' | head -1)"
           echo "Smoke testing ${IMAGE}"
-          docker run -d --name smoke -p 3001:3001 -e ACCOUNTS=false "${IMAGE}"
+          docker run -d --name smoke -p 3001:3001 \
+            -e ACCOUNTS=false -e CONVERT_RATE_MAX=100 "${IMAGE}"
 
           for i in $(seq 1 60); do
             if curl -fsS http://127.0.0.1:3001/healthz >/dev/null 2>&1; then break; fi
@@ -277,7 +265,7 @@ jobs:
   tag:
     needs: [version, build-and-push]
     if: needs.version.outputs.create_tag == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
     permissions:
       contents: write
 
@@ -298,18 +286,34 @@ jobs:
             exit 0
           fi
 
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.name 'CI'
+          git config user.email 'ci@send2ereader.local'
           git tag "$TAG"
           git push origin "$TAG"
 
   release:
     needs: [version, build-and-push, tag]
     if: ${{ !cancelled() && needs.build-and-push.result == 'success' && needs.tag.result != 'failure' }}
-    uses: ./.github/workflows/release.yml
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
     permissions:
       contents: write
-    with:
-      tag: ${{ needs.version.outputs.tag }}
-      version: ${{ needs.version.outputs.version }}
-      prerelease: ${{ needs.version.outputs.stable != 'true' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Use Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Publish the release
+        env:
+          RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          TAG: ${{ needs.version.outputs.tag }}
+          VERSION: ${{ needs.version.outputs.version }}
+          PRERELEASE: ${{ needs.version.outputs.stable != 'true' }}
+        run: node scripts/publish-release.mjs

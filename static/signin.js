@@ -174,15 +174,10 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
     return check
   }
 
-
-  // The phrase exists in readable form exactly once, in the reply that made the
-  // account. Nothing carries on until somebody says they have written it down.
   function showRecoveryPhrase(phrase, onDone) {
     const host = $('codesPhrase')
     if (!host || !phrase) return onDone()
 
-    // One string, not six chips: it is one thing to copy, one thing to write
-    // down and one thing to type back in.
     host.replaceChildren()
     const cell = document.createElement('span')
     cell.className = 'codes__word'
@@ -237,8 +232,6 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
     function dismissNotice() {
       $('noticeModal').hidden = true
 
-      // the reason is spent once it has been read; leaving it in the address
-      // would raise the same modal on every reload
       const here = new URL(window.location.href)
       here.searchParams.delete('error')
       here.searchParams.delete('moved')
@@ -378,8 +371,6 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
     }
 
     const recoveryLink = $('useAccountCode')
-    // Only where a phrase was ever issued. With mail configured the way back is
-    // the reset link, and offering a phrase nobody has is a dead end.
     if (recoveryLink) recoveryLink.hidden = status?.recoveryPhraseInUse !== true
     if (recoveryLink && !recoveryLink.hidden) {
       let usingCode = false
@@ -692,8 +683,6 @@ onPage(['login', 'register', 'forgot', 'reset', 'setup', 'linked'], async (page)
 
       if (result.ok) {
         cacheUser(result.data?.user)
-        // The account that claims the server is the one that has to configure
-        // it, and this is the only moment we know for certain who that is.
         const next = result.data?.claimed ? '/setup/start' : '/settings#profile'
         showRecoveryPhrase(result.data?.recoveryPhrase, () => {
           window.location.href = next

@@ -841,7 +841,7 @@ onPage('send', (page) => {
 
   function optionText(fix, live, enabled) {
     const why =
-      live && !enabled ? (fix.available ? fix.reason : 'Not installed on this server.') : ''
+      live && !enabled ? (fix.available ? fix.reason : 'Not installed on this server. An administrator can add it under Admin → Converters.') : ''
     return [fix.description || '', why].filter(Boolean).join(' ')
   }
 
@@ -1329,9 +1329,6 @@ onPage('send', (page) => {
     clearFile()
   })
 
-  // Confirmed, or never asked for. A server with no mail sends the confirmation
-  // link to its log, so telling somebody to go and confirm is telling them to go
-  // and read a file they cannot reach.
   function settledAddress(status) {
     if (!status?.user) return false
     return status.user.emailVerified === true || status.verificationNeeded === false

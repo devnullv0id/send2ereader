@@ -43,8 +43,6 @@ function requireAdmin(req: FastifyRequest, reply: FastifyReply): FastifyReply | 
   return undefined
 }
 
-// The address is fixed at boot, so a stored value that no longer matches what
-// the process is using is a restart somebody still owes.
 function addressPending(): boolean {
   const wanted = settings.str('DOMAIN')
   if (!wanted) return false
@@ -54,7 +52,6 @@ function addressPending(): boolean {
 const ADDRESS_KEYS = new Set(['DOMAIN', 'PROTOCOL'])
 
 function settingsPayload(app: FastifyInstance) {
-  // One lookup for the whole page rather than one per overridden field.
   const names = new Map<string, string>()
   for (const user of app.repos.users.listAll()) {
     const named = `${user.firstName} ${user.lastName}`.trim()
@@ -66,7 +63,6 @@ function settingsPayload(app: FastifyInstance) {
     if (!change) return null
     return {
       at: change.at,
-      // An account deleted since is not a mystery worth a blank line.
       by: change.by ? (names.get(change.by) ?? 'an account since deleted') : 'the environment',
     }
   }
@@ -205,10 +201,6 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
       const problem = problemWith(spec, req.body.value!)
       if (problem) return reply.code(400).send({ ok: false, error: problem })
 
-      // A passkey is bound to the address it was made under. Moving the address
-      // does not weaken them, it orphans them: they would simply stop being
-      // offered, with nothing on screen saying why. So they go, deliberately,
-      // and everyone who had one is told at their next sign-in.
       const movesAddress = ADDRESS_KEYS.has(spec.key) && req.body.value !== settings.raw(spec.key)
       const holders = movesAddress ? app.repos.passkeys.userIdsWithAny() : []
 

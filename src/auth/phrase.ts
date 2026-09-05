@@ -1,8 +1,5 @@
 import { randomInt } from 'node:crypto'
 
-// Short, common, unambiguous English words. No plurals of each other, no pairs
-// that sound alike over a phone, nothing that changes meaning when misheard.
-// 256 of them, so each word carries exactly eight bits.
 const WORDS = [
   'able',
   'acid',
@@ -268,12 +265,6 @@ export function phraseWordCount(): number {
   return WORDS.length
 }
 
-// Six words from 256 is forty-eight bits, against an endpoint that allows ten
-// attempts every five minutes. Guessing it is not a strategy.
-//
-// Joined by hyphens, so it is one string to copy, one string to write down and
-// one string to type. Spaces and hyphens are stripped before hashing, so a
-// phrase written down either way still gets in.
 export function makeRecoveryPhrase(): string {
   const picked: string[] = []
   for (let i = 0; i < PHRASE_WORDS; i++) picked.push(WORDS[randomInt(WORDS.length)]!)

@@ -127,9 +127,45 @@ describe('asking the server to restart', () => {
 })
 
 describe('working out whether this is a container', () => {
-  it('says no on a machine that is not one', () => {
-    const found = detectContainer()
-    expect(found.inContainer, 'this test host is not a container').toBe(false)
+  const machine = (files: Record<string, string>) => ({
+    exists: (path: string) => path in files,
+    read: (path: string) => {
+      if (!(path in files)) throw new Error(`no ${path}`)
+      return files[path] as string
+    },
+  })
+
+  it('says no when nothing on the machine says otherwise', () => {
+    const found = detectContainer(machine({}))
+    expect(found.inContainer).toBe(false)
     expect(found.evidence).toBe('')
+  })
+
+  it('believes the file docker leaves behind', () => {
+    expect(detectContainer(machine({ '/.dockerenv': '' }))).toEqual({
+      inContainer: true,
+      evidence: '/.dockerenv',
+    })
+  })
+
+  it('believes the one podman leaves behind', () => {
+    expect(detectContainer(machine({ '/run/.containerenv': '' }))).toEqual({
+      inContainer: true,
+      evidence: '/run/.containerenv',
+    })
+  })
+
+  it('falls back to what pid 1 is in, and says which', () => {
+    const found = detectContainer(machine({ '/proc/1/cgroup': '0::/kubepods/besteffort/pod1' }))
+    expect(found).toEqual({ inContainer: true, evidence: 'cgroup:kubepods' })
+  })
+
+  it('says no for an ordinary cgroup line', () => {
+    expect(detectContainer(machine({ '/proc/1/cgroup': '0::/init.scope' })).inContainer).toBe(false)
+  })
+
+  it('always says why, on whatever machine the tests are running', () => {
+    const found = detectContainer()
+    expect(found.evidence === '').toBe(!found.inContainer)
   })
 })

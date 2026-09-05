@@ -702,10 +702,6 @@ describe('the headers every response carries', () => {
     expect(res.headers['strict-transport-security'], 'so no HSTS to strand anyone').toBeUndefined()
   })
 
-  // helmet turns this on by default. It rewrites every stylesheet, script and
-  // font request to https://, so on a plain-http instance the page loads and
-  // nothing else does. It is a no-op on localhost, so it survives local testing
-  // and only appears once the app is opened by IP — which is how it is used.
   it('does not upgrade its own assets to https it cannot serve', async () => {
     const csp = String((await app.inject({ url: '/' })).headers['content-security-policy'])
     expect(csp, 'the policy is there to check').toContain("default-src 'self'")
