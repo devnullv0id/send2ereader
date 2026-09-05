@@ -1,23 +1,92 @@
 name: Extensions
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - 'docker/extensions/**'
-      - '.github/workflows/extensions.yml'
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      ref:
+        required: false
+        type: string
+        default: ''
+      move_latest:
+        required: false
+        type: boolean
+        default: true
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to stamp on the image, e.g. 2.0.4'
+        required: true
+        type: string
+      ref:
+        description: 'Tag or commit to build it from, e.g. v2.0.4. Empty means master.'
+        required: false
+        type: string
+        default: ''
+      move_latest:
+        description: 'Also move :latest onto this build'
+        required: false
+        type: boolean
+        default: false
 
 env:
   REGISTRY: ${{ vars.REGISTRY || 'ghcr.io' }}
 
 concurrency:
-  group: extensions-${{ github.sha }}
+  group: extensions-${{ inputs.version }}-${{ inputs.ref }}
   cancel-in-progress: true
 
 jobs:
+  decide:
+    runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
+    permissions:
+      contents: read
+    outputs:
+      build: ${{ steps.changed.outputs.build }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Decide whether the extensions changed
+        id: changed
+        env:
+          VERSION: ${{ inputs.version }}
+          REF: ${{ inputs.ref }}
+        run: |
+          set -eu
+
+          if [ -n "$REF" ]; then
+            echo "Building ${REF} because it was asked for"
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          PREV=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname \
+            | grep -v -- '-' | grep -v -x "v${VERSION}" | head -n1 || true)
+
+          if [ -z "$PREV" ]; then
+            echo "No earlier version to compare against"
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if git diff --quiet "$PREV" HEAD -- docker/extensions .github/workflows/extensions.yml; then
+            echo "Nothing under docker/extensions changed since ${PREV}"
+            echo 'build=false' >> "$GITHUB_OUTPUT"
+          else
+            echo "Changed since ${PREV}"
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+          fi
+
   publish:
+    needs: decide
+    if: needs.decide.outputs.build == 'true'
     runs-on: ${{ vars.RUNS_ON || 'ubuntu-latest' }}
     permissions:
       contents: read
@@ -32,6 +101,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v4
@@ -43,17 +114,36 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.FORGE_TOKEN || secrets.GITHUB_TOKEN }}
 
+      - name: Work out the tags
+        id: tags
+        env:
+          VERSION: ${{ inputs.version }}
+          MOVE_LATEST: ${{ inputs.move_latest }}
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/s2e-mod-${{ matrix.name }}
+        run: |
+          set -eu
+
+          TAGS="${IMAGE}:${VERSION}"
+          if [ "$MOVE_LATEST" = 'true' ]; then
+            TAGS="${TAGS},${IMAGE}:latest"
+          fi
+
+          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
+          echo "Publishing ${TAGS}"
+
       - name: Build and push ${{ matrix.name }}
         uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           push: true
           platforms: linux/amd64
-          tags: ${{ env.REGISTRY }}/${{ github.repository_owner }}/s2e-mod-${{ matrix.name }}:latest
+          tags: ${{ steps.tags.outputs.tags }}
           labels: |
             org.opencontainers.image.title=send2ereader ${{ matrix.name }} extension
             org.opencontainers.image.description=Unpacked over the server filesystem at container start
             org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.version=${{ inputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
           provenance: false
           sbom: false
 
@@ -61,6 +151,7 @@ jobs:
         env:
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_PASSWORD: ${{ secrets.FORGE_TOKEN || secrets.GITHUB_TOKEN }}
+          VERSION: ${{ inputs.version }}
         run: |
           set -eu
           REPO="${{ github.repository_owner }}/s2e-mod-${{ matrix.name }}"
@@ -89,7 +180,7 @@ jobs:
 
           ACCEPT='application/vnd.oci.image.manifest.v1+json,application/vnd.docker.distribution.manifest.v2+json,application/vnd.oci.image.index.v1+json,application/vnd.docker.distribution.manifest.list.v2+json'
           MANIFEST="$(curl -fsSL -H "Authorization: Bearer ${TOKEN}" -H "Accept: ${ACCEPT}" \
-            "https://${HOST}/v2/${REPO}/manifests/latest")"
+            "https://${HOST}/v2/${REPO}/manifests/${VERSION}")"
 
           BLOB="$(printf '%s' "$MANIFEST" | tr ',' '\n' \
             | sed -n 's/.*"digest"[[:space:]]*:[[:space:]]*"\(sha256:[a-f0-9]\{64\}\)".*/\1/p' | tail -1)"

@@ -283,6 +283,18 @@ jobs:
         if: always()
         run: docker rm -f smoke || true
 
+  extensions:
+    needs: [version, build-and-push]
+    if: ${{ !cancelled() && needs.build-and-push.result == 'success' }}
+    uses: ./.github/workflows/extensions.yml
+    permissions:
+      contents: read
+      packages: write
+    with:
+      version: ${{ needs.version.outputs.version }}
+      move_latest: ${{ needs.version.outputs.stable == 'true' }}
+    secrets: inherit
+
   tag:
     needs: [version, build-and-push]
     if: needs.version.outputs.create_tag == 'true'
